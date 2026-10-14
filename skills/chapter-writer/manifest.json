@@ -1,0 +1,13 @@
+{
+  "name": "chapter-writer",
+  "version": "1.0.0",
+  "description": "Write one chapter as typed editable blocks. Use known vocabulary when supplied; if absent, explain limitations in the summary. Respect individual lesson mode. Preserve exact approved text supplied in previousContext; identify requested changes separately. Images are prompt blocks, not generated assets.",
+  "output": "chapter",
+  "mode": "structured-json",
+  "requiredTools": [
+    "read_book_spec",
+    "write_chapter"
+  ],
+  "inputSchema": "BookSpecAndBrief",
+  "outputSchema": "chapter"
+}

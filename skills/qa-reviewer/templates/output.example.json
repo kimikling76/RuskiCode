@@ -1,0 +1,11 @@
+{
+  "issues": [
+    {
+      "severity": "info",
+      "location": "Todas las páginas",
+      "problem": "No se han entregado páginas rasterizadas.",
+      "suggestion": "Ejecutar revisión visual después del render."
+    }
+  ],
+  "summary": "Ejemplo de revisión textual; no se ha realizado QA visual."
+}

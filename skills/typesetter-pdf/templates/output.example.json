@@ -1,0 +1,10 @@
+{
+  "format": "A4",
+  "checks": [
+    "Comprobar márgenes, fuentes y saltos de página."
+  ],
+  "warnings": [
+    "Falta conectar el renderizador."
+  ],
+  "readyForRender": false
+}

@@ -1,0 +1,14 @@
+{
+  "name": "image-illustrator",
+  "version": "1.0.0",
+  "description": "Prepare coherent image prompts and alternative text. Enumerate required visual reference files and missing references. Never replace approved faces or invent approval. Follow the supplied book design tokens. No image generator is available in this call: output prompt plans only.",
+  "output": "imagePlan",
+  "mode": "structured-json",
+  "requiredTools": [
+    "read_book_spec",
+    "generate_image",
+    "list_assets"
+  ],
+  "inputSchema": "BookSpecAndBrief",
+  "outputSchema": "imagePlan"
+}

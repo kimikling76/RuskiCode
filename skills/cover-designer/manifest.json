@@ -1,0 +1,13 @@
+{
+  "name": "cover-designer",
+  "version": "1.0.0",
+  "description": "Prepare a cover plan with independent title, subtitle, author and image prompt. Preserve an approved cover when given. Avoid rendering all text into the illustration. List missing references. This output is a plan, not a generated cover.",
+  "output": "coverPlan",
+  "mode": "structured-json",
+  "requiredTools": [
+    "read_book_spec",
+    "generate_image"
+  ],
+  "inputSchema": "BookSpecAndBrief",
+  "outputSchema": "coverPlan"
+}

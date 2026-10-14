@@ -1,0 +1,14 @@
+{
+  "name": "typesetter-pdf",
+  "version": "1.0.0",
+  "description": "Prepare a typesetting checklist based on the Book Spec and supplied layout. Check margins, bleed, fonts, headings, widows/orphans and page breaks. readyForRender must be false if layout, required assets or renderer are missing. PDF rendering is not available in this call: do not claim an export exists.",
+  "output": "renderPlan",
+  "mode": "structured-json",
+  "requiredTools": [
+    "read_book_spec",
+    "render_pdf",
+    "inspect_page"
+  ],
+  "inputSchema": "BookSpecAndBrief",
+  "outputSchema": "renderPlan"
+}

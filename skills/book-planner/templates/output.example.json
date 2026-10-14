@@ -1,0 +1,16 @@
+{
+  "title": "Русский код",
+  "chapters": [
+    {
+      "id": "unit-1",
+      "title": "Знакомство",
+      "objective": "Presentar personas con estructuras A1.",
+      "sections": [
+        "Кто это?",
+        "Это…"
+      ],
+      "estimatedPages": 6
+    }
+  ],
+  "questions": []
+}

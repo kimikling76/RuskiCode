@@ -1,0 +1,13 @@
+{
+  "name": "qa-reviewer",
+  "version": "1.0.0",
+  "description": "Review supplied content or structured layout for A1 progression, vocabulary recycling, continuity, adult design and one-to-one usage. Report actionable issues with location and severity. If no rasterized pages were supplied, explicitly say visual QA was not performed. Do not invent defects in images you cannot see.",
+  "output": "review",
+  "mode": "structured-json",
+  "requiredTools": [
+    "read_book_spec",
+    "inspect_page"
+  ],
+  "inputSchema": "BookSpecAndBrief",
+  "outputSchema": "review"
+}

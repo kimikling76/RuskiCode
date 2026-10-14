@@ -1,0 +1,14 @@
+{
+  "name": "layout-designer",
+  "version": "1.0.0",
+  "description": "Propose page JSON with sequential page numbers and independently editable blocks. Preserve supplied text. Use consistent typography, safe margins, compact headers, numbered exercises and audio IDs only when known. Do not manufacture assetId values. Balance density for adult learners.",
+  "output": "layout",
+  "mode": "structured-json",
+  "requiredTools": [
+    "read_book_spec",
+    "set_design_tokens",
+    "build_layout"
+  ],
+  "inputSchema": "BookSpecAndBrief",
+  "outputSchema": "layout"
+}

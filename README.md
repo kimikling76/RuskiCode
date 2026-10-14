@@ -1,4 +1,4 @@
-# RuskiCode Studio — Fase 4
+# RuskiCode Studio — Fase 5
 
 Next.js App Router + TypeScript + Tailwind, componentes estilo shadcn con Radix, Framer Motion, Lenis, Zustand y TanStack Query.
 
@@ -56,3 +56,17 @@ Los adaptadores actualmente declaran `supportsTools: false` y `supportsVision: f
 ### Validación
 
 `npm run test`, `npm run typecheck`, `npm run build`. Las pruebas de protocolo usan transporte simulado y no consumen saldo. Sin credenciales no se puede validar una generación real. Referencias: https://docs.kie.ai/30442144e0 ; https://docs.kie.ai/market/gemini/gemini-3-8-flash-openai ; https://platform.claude.com/docs/en/build-with-claude/streaming ; https://ai.google.dev/api/generate-content ; https://developers.openai.com/api/reference/resources/chat .
+
+## Fase 5 — Book Spec y skills
+
+Book Spec validado con Zod: identidad, público, idioma/nivel, formato, márgenes/sangrado, estimaciones, referencias, glosario, memoria, reglas, pedagogía y design tokens. Valores iniciales de «Русский код» son una plantilla editorial que el autor debe revisar contra sus archivos actuales; no se importaron PDFs ni personajes visuales aprobados.
+
+En un proyecto de categoría Libro, abrir «Contexto y reglas del libro». Guardar, importar o exportar JSON; la configuración se almacena localmente por proyecto. Cada petición del chat recibe el Book Spec guardado. Campos no expuestos en el formulario siguen disponibles por importación validada. Referencias y adjuntos no se descargan ni se leen aún.
+
+Siete paquetes dentro de `skills/`: SKILL.md, manifest validado, plantilla de salida. Loader con lista permitida (sin rutas arbitrarias) y trazado de archivos de Next para Vercel. Las skills pueden ejecutarse desde el proyecto: resultados JSON validados, hasta tres intentos de reparación, consumo acumulado cuando lo informa el proveedor. Sin claves, acceso y Redis configurados no habrá ejecución real.
+
+Los modelos de chat reciben instrucciones y esquema JSON completos. No se activan llamadas nativas a herramientas; se usa el modo estructurado compatible con los adaptadores actuales. `src/lib/books/tools.ts` expone herramientas puras tipadas para leer/actualizar spec, outline y tokens; no es todavía un servidor MCP. Actualizar la spec mediante herramienta exige la señal de aprobación del autor.
+
+Skills de imagen/portada producen planes de prompts, typesetter produce checklist con `readyForRender:false`, QA produce revisión textual. Generación de assets, render PDF, QA visual, almacenamiento remoto y pipeline persistente son Fase 6/7.
+
+Pruebas: validación de todos los manifests y ejemplos, rechazo de traversal, contexto en cada intento, límite de tres intentos, aprobación y datos editoriales.

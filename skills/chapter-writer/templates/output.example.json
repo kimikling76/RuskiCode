@@ -1,0 +1,17 @@
+{
+  "title": "Знакомство",
+  "summary": "Ejemplo conceptual; revisar contra el material aprobado.",
+  "blocks": [
+    {
+      "type": "heading",
+      "id": "heading-1",
+      "text": "Знакомство",
+      "level": 1
+    },
+    {
+      "type": "paragraph",
+      "id": "paragraph-1",
+      "text": "Это Миша. Миша — ученик."
+    }
+  ]
+}

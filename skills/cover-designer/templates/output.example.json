@@ -1,0 +1,12 @@
+{
+  "title": "Русский код",
+  "subtitle": "A1",
+  "author": "Andrei Pouganov",
+  "imagePrompt": "Conservar la portada aprobada y su referencia visual.",
+  "requiredReferences": [
+    "Portada aprobada"
+  ],
+  "notes": [
+    "Los textos se mantienen como elementos independientes."
+  ]
+}

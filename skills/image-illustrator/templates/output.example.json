@@ -1,0 +1,15 @@
+{
+  "prompts": [
+    {
+      "id": "illustration-1",
+      "prompt": "Ilustrar al personaje aprobado sobre fondo blanco; mantener sus rasgos.",
+      "alt": "Personaje del libro",
+      "requiredReferences": [
+        "Ficha visual aprobada del personaje"
+      ]
+    }
+  ],
+  "warnings": [
+    "No hay un generador conectado en esta skill."
+  ]
+}

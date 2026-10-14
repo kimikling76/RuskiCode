@@ -1,0 +1,13 @@
+{
+  "name": "book-planner",
+  "version": "1.0.0",
+  "description": "Plan book structure, learning objectives and scope. Ask at most 5 unresolved questions in the questions array. Use estimated page counts; do not invent approved material. Align sections with the skill chain and previously learned vocabulary.",
+  "output": "outline",
+  "mode": "structured-json",
+  "requiredTools": [
+    "read_book_spec",
+    "create_outline"
+  ],
+  "inputSchema": "BookSpecAndBrief",
+  "outputSchema": "outline"
+}

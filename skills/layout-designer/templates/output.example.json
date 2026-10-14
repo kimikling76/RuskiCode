@@ -1,0 +1,31 @@
+{
+  "designTokens": {
+    "primary": "#216B5C",
+    "accent": "#2474B8",
+    "bodyFont": "Arial",
+    "headingFont": "Arial",
+    "bodySizePt": 11,
+    "headingSizePt": 24,
+    "lineHeight": 1.4,
+    "columns": 1
+  },
+  "pages": [
+    {
+      "number": 1,
+      "title": "Знакомство",
+      "blocks": [
+        {
+          "type": "heading",
+          "id": "heading-1",
+          "text": "Знакомство",
+          "level": 1
+        },
+        {
+          "type": "paragraph",
+          "id": "paragraph-1",
+          "text": "Это Миша. Миша — ученик."
+        }
+      ]
+    }
+  ]
+}
