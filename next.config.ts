@@ -1,3 +1,3 @@
 import type { NextConfig } from 'next';
-const config: NextConfig = { poweredByHeader: false, serverExternalPackages: ['@prisma/client','bullmq','ioredis'], outputFileTracingIncludes: { "/api/skills": ["./skills/**/*"], "/api/skills/run": ["./skills/**/*"], "/api/chat": ["./skills/**/*"] } };
+const config: NextConfig = { poweredByHeader: false, serverExternalPackages: ['@prisma/client','bullmq','ioredis','playwright-core','@sparticuz/chromium','pdfjs-dist','@napi-rs/canvas'], outputFileTracingIncludes: {"/api/inngest": ["./skills/**/*","./node_modules/@fontsource/noto-sans/files/*-400-normal.woff2","./node_modules/pdfjs-dist/legacy/build/*.mjs","./node_modules/@napi-rs/canvas*/**/*.node","./node_modules/@sparticuz/chromium/bin/**/*","./node_modules/pdfjs-dist/standard_fonts/**/*","./node_modules/pdfjs-dist/wasm/**/*"], "/api/skills": ["./skills/**/*"], "/api/skills/run": ["./skills/**/*"], "/api/chat": ["./skills/**/*"] } };
 export default config;
