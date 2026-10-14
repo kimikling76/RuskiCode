@@ -1,0 +1,29 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+model BookJob {
+  id String @id @default(uuid())
+  projectId String
+  status String @default("queued")
+  state Json
+  error String?
+  revision Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  artifacts BookArtifact[]
+  @@index([projectId, createdAt])
+}
+model BookArtifact {
+  id String @id @default(uuid())
+  bookId String
+  book BookJob @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  name String
+  mime String
+  data Bytes
+  createdAt DateTime @default(now())
+  @@unique([bookId, name])
+}

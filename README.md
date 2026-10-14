@@ -1,4 +1,4 @@
-# RuskiCode Studio — Fase 5
+# RuskiCode Studio — Fase 6
 
 Next.js App Router + TypeScript + Tailwind, componentes estilo shadcn con Radix, Framer Motion, Lenis, Zustand y TanStack Query.
 
@@ -70,3 +70,37 @@ Los modelos de chat reciben instrucciones y esquema JSON completos. No se activa
 Skills de imagen/portada producen planes de prompts, typesetter produce checklist con `readyForRender:false`, QA produce revisión textual. Generación de assets, render PDF, QA visual, almacenamiento remoto y pipeline persistente son Fase 6/7.
 
 Pruebas: validación de todos los manifests y ejemplos, rechazo de traversal, contexto en cada intento, límite de tres intentos, aprobación y datos editoriales.
+
+## Fase 6 — Pipeline y PDF real
+
+### Implementado
+
+Máquina de estados con checkpoints Postgres/Prisma: outline (aprobación opcional) → design → capítulos secuenciales con contexto previo → assets → render → QA → complete/needs-review. BullMQ/Redis procesa el trabajo en un worker separado. Las tareas de imagen confirmadas conservan taskId; una creación incierta se detiene para reconciliación manual en lugar de enviar otra petición automáticamente.
+
+Render Playwright: HTML de bloques escapados, red externa bloqueada, fuentes locales con soporte cirílico, encabezados/pies, portada textual, índice con números físicos reales, paginación medida, división de párrafos largos y tablas/ejercicios, imágenes completas sin recorte. Sangrado con TrimBox/BleedBox. El proyecto conserva Book Spec, capítulos originales y layout derivado; el PDF no es el archivo fuente editable.
+
+Poppler rasteriza **el PDF real**, una imagen por página. QA automático comprueba desbordes/encabezados huérfanos y, si está habilitado, envía cada raster a Gemini vía KIE mediante URLs firmadas temporales. Tres rondas como máximo por ejecución; los ajustes automáticos son tipográficos, no reescritura del contenido. Los errores pendientes requieren revisión del autor. Sin QA visual habilitado se registra explícitamente esa limitación.
+
+Las imágenes utilizan el endpoint documentado `nano-banana-2-1`; se requieren referencias visuales antes de generar. Los binarios se normalizan con Sharp y se descargan solo de hosts permitidos. No se envían ilustraciones aprobadas que no se hayan proporcionado. La ingesta automática de adjuntos/PDF/URLs todavía no está conectada: en esta fase el contexto proviene del brief y Book Spec.
+
+### Activación (infraestructura pendiente)
+
+Web en Vercel: `DATABASE_URL`, `REDIS_URL` TCP, claves y acceso de Fase 4, `PUBLIC_APP_URL`, `ARTIFACT_SIGNING_SECRET`. Migrar la base elegida con `npm run db:migrate`. No se crean bases ni servicios pagos automáticamente.
+
+Worker: proceso Node persistente, no una Function que duerme entre solicitudes. Requiere los mismos Postgres/Redis, KIE y configuración de URLs firmadas. Build desde la raíz: `docker build -f worker/Dockerfile -t ruskicode-worker .`. Ejecutar en el servicio de contenedores elegido: `docker run --env-file .env.worker ruskicode-worker`. El Dockerfile instala Chromium, Poppler y fuente cirílica. En desarrollo, exportar las variables del entorno y usar `npm run worker`. `.env.worker` no se sube a Git.
+
+Redis para BullMQ debe permitir conexiones TCP y comandos requeridos por BullMQ. La URL REST de Upstash usada para rate limiting no reemplaza `REDIS_URL`. El worker publica un heartbeat de 60 segundos; no se permite iniciar producción si está offline.
+
+API: `/api/books` (crear y estado de configuración), `/api/books/:id` (progreso), `/api/books/:id/action` (aprobar/retomar), `/api/books/:id/artifacts/:artifactId` (descarga privada o URL firmada). Artefactos binarios almacenados en Postgres en esta primera implementación para dos autores; almacenamiento de objetos es una mejora futura para volúmenes grandes. Los permisos son de estudio compartido por código, aún no cuentas individuales.
+
+### Límites y reanudación
+
+Hasta 12 capítulos, 120 páginas estimadas y 12 imágenes nuevas por trabajo en la primera versión. Conteos estimados no fuerzan paginación artificial. No hay descargas arbitrarias de referencias: solo imágenes generadas en hosts explícitamente permitidos. Los archivos del libro se muestran como borrador hasta completar QA. Puede retomar una tarea guardada tras recargar el navegador.
+
+Checkpoints y taskId reducen repeticiones, pero no garantizan exactamente una llamada pagada ante un fallo entre respuesta de proveedor y escritura de checkpoint. Un reintento manual puede generar consumo adicional. Se preserva el contenido original para editar y re-renderizar; visor/timeline/editor completo son Fase 7.
+
+### Prueba sin saldo
+
+`npm run pdf:demo` genera una muestra conceptual de tres páginas y sus rasters en `public/demo`. Se revisaron visualmente las tres páginas y se verificó cero desbordes. No reemplaza portada ni páginas aprobadas. `npm run test` valida checkpoints, aprobación, máximo de QA, persistencia de taskIds, firmas, sanitización y el PDF real. No se probaron llamadas reales a KIE, una base remota ni un worker alojado: faltan credenciales e infraestructura.
+
+Se probó además un texto largo en A5 con sangrado: 21 páginas, sin desbordes y TrimBox correcto. QA guarda el número de rasters revisados y una huella del contenido: al retomar, no repite revisiones de páginas sin cambios. Los contadores de tokens/créditos de esta versión incluyen solo escritura; no representan toda la facturación de imágenes y visión.

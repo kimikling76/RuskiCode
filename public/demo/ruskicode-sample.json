@@ -1,0 +1,203 @@
+{
+  "spec": {
+    "schemaVersion": 1,
+    "title": "Русский код",
+    "subtitle": "A1 · Макет для проверки",
+    "author": "Andrei Pouganov",
+    "language": "ru",
+    "level": "A1",
+    "audience": "Adultos; clases online individuales con profesor.",
+    "tone": "Serio, claro y visual; diseño editorial cuidado para adultos.",
+    "goal": "Aprender a reconocer, recordar, transformar, interactuar y producir en ruso, con reciclaje progresivo.",
+    "genre": "workbook",
+    "pageFormat": "A4",
+    "marginsMm": {
+      "top": 15,
+      "bottom": 15,
+      "left": 15,
+      "right": 15
+    },
+    "bleedMm": 0,
+    "estimatedChapters": 1,
+    "estimatedPages": 36,
+    "references": [],
+    "glossary": [],
+    "styleRules": [
+      "Consignas en ruso, breves y legibles.",
+      "Conservar los rostros e ilustraciones aprobados; pedir los archivos de referencia si faltan.",
+      "Mantener textos, ilustraciones y elementos del diseño como bloques separados.",
+      "Encabezados compactos; pie con nombre del libro, nivel y número de página."
+    ],
+    "memory": [
+      "Clases online 1:1: no proponer actividades que requieran compañeros.",
+      "Unidad 1 sin posesivos мой / моя / мои; se introducen después.",
+      "No cambiar material aprobado sin indicación del autor.",
+      "Estas reglas iniciales deben contrastarse con los archivos actuales del autor."
+    ],
+    "pedagogy": {
+      "lessonMode": "one-to-one",
+      "skillChain": [
+        "reconocer",
+        "recordar",
+        "transformar",
+        "interactuar",
+        "producir"
+      ],
+      "knownVocabulary": [],
+      "grammarRules": [
+        "Reutilizar vocabulario y estructuras ya trabajados.",
+        "La lectura final integra lo aprendido; no se numera como ejercicio."
+      ]
+    },
+    "designTokens": {
+      "primary": "#216B5C",
+      "accent": "#2474B8",
+      "bodyFont": "Arial",
+      "headingFont": "Arial",
+      "bodySizePt": 11,
+      "headingSizePt": 24,
+      "lineHeight": 1.4,
+      "columns": 1
+    }
+  },
+  "chapters": [
+    {
+      "title": "Урок 1. Знакомство",
+      "summary": "Conceptual sample, not an approved book page.",
+      "blocks": [
+        {
+          "type": "heading",
+          "id": "h1",
+          "text": "Давай знакомиться.",
+          "level": 1
+        },
+        {
+          "type": "callout",
+          "id": "c1",
+          "text": "Это Миша. Миша — ученик.\nЭто Маша. Маша — ученица."
+        },
+        {
+          "type": "exercise",
+          "id": "e1",
+          "instruction": "Посмотри. Скажи.",
+          "audioId": "1.02",
+          "items": [
+            "Это Джон. Джон — учитель.",
+            "Это Джек. Джек — ученик.",
+            "Это Дима. Дима тоже ученик.",
+            "Это Аня. Аня тоже ученица."
+          ]
+        },
+        {
+          "type": "table",
+          "id": "t1",
+          "headers": [
+            "Кто это?",
+            "Это…"
+          ],
+          "rows": [
+            [
+              "Джон",
+              "учитель"
+            ],
+            [
+              "Миша",
+              "ученик"
+            ],
+            [
+              "Маша",
+              "ученица"
+            ]
+          ]
+        },
+        {
+          "type": "heading",
+          "id": "h2",
+          "text": "Читаем",
+          "level": 2
+        },
+        {
+          "type": "paragraph",
+          "id": "p1",
+          "text": "Это школа. Это Джон. Джон — учитель. Это Миша и Маша. Миша — ученик. Маша — ученица. Дима тоже ученик. Аня тоже ученица."
+        }
+      ]
+    }
+  ],
+  "layout": {
+    "designTokens": {
+      "primary": "#216B5C",
+      "accent": "#2474B8",
+      "bodyFont": "Arial",
+      "headingFont": "Arial",
+      "bodySizePt": 11,
+      "headingSizePt": 24,
+      "lineHeight": 1.4,
+      "columns": 1
+    },
+    "pages": [
+      {
+        "number": 3,
+        "title": "Урок 1. Знакомство",
+        "blocks": [
+          {
+            "type": "heading",
+            "id": "h1",
+            "text": "Давай знакомиться.",
+            "level": 1
+          },
+          {
+            "type": "callout",
+            "id": "c1",
+            "text": "Это Миша. Миша — ученик.\nЭто Маша. Маша — ученица."
+          },
+          {
+            "type": "exercise",
+            "id": "e1",
+            "instruction": "Посмотри. Скажи.",
+            "audioId": "1.02",
+            "items": [
+              "Это Джон. Джон — учитель.",
+              "Это Джек. Джек — ученик.",
+              "Это Дима. Дима тоже ученик.",
+              "Это Аня. Аня тоже ученица."
+            ]
+          },
+          {
+            "type": "table",
+            "id": "t1",
+            "headers": [
+              "Кто это?",
+              "Это…"
+            ],
+            "rows": [
+              [
+                "Джон",
+                "учитель"
+              ],
+              [
+                "Миша",
+                "ученик"
+              ],
+              [
+                "Маша",
+                "ученица"
+              ]
+            ]
+          },
+          {
+            "type": "heading",
+            "id": "h2",
+            "text": "Читаем",
+            "level": 2
+          },
+          {
+            "type": "paragraph",
+            "id": "p1",
+            "text": "Это школа. Это Джон. Джон — учитель. Это Миша и Маша. Миша — ученик. Маша — ученица. Дима тоже ученик. Аня тоже ученица."
+          }
+        ]
+      }
+    ]
+  }
+}

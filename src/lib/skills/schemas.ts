@@ -12,7 +12,7 @@ const blockSchema=z.discriminatedUnion('type',[
 export const outputSchemas={
  outline:z.object({title:text,chapters:z.array(z.object({id:z.string().min(1).max(100),title:text,objective:text,sections:z.array(text).min(1).max(30),estimatedPages:z.number().int().min(1).max(100)}).strict()).min(1).max(100),questions:z.array(text).max(10)}).strict(),
  chapter:z.object({title:text,summary:text,blocks:z.array(blockSchema).min(1).max(100)}).strict(),
- layout:z.object({designTokens:designTokensSchema,pages:z.array(z.object({number:z.number().int().min(1).max(500),title:text,blocks:z.array(blockSchema).min(1).max(30)}).strict()).min(1).max(100)}).strict(),
+ layout:z.object({designTokens:designTokensSchema,pages:z.array(z.object({number:z.number().int().min(1).max(500),title:text,blocks:z.array(blockSchema).min(1).max(30)}).strict()).min(1).max(120)}).strict(),
  imagePlan:z.object({prompts:z.array(z.object({id:z.string().min(1).max(100),prompt:text,alt:text,requiredReferences:z.array(text).max(20)}).strict()).min(1).max(30),warnings:z.array(text).max(20)}).strict(),
  coverPlan:z.object({title:text,subtitle:z.string().max(300),author:z.string().max(200),imagePrompt:text,requiredReferences:z.array(text).max(20),notes:z.array(text).max(20)}).strict(),
  renderPlan:z.object({format:z.enum(['A4','A5','6x9in']),checks:z.array(text).min(1).max(40),warnings:z.array(text).max(20),readyForRender:z.boolean()}).strict(),
