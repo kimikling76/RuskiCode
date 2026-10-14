@@ -1,4 +1,4 @@
-# RuskiCode Studio — Fase 3
+# RuskiCode Studio — Fase 4
 
 Next.js App Router + TypeScript + Tailwind, componentes estilo shadcn con Radix, Framer Motion, Lenis, Zustand y TanStack Query.
 
@@ -34,3 +34,25 @@ Landing ES/RU/EN con carrusel nativo (scroll táctil, flechas, teclado, reproduc
 ## Fase 3 — Compositor
 
 `/workspace`: textarea adaptable, selector de proveedores con búsqueda accesible (Radix Dialog), categorías animadas, referencias (hasta 6 archivos de 10 MB) y URL. Preparación de briefs con aprobación opcional, estados review/ready, historial de hasta 30 proyectos en localStorage validado y descarga JSON. Los archivos permanecen en memoria de la sesión; se persisten solo sus metadatos. No se suben ni extraen ni consultan URLs. No hay cargos, estimaciones inventadas ni respuestas simuladas. Las opciones del selector son preferencias para las futuras integraciones, no modelos conectados. Fase 4 añadirá generación y streaming.
+
+## Fase 4 — Chat real y adaptadores
+
+API SSE `/api/chat`, catálogo `/api/models`, acceso `/api/session`. Adaptadores REST tipados para chat compatible OpenAI (KIE incluido), Anthropic y Google. No se utiliza AI Gateway ni se envían claves al cliente. Router Auto prioriza según tarea; falla hacia otro proveedor configurado solo antes de emitir texto. Un modelo explícito nunca cambia silenciosamente. Un 429 se reintenta una vez; no se reintenta una generación parcialmente emitida.
+
+### Activar en Vercel
+
+Configurar **Production** en Settings → Environment Variables y redeploy:
+
+- `KIE_API_KEY`: clave actual de KIE.
+- `STUDIO_ACCESS_CODE`: código largo aleatorio compartido por los dos autores. Protege solo llamadas de IA, no toda la interfaz ni archivos. Se canjea por cookie HttpOnly, SameSite Strict y Secure en producción (7 días).
+- `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`: Redis HTTP para limitación distribuida. Se bloquean llamadas en producción si no está disponible. No se crea ningún servicio de pago automáticamente.
+
+Alternativamente, usar credenciales y modelos explícitos de los proveedores directos enumerados en `.env.example`. Verificar los IDs en su catálogo actual. El endpoint compatible personalizado es exclusivamente una variable del servidor.
+
+El chat aparece al aprobar el brief. Tiene historial local, streaming, cancelar, manejo de errores y consumo reportado por el proveedor. No lee archivos/URLs, no llama herramientas ni genera PDF/imágenes/videos aún. No hay un saldo de créditos inventado, precios por token ni facturación propia; KIE puede devolver créditos consumidos. Las cifras de consumo por respuesta no son un ledger contable persistente.
+
+Los adaptadores actualmente declaran `supportsTools: false` y `supportsVision: false`: capacidades futuras no implementadas. La documentación KIE advierte que el endpoint Gemini 3.1 Pro es para chat y no está adaptado a agentes; para las skills se usará JSON validado o un endpoint con herramientas verificado.
+
+### Validación
+
+`npm run test`, `npm run typecheck`, `npm run build`. Las pruebas de protocolo usan transporte simulado y no consumen saldo. Sin credenciales no se puede validar una generación real. Referencias: https://docs.kie.ai/30442144e0 ; https://docs.kie.ai/market/gemini/gemini-3-8-flash-openai ; https://platform.claude.com/docs/en/build-with-claude/streaming ; https://ai.google.dev/api/generate-content ; https://developers.openai.com/api/reference/resources/chat .

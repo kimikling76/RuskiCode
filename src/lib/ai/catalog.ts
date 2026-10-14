@@ -1,0 +1,11 @@
+export type ModelConfig={id:string;name:string;provider:'compatible'|'anthropic'|'google';keyEnv:string;modelEnv?:string;model?:string;endpoint:string;taskScore:{book:number;image:number;video:number;general:number};supportsTools:boolean;supportsVision:boolean};
+export const modelCatalog:ModelConfig[]=[
+{id:'kie-pro',name:'Gemini 3.1 Pro · KIE',provider:'compatible',keyEnv:'KIE_API_KEY',model:'gemini-3.1-pro',endpoint:'https://api.kie.ai/gemini-3.1-pro/v1/chat/completions',taskScore:{book:100,image:90,video:80,general:80},supportsTools:false,supportsVision:false},
+{id:'kie-flash',name:'Gemini 3.8 Flash · KIE',provider:'compatible',keyEnv:'KIE_API_KEY',model:'gemini-3.8-flash',endpoint:'https://api.kie.ai/gemini-3-8-flash-openai/v1/chat/completions',taskScore:{book:70,image:70,video:70,general:100},supportsTools:false,supportsVision:false},
+{id:'openai',name:'OpenAI',provider:'compatible',keyEnv:'OPENAI_API_KEY',modelEnv:'OPENAI_MODEL',endpoint:'https://api.openai.com/v1/chat/completions',taskScore:{book:90,image:80,video:90,general:90},supportsTools:false,supportsVision:false},
+{id:'anthropic',name:'Anthropic',provider:'anthropic',keyEnv:'ANTHROPIC_API_KEY',modelEnv:'ANTHROPIC_MODEL',endpoint:'https://api.anthropic.com/v1/messages',taskScore:{book:95,image:70,video:80,general:85},supportsTools:false,supportsVision:false},
+{id:'google',name:'Google',provider:'google',keyEnv:'GOOGLE_API_KEY',modelEnv:'GOOGLE_MODEL',endpoint:'https://generativelanguage.googleapis.com/v1beta/models/',taskScore:{book:85,image:90,video:85,general:85},supportsTools:false,supportsVision:false},
+{id:'compatible',name:'OpenAI-compatible',provider:'compatible',keyEnv:'COMPATIBLE_API_KEY',modelEnv:'COMPATIBLE_MODEL',endpoint:'',taskScore:{book:60,image:60,video:60,general:60},supportsTools:false,supportsVision:false}
+];
+export function configured(m:ModelConfig){return Boolean(process.env[m.keyEnv]&&(m.model||m.modelEnv&&process.env[m.modelEnv])&&(m.id!=='compatible'||process.env.COMPATIBLE_CHAT_URL));}
+export function candidates(requested:string,task:'book'|'image'|'video'|'general'){const all=modelCatalog.filter(configured);if(requested!=='auto'){const exact=all.find(m=>m.id===requested);return exact?[exact]:[];}return all.sort((a,b)=>b.taskScore[task]-a.taskScore[task]);}
