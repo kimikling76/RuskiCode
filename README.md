@@ -1,19 +1,28 @@
-# RuskiCode Studio
+# RuskiCode Studio — Fase 1
 
-Prototipo estático en español, ruso e inglés. Sin dependencias ni compilación.
+Next.js App Router + TypeScript + Tailwind, componentes estilo shadcn con Radix, Framer Motion, Lenis, Zustand y TanStack Query.
 
 ## Ejecutar
 
-Servir esta carpeta con cualquier servidor estático o importar el repositorio en Vercel con preset Other y sin comando de build. Directorio de salida: raíz del proyecto.
+Node 22 o superior. `npm ci`, `npm run dev`. Validar con `npm run typecheck` y `npm run build`.
 
-## Funciona
+## Estructura
 
-Navegación, traducción de interfaz, edición de texto, subida/reemplazo de imagen, guardado local, importación/exportación JSON y exportación PDF mediante impresión del navegador.
+- `src/app`: rutas Explorar `/` y estudio `/workspace`.
+- `src/components`: navbar, sidebar, drawer accesible y proveedores.
+- `src/components/ui`: componentes reutilizables con configuración shadcn.
+- `src/lib`: traducciones ES/RU/EN, utilidades y variantes motion.
+- `src/store`: estado de idioma y sidebar.
+- `public/prototype.html`: prototipo previo conservado, con editor local.
 
-## Pendiente
+## Despliegue
 
-Autenticación para dos personas, almacenamiento compartido, agente editorial, API KIE, generación multimedia, trabajos en segundo plano y editor visual con bloques posicionables. La interfaz identifica estas funciones como no conectadas. No ingresar secretos en el navegador. El almacenamiento actual es local al dispositivo; exportar JSON para conservar o transferir proyectos. El JSON mantiene textos e imagen separados, no descompone ilustraciones en capas.
+Vercel: framework Next.js; comandos y salida automáticos. Quitar overrides de salida estática si están configurados en el panel. El dominio existente sigue asociado al proyecto.
 
-## Dominio
+## Alcance
 
-Configurar ruskicode.com o studio.ruskicode.com desde el proyecto Vercel y aplicar los DNS indicados allí.
+Esta fase establece estructura, tokens y navegación, no el producto completo. El selector de idioma funciona en memoria; no hay inicio de sesión, IA, almacenamiento compartido ni pagos. El prototipo anterior conserva las claves de localStorage y exportaciones de su editor.
+
+KIE será el proveedor inicial. `.env.example` documenta secretos futuros, no son necesarios para esta fase. Nunca publicar claves en el cliente. Redis/BullMQ y Chromium requerirán un worker separado; se implementarán en fases posteriores. No se crean servicios pagos en esta fase.
+
+Siguientes fases: Explorar, compositor y modelos, adaptadores/streaming, skills/Book Spec, pipeline/PDF/QA y editor/visor.

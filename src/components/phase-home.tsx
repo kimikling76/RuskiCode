@@ -1,0 +1,8 @@
+"use client";
+import Link from 'next/link';
+import { motion } from 'framer-motion';
+import { useStudio } from '@/store/studio';
+import { messages } from '@/lib/i18n';
+import { reveal, stagger } from '@/lib/motion';
+import { Button } from '@/components/ui/button';
+export function PhaseHome({ workspace=false }: { workspace?: boolean }) { const t=messages[useStudio(s=>s.locale)];return <motion.section initial="hidden" animate="visible" variants={stagger} className="mx-auto max-w-5xl px-6 py-16 sm:py-24"><motion.div variants={reveal} className="mb-6 text-xs font-semibold tracking-[.22em] text-accent">{t.phase}</motion.div><motion.h1 variants={reveal} className="max-w-4xl font-display text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-7xl">{workspace?t.greet:t.heading}</motion.h1><motion.p variants={reveal} className="mt-7 max-w-2xl text-lg leading-8 text-muted">{workspace?t.note:t.description}</motion.p><motion.div variants={reveal} className="mt-9 flex flex-wrap gap-3"><Button asChild><Link href={workspace?'/prototype.html':'/workspace'}>{workspace?t.reference:t.enter} ↗</Link></Button>{workspace?<Button asChild variant="secondary"><Link href="/">{t.explore}</Link></Button>:null}</motion.div><motion.div variants={stagger} className="mt-20 grid gap-5 sm:grid-cols-2">{[[t.stage,t.stageText],[t.system,t.systemText]].map(([title,text],i)=><motion.article key={title} variants={reveal} className="rounded-studio border border-border bg-surface/90 p-8"><span className="text-xs tracking-widest text-accent">0{i+1}</span><h2 className="mt-4 text-xl font-semibold">{title}</h2><p className="mt-3 leading-7 text-muted">{text}</p></motion.article>)}</motion.div></motion.section>; }
