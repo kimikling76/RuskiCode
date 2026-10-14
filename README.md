@@ -1,4 +1,4 @@
-# RuskiCode Studio — Fase 2
+# RuskiCode Studio — Fase 3
 
 Next.js App Router + TypeScript + Tailwind, componentes estilo shadcn con Radix, Framer Motion, Lenis, Zustand y TanStack Query.
 
@@ -30,3 +30,7 @@ Siguientes fases: Explorar, compositor y modelos, adaptadores/streaming, skills/
 ## Fase 2 — Explorar
 
 Landing ES/RU/EN con carrusel nativo (scroll táctil, flechas, teclado, reproducción automática pausable), tarjetas conceptuales propias, herramientas, proceso editorial, consumo y FAQ. Animaciones Framer Motion con scroll reveal y movimiento reducido. Sin testimonios, descuentos ni planes ficticios. Los previews son CSS, no páginas aprobadas ni videos generados. El compositor funcional corresponde a la Fase 3.
+
+## Fase 3 — Compositor
+
+`/workspace`: textarea adaptable, selector de proveedores con búsqueda accesible (Radix Dialog), categorías animadas, referencias (hasta 6 archivos de 10 MB) y URL. Preparación de briefs con aprobación opcional, estados review/ready, historial de hasta 30 proyectos en localStorage validado y descarga JSON. Los archivos permanecen en memoria de la sesión; se persisten solo sus metadatos. No se suben ni extraen ni consultan URLs. No hay cargos, estimaciones inventadas ni respuestas simuladas. Las opciones del selector son preferencias para las futuras integraciones, no modelos conectados. Fase 4 añadirá generación y streaming.
