@@ -1,5 +1,5 @@
 /* Higgsfield-style tokens. Dark only. Import this first; use ONLY these variables. */
-@font-face { font-family: "Inter"; src: url("/fonts/estudio-inter.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Inter"; src: url("/fonts/inter-ui.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
 
 :root {
   color-scheme: dark;

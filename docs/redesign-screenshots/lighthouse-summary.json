@@ -1,0 +1,336 @@
+[
+  {
+    "name": "landing",
+    "performance": 98,
+    "accessibility": 100,
+    "lcp": 2309.047,
+    "cls": 0,
+    "failed": [
+      {
+        "id": "unused-javascript",
+        "title": "Reduce unused JavaScript",
+        "details": {
+          "type": "opportunity",
+          "headings": [
+            {
+              "key": "url",
+              "valueType": "url",
+              "subItemsHeading": {
+                "key": "source",
+                "valueType": "code"
+              },
+              "label": "URL"
+            },
+            {
+              "key": "totalBytes",
+              "valueType": "bytes",
+              "subItemsHeading": {
+                "key": "sourceBytes"
+              },
+              "label": "Transfer Size"
+            },
+            {
+              "key": "wastedBytes",
+              "valueType": "bytes",
+              "subItemsHeading": {
+                "key": "sourceWastedBytes"
+              },
+              "label": "Est Savings"
+            }
+          ],
+          "items": [
+            {
+              "url": "http://127.0.0.1:3335/_next/static/chunks/795-2c2ac5445263c350.js",
+              "totalBytes": 35072,
+              "wastedBytes": 29514,
+              "wastedPercent": 84.15401122482668
+            },
+            {
+              "url": "http://127.0.0.1:3335/_next/static/chunks/2594c768-1606d7071115e4fb.js",
+              "totalBytes": 64114,
+              "wastedBytes": 27991,
+              "wastedPercent": 43.658238473206
+            },
+            {
+              "url": "http://127.0.0.1:3335/_next/static/chunks/90-61f8e4a5da1f1eaa.js",
+              "totalBytes": 67544,
+              "wastedBytes": 24163,
+              "wastedPercent": 35.77324263038549
+            }
+          ],
+          "overallSavingsMs": 150,
+          "overallSavingsBytes": 81668,
+          "sortedBy": [
+            "wastedBytes"
+          ],
+          "debugData": {
+            "type": "debugdata",
+            "metricSavings": {
+              "FCP": 0,
+              "LCP": 150
+            }
+          }
+        }
+      },
+      {
+        "id": "network-dependency-tree-insight",
+        "title": "Network dependency tree",
+        "details": {
+          "type": "list",
+          "items": [
+            {
+              "type": "list-section",
+              "value": {
+                "type": "network-tree",
+                "chains": {
+                  "4191B8A6E9AD0B61F24115ACA3C69CAE": {
+                    "url": "http://127.0.0.1:3335/",
+                    "navStartToEndTime": 102,
+                    "transferSize": 6725,
+                    "isLongest": true,
+                    "children": {
+                      "357.3": {
+                        "url": "http://127.0.0.1:3335/_next/static/css/0953e8bab14b7e10.css",
+                        "navStartToEndTime": 143,
+                        "transferSize": 17494,
+                        "isLongest": true,
+                        "children": {}
+                      },
+                      "357.4": {
+                        "url": "http://127.0.0.1:3335/_next/static/css/5deea591be6a410f.css",
+                        "navStartToEndTime": 139,
+                        "transferSize": 8534,
+                        "children": {}
+                      }
+                    }
+                  }
+                },
+                "longestChain": {
+                  "duration": 143
+                }
+              }
+            },
+            {
+              "type": "list-section",
+              "title": "Preconnected origins",
+              "description": "[preconnect](https://developer.chrome.com/docs/lighthouse/performance/uses-rel-preconnect/) hints help the browser establish a connection earlier in the page load, saving time when the first request for that origin is made. The following are the origins that the page preconnected to.",
+              "value": {
+                "type": "text",
+                "value": "no origins were preconnected"
+              }
+            },
+            {
+              "type": "list-section",
+              "title": "Preconnect candidates",
+              "description": "Add [preconnect](https://developer.chrome.com/docs/lighthouse/performance/uses-rel-preconnect/) hints to your most important origins, but try to use no more than 4.",
+              "value": {
+                "type": "text",
+                "value": "No additional origins are good candidates for preconnecting"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "render-blocking-insight",
+        "title": "Render-blocking requests",
+        "details": {
+          "type": "table",
+          "headings": [
+            {
+              "key": "url",
+              "valueType": "url",
+              "label": "URL"
+            },
+            {
+              "key": "totalBytes",
+              "valueType": "bytes",
+              "label": "Transfer Size"
+            },
+            {
+              "key": "wastedMs",
+              "valueType": "timespanMs",
+              "label": "Duration"
+            }
+          ],
+          "items": [
+            {
+              "url": "http://127.0.0.1:3335/_next/static/css/0953e8bab14b7e10.css",
+              "totalBytes": 17494,
+              "wastedMs": 314
+            },
+            {
+              "url": "http://127.0.0.1:3335/_next/static/css/5deea591be6a410f.css",
+              "totalBytes": 8534,
+              "wastedMs": 314
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "workspace",
+    "performance": 94,
+    "accessibility": 100,
+    "lcp": 2719.3640000000005,
+    "cls": 0,
+    "failed": [
+      {
+        "id": "unused-javascript",
+        "title": "Reduce unused JavaScript",
+        "details": {
+          "type": "opportunity",
+          "headings": [
+            {
+              "key": "url",
+              "valueType": "url",
+              "subItemsHeading": {
+                "key": "source",
+                "valueType": "code"
+              },
+              "label": "URL"
+            },
+            {
+              "key": "totalBytes",
+              "valueType": "bytes",
+              "subItemsHeading": {
+                "key": "sourceBytes"
+              },
+              "label": "Transfer Size"
+            },
+            {
+              "key": "wastedBytes",
+              "valueType": "bytes",
+              "subItemsHeading": {
+                "key": "sourceWastedBytes"
+              },
+              "label": "Est Savings"
+            }
+          ],
+          "items": [
+            {
+              "url": "http://127.0.0.1:3335/_next/static/chunks/90-61f8e4a5da1f1eaa.js",
+              "totalBytes": 67544,
+              "wastedBytes": 31837,
+              "wastedPercent": 47.13543599257885
+            },
+            {
+              "url": "http://127.0.0.1:3335/_next/static/chunks/2594c768-1606d7071115e4fb.js",
+              "totalBytes": 64114,
+              "wastedBytes": 25775,
+              "wastedPercent": 40.20253189411008
+            }
+          ],
+          "overallSavingsMs": 150,
+          "overallSavingsBytes": 57612,
+          "sortedBy": [
+            "wastedBytes"
+          ],
+          "debugData": {
+            "type": "debugdata",
+            "metricSavings": {
+              "FCP": 0,
+              "LCP": 150
+            }
+          }
+        }
+      },
+      {
+        "id": "network-dependency-tree-insight",
+        "title": "Network dependency tree",
+        "details": {
+          "type": "list",
+          "items": [
+            {
+              "type": "list-section",
+              "value": {
+                "type": "network-tree",
+                "chains": {
+                  "D334FFA8D5301D1F929BC798E6CF34DE": {
+                    "url": "http://127.0.0.1:3335/workspace",
+                    "navStartToEndTime": 46,
+                    "transferSize": 5556,
+                    "isLongest": true,
+                    "children": {
+                      "406.3": {
+                        "url": "http://127.0.0.1:3335/_next/static/css/0953e8bab14b7e10.css",
+                        "navStartToEndTime": 63,
+                        "transferSize": 17494,
+                        "isLongest": true,
+                        "children": {}
+                      },
+                      "406.4": {
+                        "url": "http://127.0.0.1:3335/_next/static/css/5deea591be6a410f.css",
+                        "navStartToEndTime": 60,
+                        "transferSize": 8534,
+                        "children": {}
+                      }
+                    }
+                  }
+                },
+                "longestChain": {
+                  "duration": 63
+                }
+              }
+            },
+            {
+              "type": "list-section",
+              "title": "Preconnected origins",
+              "description": "[preconnect](https://developer.chrome.com/docs/lighthouse/performance/uses-rel-preconnect/) hints help the browser establish a connection earlier in the page load, saving time when the first request for that origin is made. The following are the origins that the page preconnected to.",
+              "value": {
+                "type": "text",
+                "value": "no origins were preconnected"
+              }
+            },
+            {
+              "type": "list-section",
+              "title": "Preconnect candidates",
+              "description": "Add [preconnect](https://developer.chrome.com/docs/lighthouse/performance/uses-rel-preconnect/) hints to your most important origins, but try to use no more than 4.",
+              "value": {
+                "type": "text",
+                "value": "No additional origins are good candidates for preconnecting"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "render-blocking-insight",
+        "title": "Render-blocking requests",
+        "details": {
+          "type": "table",
+          "headings": [
+            {
+              "key": "url",
+              "valueType": "url",
+              "label": "URL"
+            },
+            {
+              "key": "totalBytes",
+              "valueType": "bytes",
+              "label": "Transfer Size"
+            },
+            {
+              "key": "wastedMs",
+              "valueType": "timespanMs",
+              "label": "Duration"
+            }
+          ],
+          "items": [
+            {
+              "url": "http://127.0.0.1:3335/_next/static/css/0953e8bab14b7e10.css",
+              "totalBytes": 17494,
+              "wastedMs": 310
+            },
+            {
+              "url": "http://127.0.0.1:3335/_next/static/css/5deea591be6a410f.css",
+              "totalBytes": 8534,
+              "wastedMs": 310
+            }
+          ]
+        }
+      }
+    ]
+  }
+]
