@@ -1,3 +1,2 @@
-import { Navbar } from '@/components/navigation';
-import { Explore } from '@/components/explore';
-export default function Home(){return <div className="estudio-public"><Navbar/><Explore/></div>;}
+import { CreativeLanding } from '@/components/creative-landing';
+export default function Home(){return <CreativeLanding/>;}
