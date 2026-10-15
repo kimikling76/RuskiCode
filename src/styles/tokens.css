@@ -1,0 +1,116 @@
+/* Higgsfield-style tokens. Dark only. Import this first; use ONLY these variables. */
+@font-face { font-family: "Inter"; src: url("/fonts/estudio-inter.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+
+:root {
+  color-scheme: dark;
+
+  /* Color */
+  --canvas: #0F1113;          /* page background */
+  --panel: #18191C;           /* prompt box, raised panels, sidebar items hover */
+  --surface: #000000;         /* recessed areas only (video wells, footer) */
+  --tile: #2A2D32;            /* icon tiles */
+  --ink: #FFFFFF;             /* headings, primary text */
+  --body: #F7F7F8;            /* body copy */
+  --muted: #898A8B;           /* secondary text, inactive tabs */
+  --faint: #828282;           /* placeholders */
+  --accent: #D1FE17;          /* lime: primary CTA only */
+  --on-accent: #0B0B0C;       /* text/icons on lime. One value, everywhere. */
+  --accent-soft: rgba(209, 254, 23, 0.20);
+  --pink: #FF005B;            /* promo / discount only */
+  --pink-soft: rgba(255, 0, 91, 0.12);
+
+  /* Borders: always translucent white, never solid light gray */
+  --line: rgba(255, 255, 255, 0.06);
+  --line-strong: rgba(255, 255, 255, 0.12);
+  --glass: rgba(255, 255, 255, 0.05);
+  --glass-hover: rgba(255, 255, 255, 0.09);
+  --glass-active: rgba(255, 255, 255, 0.13);
+
+  /* Type */
+  --font: "Inter", "Segoe UI", Roboto, sans-serif;
+
+  /* Radius */
+  --r-sm: 6px;   /* badges */
+  --r-md: 8px;   /* small buttons, tabs, icon tiles, media thumbnails */
+  --r-lg: 10px;  /* standard buttons */
+  --r-xl: 12px;  /* large buttons, sidebar items */
+  --r-2xl: 20px; /* prompt box, panels */
+  --r-3xl: 24px; /* hero cards */
+  --r-full: 9999px;
+
+  /* Spacing (8px base) */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+  --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px; --s-12: 48px;
+  --section-y: 112px;   /* landing-page section spacing (the app uses 48px; a website needs more) */
+  --max: 1280px;
+
+  /* Elevation: inset light + tiny ambient. No big drop shadows. */
+  --inset: inset 0 2px 3px rgba(255, 255, 255, 0.05);
+  --ambient: 0 2px 4px -0.5px rgba(0, 0, 0, 0.12);
+  --glow: 0 0 8px rgba(209, 254, 23, 0.55);
+  --focus: 0 0 0 2px var(--canvas), 0 0 0 4px var(--accent);
+
+  /* Gradients (use these names only) */
+  --grad-fade-bottom: linear-gradient(rgba(15,17,19,0) 0%, rgba(15,17,19,.65) 50%, #131416 78%);
+  --grad-sheen: linear-gradient(rgba(255,255,255,.12) 0%, rgba(255,255,255,.03) 40%, rgba(255,255,255,0) 72%);
+  --grad-floor-glow: radial-gradient(80% 40% at 50% 100%, rgba(255,255,255,.08) 0%, rgba(255,255,255,0) 100%);
+  --grad-hero-pink: linear-gradient(to top, rgba(255,0,91,.10) 0%, rgba(255,0,91,0) 100%);
+
+  --ease: 200ms cubic-bezier(.2, .6, .2, 1);
+}
+
+html { background: var(--canvas); color: var(--body); font-family: var(--font); -webkit-font-smoothing: antialiased; }
+body { margin: 0; font-size: 16px; line-height: 1.5; font-weight: 400; }
+h1, h2, h3 { color: var(--ink); margin: 0; font-weight: 600; }
+.h-hero    { font-size: clamp(32px, 5vw, 64px); line-height: 1.13; letter-spacing: -1.2px; font-weight: 700; text-transform: uppercase; }
+.h-section { font-size: clamp(28px, 3.4vw, 48px); line-height: 1.17; letter-spacing: -1.2px; font-weight: 600; }
+.h-card    { font-size: 24px; line-height: 1.25; font-weight: 600; }
+.text-sm   { font-size: 14px; line-height: 1.5; }
+.text-xs   { font-size: 12px; line-height: 1.4; color: var(--muted); }
+:focus-visible { outline: none; box-shadow: var(--focus); }
+
+/* ---------- Buttons ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2);
+  height: 40px; padding: 0 var(--s-4); border-radius: var(--r-lg);
+  font: 600 14px/1 var(--font); cursor: pointer; border: 1px solid transparent;
+  transition: background var(--ease), transform var(--ease), box-shadow var(--ease), opacity var(--ease);
+}
+.btn:active { transform: translateY(1px) scale(.98); }
+.btn[disabled] { opacity: .5; cursor: not-allowed; }
+
+/* 1) PRIMARY: the ONE lime action per section */
+.btn-primary { background: var(--accent); color: var(--on-accent); padding: 0 18px; }
+.btn-primary:hover { box-shadow: var(--glow); filter: brightness(1.05); }
+
+/* 2) SECONDARY: glass */
+.btn-secondary { background: var(--glass); color: var(--ink); border-color: var(--line-strong); box-shadow: var(--ambient), var(--inset); }
+.btn-secondary:hover { background: var(--glass-hover); }
+
+/* 3) TERTIARY: text/ghost */
+.btn-ghost { background: transparent; color: var(--muted); height: 36px; padding: 0 var(--s-3); border-radius: var(--r-xl); font-weight: 500; }
+.btn-ghost:hover { color: var(--ink); background: var(--glass); }
+
+.btn-sm { height: 32px; padding: 0 var(--s-3); border-radius: var(--r-md); font-size: 13px; font-weight: 500; }
+.btn-xl { height: 52px; padding: 0 var(--s-6); border-radius: var(--r-xl); font-size: 18px; }
+.btn-icon { width: 40px; padding: 0; }
+
+/* ---------- Surfaces ---------- */
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-2xl); box-shadow: var(--inset); }
+.badge { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: var(--r-sm); font: 600 11px/1 var(--font); }
+.badge-accent { background: var(--accent-soft); color: var(--accent); }
+.badge-pink { background: var(--pink); color: var(--ink); border-radius: var(--r-full); }
+.icon-tile { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--r-md); background: var(--tile); border: 1px solid var(--line-strong); }
+
+/* ---------- Tabs / chips ---------- */
+.tab { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 var(--s-3); border-radius: var(--r-md); color: var(--muted); font: 500 13px/1 var(--font); border: 0; background: transparent; cursor: pointer; transition: background var(--ease), color var(--ease); }
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { background: var(--glass-active); color: var(--ink); }
+
+/* ---------- Media card (grid item) ---------- */
+.media-card { display: grid; gap: var(--s-3); }
+.media-card__thumb { aspect-ratio: 16 / 9; border-radius: var(--r-md); overflow: hidden; background: var(--surface); border: 1px solid var(--line); }
+.media-card__thumb img, .media-card__thumb video { width: 100%; height: 100%; object-fit: cover; transition: transform var(--ease); }
+.media-card:hover .media-card__thumb img { transform: scale(1.03); }
+.media-card__meta { display: flex; align-items: center; gap: var(--s-3); font: 500 14px/1.2 var(--font); color: var(--ink); }
+.media-card__meta .type { margin-left: auto; color: var(--muted); font-weight: 400; }
