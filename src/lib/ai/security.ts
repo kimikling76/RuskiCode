@@ -1,10 +1,8 @@
-import {createHmac,timingSafeEqual} from 'node:crypto';
-const cookieName='ruskicode_session';
+import {timingSafeEqual} from 'node:crypto';
+import {studioSession} from '@/lib/auth/server';
 export function matches(a:string,b:string){const x=Buffer.from(a);const y=Buffer.from(b);return x.length===y.length&&timingSafeEqual(x,y);}
-export function sessionToken(){const expires=String(Date.now()+7*86400000);return expires+'.'+createHmac('sha256',process.env.STUDIO_ACCESS_CODE!).update(expires).digest('hex');}
-export function authorized(request:Request){const secret=process.env.STUDIO_ACCESS_CODE;if(!secret)return false;const token=request.headers.get('cookie')?.split(';').map(v=>v.trim()).find(v=>v.startsWith(cookieName+'='))?.slice(cookieName.length+1);if(!token)return false;const [expires,signature]=token.split('.');if(!expires||!signature||Number(expires)<Date.now())return false;return matches(signature,createHmac('sha256',secret).update(expires).digest('hex'));}
+export async function authorized(request:Request){return Boolean(await studioSession(request.headers));}
 export function sameOrigin(request:Request){const origin=request.headers.get('origin');return !origin||origin===new URL(request.url).origin;}
-export const sessionCookie=(token:string)=>`${cookieName}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=604800${process.env.NODE_ENV==='production'?'; Secure':''}`;
 const localLimits=new Map<string,{count:number;until:number}>();
 export async function limit(key:string,max=10,seconds=60){const url=process.env.UPSTASH_REDIS_REST_URL;const token=process.env.UPSTASH_REDIS_REST_TOKEN;if(url&&token){const script="local n=redis.call('INCR',KEYS[1]); if n==1 then redis.call('EXPIRE',KEYS[1],ARGV[1]) end; return n";const response=await fetch(url,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(['EVAL',script,'1','ruskicode:'+key,String(seconds)]),signal:AbortSignal.timeout(5000)});if(!response.ok)throw Error('RATE_LIMIT_UNAVAILABLE');const value=await response.json();if(typeof value.result!=='number')throw Error('RATE_LIMIT_UNAVAILABLE');return value.result<=max;}
  if(process.env.NODE_ENV==='production')throw Error('RATE_LIMIT_UNAVAILABLE');const now=Date.now();for(const [k,v]of localLimits)if(v.until<now)localLimits.delete(k);const bucket=localLimits.get(key)||{count:0,until:now+seconds*1000};bucket.count++;localLimits.set(key,bucket);return bucket.count<=max;}
