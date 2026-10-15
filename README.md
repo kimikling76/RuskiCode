@@ -120,3 +120,23 @@ Validación: 31 pruebas pasan, incluyendo rechazo de fuentes inseguras, invalida
 ### Estado final y límites pendientes
 
 Las siete fases de esta primera versión están implementadas. GitHub conserva el código y Vercel publica la web. Falta activar los servicios y variables enumerados en Fase 6 para usar IA/producción real. No se provisionó infraestructura ni se consumieron créditos. El frontend es público; las APIs y artefactos generados requieren el código compartido, no hay cuentas individuales ni coedición en tiempo real. La ingesta automática de PDFs/referencias y la generación de vídeo Seedance siguen pendientes; el selector multimedia no ejecuta esos modelos. El chat orienta el proyecto con el Book Spec, mientras la producción se inicia mediante controles explícitos. Las estimaciones de consumo incluyen solo texto, no facturación completa de imagen/visión.
+
+## Ejecución gratuita: Neon + Upstash + Inngest
+
+Alternativa al worker persistente de Render: `BOOK_EXECUTOR=inngest`. Cada etapa, capítulo y página de revisión visual se ejecuta en un paso independiente de Inngest; los originales, artefactos y checkpoints permanecen en Postgres. Los pasos devuelven únicamente estados pequeños, no el manuscrito ni imágenes. Las esperas de generación de imágenes usan `step.sleep`, sin mantener una Function abierta. BullMQ sigue disponible cuando no se selecciona Inngest. No se contratan planes pagos automáticamente.
+
+En Vercel, el PDF se rasteriza desde sus bytes reales con PDF.js y canvas nativo; no requiere instalar Poppler. Playwright/Chromium sigue generando el PDF. La ruta `/api/inngest` tiene un límite de 300 segundos por invocación. Esta modalidad limita cada libro a **30 páginas físicas** (dividir obras más largas en unidades); es un límite operativo inicial, no una garantía de que cualquier composición termine dentro de las cuotas. Las llamadas de escritura tienen un presupuesto de 210 segundos por paso. No hay reintentos automáticos de pasos fallidos que puedan repetir consumo de IA: el autor retoma explícitamente desde el último checkpoint. Un fallo entre respuesta del proveedor y guardado puede requerir reconciliación manual.
+
+### Activar sin contratar infraestructura paga
+
+1. Crear un proyecto **Neon Free**, conectar su URL Postgres a `DATABASE_URL` en Vercel, con TLS (`sslmode=require`) y un pool pequeño (`connection_limit=2`). Para las migraciones usar una conexión directa si el proveedor la requiere. No importar datos del Postgres temporal de Render: esta instalación empezó vacía. La base de Render no se borra automáticamente.
+2. Crear una base **Upstash Redis Free** y guardar `UPSTASH_REDIS_REST_URL` y `UPSTASH_REDIS_REST_TOKEN` en Vercel. Se usa solo para rate limiting, no para sondear una cola BullMQ. No hace falta exponer Redis TCP a cualquier IP.
+3. Crear una app en **Inngest Free**. Guardar `INNGEST_EVENT_KEY` y `INNGEST_SIGNING_KEY` como secretos en Vercel. Configurar `BOOK_EXECUTOR=inngest` y sincronizar la app con `https://www.ruskicode.com/api/inngest` después del despliegue. Las claves no sustituyen esta sincronización. Si las URLs de despliegue están protegidas, usar el dominio público o configurar el bypass oficial de Inngest; no desactivar la verificación de firmas.
+4. Conservar `PUBLIC_APP_URL` y `ARTIFACT_SIGNING_SECRET`; configurar `STUDIO_ACCESS_CODE` y una clave vigente `KIE_API_KEY` mediante los campos secretos del proveedor. Nunca subirlas a Git.
+5. Aplicar `npm run db:migrate` contra Neon antes de generar libros. Redeploy en Vercel para aplicar las variables. Confirmar la sincronización en Inngest, crear una unidad pequeña, aprobar su índice y verificar el PDF descargado, QA y edición/recomposición.
+
+`/api/books` informa configuración presente, no certifica conectividad ni la sincronización remota de Inngest. La generación completa no se declara probada hasta comprobarla con cuentas y claves reales. Las cuotas gratuitas y las condiciones de cada proveedor pueden cambiar; elegir explícitamente los planes Free, sin activar upgrades. Vercel Hobby tiene restricciones de uso que deben revisarse antes de comercializar la plataforma. La infraestructura gratuita no incluye consumo de KIE/ElevenLabs.
+
+### Desarrollo y validación
+
+`npm ci`, `npm run test`, `npm run typecheck`, `npm run build`. Para el servidor local de Inngest: ejecutar `INNGEST_DEV=1 npm run dev` y `npx inngest-cli@latest dev`; usar una base de desarrollo y no apuntar pruebas a producción. El worker Docker con Poppler sigue siendo compatible para instalaciones BullMQ existentes.
