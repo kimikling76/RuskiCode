@@ -1,0 +1,32 @@
+[
+  {
+    "font": "onest",
+    "missing": [],
+    "weights": [
+      {
+        "tag": "wght",
+        "min": 100.0,
+        "max": 900.0
+      }
+    ],
+    "defaultWeight": 400
+  },
+  {
+    "font": "inter-ui",
+    "missing": [],
+    "weights": [],
+    "defaultWeight": 400
+  },
+  {
+    "font": "jetbrainsmono",
+    "missing": [],
+    "weights": [
+      {
+        "tag": "wght",
+        "min": 100.0,
+        "max": 800.0
+      }
+    ],
+    "defaultWeight": 400
+  }
+]
