@@ -1,4 +1,6 @@
-import {matches,sessionToken,sessionCookie,sameOrigin,limit} from '@/lib/ai/security';
+import {auth} from '@/lib/auth/server';
+import {sameOrigin} from '@/lib/ai/security';
 export const runtime='nodejs';
-export async function POST(req:Request){if(!sameOrigin(req))return Response.json({error:'FORBIDDEN'},{status:403});if(!process.env.STUDIO_ACCESS_CODE)return Response.json({error:'ACCESS_NOT_CONFIGURED'},{status:503});try{if(!await limit('login',20))return Response.json({error:'RATE_LIMIT'},{status:429});const raw=await req.text();if(raw.length>4096)return Response.json({error:'INVALID_REQUEST'},{status:413});const body=JSON.parse(raw);if(typeof body.code!=='string'||body.code.length>256||!matches(body.code,process.env.STUDIO_ACCESS_CODE))return Response.json({error:'INVALID_ACCESS_CODE'},{status:401});return Response.json({ok:true},{headers:{'Set-Cookie':sessionCookie(sessionToken()),'Cache-Control':'no-store'}});}catch{return Response.json({error:'ACCESS_UNAVAILABLE'},{status:503});}}
-export async function DELETE(req:Request){if(!sameOrigin(req))return new Response(null,{status:403});return Response.json({ok:true},{headers:{'Set-Cookie':'ruskicode_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'}});}
+// Retire the old shared-code login: old HMAC cookies grant no application access.
+export async function POST(){return Response.json({error:'USE_LOGIN',login:'/login'},{status:410});}
+export async function DELETE(request:Request){if(!sameOrigin(request))return new Response(null,{status:403});try{return await auth().api.signOut({headers:request.headers,asResponse:true});}catch{return Response.json({error:'AUTH_UNAVAILABLE'},{status:503});}}

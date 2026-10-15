@@ -140,3 +140,17 @@ En Vercel, el PDF se rasteriza desde sus bytes reales con PDF.js y canvas nativo
 ### Desarrollo y validación
 
 `npm ci`, `npm run test`, `npm run typecheck`, `npm run build`. Para el servidor local de Inngest: ejecutar `INNGEST_DEV=1 npm run dev` y `npx inngest-cli@latest dev`; usar una base de desarrollo y no apuntar pruebas a producción. El worker Docker con Poppler sigue siendo compatible para instalaciones BullMQ existentes.
+
+## Cuenta privada compartida
+
+`/login` usa Better Auth 1.7 con Prisma/Neon, sesiones individuales de siete días y correo/contraseña para una única cuenta del equipo. El registro público está deshabilitado. El rol administrador se asigna exclusivamente a la cuenta creada durante la primera activación; **no habilitar registro público con esta política**. Una futura implementación de clientes debe crear permisos y un rol predeterminado sin privilegios antes de abrir altas.
+
+Antes de publicar: aplicar `prisma/migrations/202610150001_private_auth/migration.sql`, configurar `BETTER_AUTH_SECRET` (aleatorio, al menos 32 caracteres) y `BETTER_AUTH_URL=https://www.ruskicode.com` en Production. El formulario permite ingresar el correo compartido, una contraseña de al menos 12 caracteres y el `STUDIO_ACCESS_CODE` existente. Nunca guardar esos datos en Git ni pedirlos por chat. `/api/studio/setup` verifica el código en servidor, aplica un límite distribuido y reserva una fila única antes de crear la cuenta. Si ya existe un usuario, se cierra definitivamente; no es un endpoint de recuperación. Un fallo incierto deja la reserva para revisión, en vez de permitir una segunda cuenta.
+
+El workspace y su editor verifican la sesión en servidor. Las APIs de libros, generación, skills y archivos verifican sesiones actuales con rol administrador; los enlaces temporales firmados para QA conservan su alcance a un solo archivo y caducidad. Inngest sigue usando su propia verificación de firmas. El código de acceso anterior y sus cookies HMAC ya no permiten acceder a la aplicación. La presentación y las muestras conceptuales siguen siendo públicas. Cerrar sesión revoca esa sesión; la sesión del otro dispositivo puede continuar.
+
+No se ofrece recuperación por correo hasta configurar entrega de emails. Si ambos olvidan la contraseña, el propietario debe realizar una recuperación administrativa verificada; no se reabre el registro. Los proyectos e historiales que ya estaban en localStorage siguen siendo locales al navegador: compartir la cuenta no agrega sincronización del contenido local ni coedición.
+
+Las tablas iniciales de libros se aplicaron mediante Neon porque este entorno no tiene conexión TCP directa a Postgres. Si se aplica también la migración de autenticación por Neon, antes de futuras ejecuciones de Prisma Migrate registrar esas migraciones existentes con `prisma migrate resolve --applied 202610140001_books` y `prisma migrate resolve --applied 202610150001_private_auth` usando una conexión directa desde un entorno con acceso. No volver a ejecutar sus CREATE TABLE sobre las tablas ya creadas.
+
+Validación de autenticación: cierre de registro, rechazo de contraseña errónea, dos sesiones de la cuenta compartida, revocación de una sesión sin cerrar la otra y rechazo del acceso legado. No se crean usuarios reales durante las pruebas locales.
