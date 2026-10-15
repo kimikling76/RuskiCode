@@ -154,3 +154,21 @@ No se ofrece recuperación por correo hasta configurar entrega de emails. Si amb
 Las tablas iniciales de libros se aplicaron mediante Neon porque este entorno no tiene conexión TCP directa a Postgres. Si se aplica también la migración de autenticación por Neon, antes de futuras ejecuciones de Prisma Migrate registrar esas migraciones existentes con `prisma migrate resolve --applied 202610140001_books` y `prisma migrate resolve --applied 202610150001_private_auth` usando una conexión directa desde un entorno con acceso. No volver a ejecutar sus CREATE TABLE sobre las tablas ya creadas.
 
 Validación de autenticación: cierre de registro, rechazo de contraseña errónea, dos sesiones de la cuenta compartida, revocación de una sesión sin cerrar la otra y rechazo del acceso legado. No se crean usuarios reales durante las pruebas locales.
+
+### Acceso privado con Google
+
+Crear un cliente OAuth de tipo **Aplicación web** en Google Cloud Console.
+Origen autorizado: `https://www.ruskicode.com`.
+URI de redirección: `https://www.ruskicode.com/api/auth/callback/google`.
+Guardar en Vercel (Production) `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (sensible) y
+`STUDIO_GOOGLE_EMAIL` (correo exacto de la cuenta compartida), y volver a desplegar.
+Si la pantalla de consentimiento está en pruebas, agregar ese correo como usuario de prueba.
+No se necesitan permisos de Gmail ni Drive; solo identidad de Google.
+
+El botón aparece únicamente cuando están las tres variables. El servidor exige ese correo
+verificado para crear el único usuario y revisa el correo al crear cada sesión. El registro
+público por contraseña sigue cerrado. Si ya crearon la cuenta con contraseña, configurar
+el mismo correo: Google se vincula a ella. No cambiar la variable para crear otro administrador.
+La configuración OAuth debe hacerse para cada origen de desarrollo que se vaya a usar;
+las previews sin sus credenciales mantienen el acceso por contraseña.
+No se ha probado una autorización real de Google sin las credenciales del propietario.
