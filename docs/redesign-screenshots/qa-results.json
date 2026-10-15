@@ -1,0 +1,235 @@
+{
+  "screens": [
+    {
+      "width": 390,
+      "state": "empty",
+      "metrics": {
+        "pageOverflow": false,
+        "logBottom": 554,
+        "composerTop": 554,
+        "composerBottom": 900,
+        "viewport": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "width": 390,
+      "state": "long",
+      "metrics": {
+        "pageOverflow": false,
+        "logBottom": 707,
+        "composerTop": 707,
+        "composerBottom": 900,
+        "viewport": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "width": 390,
+      "state": "error",
+      "metrics": {
+        "pageOverflow": false,
+        "logBottom": 707,
+        "composerTop": 707,
+        "composerBottom": 900,
+        "viewport": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "width": 390,
+      "state": "links",
+      "metrics": {
+        "pageOverflow": false,
+        "logBottom": 707,
+        "composerTop": 707,
+        "composerBottom": 900,
+        "viewport": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "width": 768,
+      "state": "empty",
+      "metrics": {
+        "pageOverflow": false,
+        "logBottom": 529,
+        "composerTop": 529,
+        "composerBottom": 900,
+        "viewport": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "width": 768,
+      "state": "long",
+      "metrics": {
+        "pageOverflow": false,
+        "logBottom": 737,
+        "composerTop": 737,
+        "composerBottom": 900,
+        "viewport": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "width": 768,
+      "state": "error",
+      "metrics": {
+        "pageOverflow": false,
+        "logBottom": 737,
+        "composerTop": 737,
+        "composerBottom": 900,
+        "viewport": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "width": 768,
+      "state": "links",
+      "metrics": {
+        "pageOverflow": false,
+        "logBottom": 737,
+        "composerTop": 737,
+        "composerBottom": 900,
+        "viewport": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "width": 1280,
+      "state": "empty",
+      "metrics": {
+        "pageOverflow": false,
+        "logBottom": 529,
+        "composerTop": 529,
+        "composerBottom": 900,
+        "viewport": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "width": 1280,
+      "state": "long",
+      "metrics": {
+        "pageOverflow": false,
+        "logBottom": 737,
+        "composerTop": 737,
+        "composerBottom": 900,
+        "viewport": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "width": 1280,
+      "state": "error",
+      "metrics": {
+        "pageOverflow": false,
+        "logBottom": 737,
+        "composerTop": 737,
+        "composerBottom": 900,
+        "viewport": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "width": 1280,
+      "state": "links",
+      "metrics": {
+        "pageOverflow": false,
+        "logBottom": 737,
+        "composerTop": 737,
+        "composerBottom": 900,
+        "viewport": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "width": 1920,
+      "state": "empty",
+      "metrics": {
+        "pageOverflow": false,
+        "logBottom": 529,
+        "composerTop": 529,
+        "composerBottom": 900,
+        "viewport": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "width": 1920,
+      "state": "long",
+      "metrics": {
+        "pageOverflow": false,
+        "logBottom": 737,
+        "composerTop": 737,
+        "composerBottom": 900,
+        "viewport": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "width": 1920,
+      "state": "error",
+      "metrics": {
+        "pageOverflow": false,
+        "logBottom": 737,
+        "composerTop": 737,
+        "composerBottom": 900,
+        "viewport": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "width": 1920,
+      "state": "links",
+      "metrics": {
+        "pageOverflow": false,
+        "logBottom": 737,
+        "composerTop": 737,
+        "composerBottom": 900,
+        "viewport": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "width": 390,
+      "state": "streaming",
+      "manualScrollPreserved": true
+    },
+    {
+      "width": 768,
+      "state": "streaming",
+      "manualScrollPreserved": true
+    },
+    {
+      "width": 1280,
+      "state": "streaming",
+      "manualScrollPreserved": true
+    },
+    {
+      "width": 1920,
+      "state": "streaming",
+      "manualScrollPreserved": true
+    }
+  ],
+  "checks": [
+    "Ask-first cancel preserves unsent draft",
+    "Real incremental SSE fixture at four widths; manual scroll preserved during tokens",
+    "Send, SSE rendering, usage recording and inline rename",
+    "Copy, delete-cancel, conversion-cancel, mobile keyboard-sized viewport"
+  ],
+  "axe": [
+    {
+      "width": 390,
+      "state": "long",
+      "violations": []
+    },
+    {
+      "width": 1280,
+      "state": "long",
+      "violations": []
+    }
+  ],
+  "consoleErrors": []
+}

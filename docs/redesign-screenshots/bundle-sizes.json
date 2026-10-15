@@ -1,0 +1,15 @@
+{
+  "beforeRawBytes": {
+    ".js": 1488304,
+    ".css": 110582
+  },
+  "afterRawBytes": {
+    ".js": 1613938,
+    ".css": 128998
+  },
+  "afterGzipBytes": {
+    ".js": 505902,
+    ".css": 25047
+  },
+  "afterMethod": "fresh isolated production build, same client source; authentication excluded from performance fixture"
+}
