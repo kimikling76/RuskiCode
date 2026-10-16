@@ -67,13 +67,13 @@ function data(state){
  const messages=['empty','streaming'].includes(state)?[]:[{id:'u1',role:'user',content:'Quiero darle forma a una idea. ¿Por dónde empezamos?',createdAt:'2026-10-15T17:00:00Z'},{id:'a1',role:'assistant',content:state==='error'?'':state==='normal'?normal:markdown,model:'Gemini 3.8 Flash · KIE',status:state==='error'?'error':'done',createdAt:'2026-10-15T17:00:02Z',...(state==='long'?{credits:2}:{})}];
  return {version:2,chats:messages.length?[{id:'fixture',title:'Una idea que vale la pena explorar',model:'auto',createdAt:'2026-10-15T17:00:00Z',messages,conversions:[]}]:[],projects:[],pending:[],usage:[]};
 }
-async function setup(width,state,{motion='reduce',touch=false,fixture=data(state),fail=false}={}){
+async function setup(width,state,{motion='reduce',touch=false,fixture=data(state),fail=false,models=[{id:'kie-flash',name:'Gemini 3.8 Flash · KIE',provider:'Google'},{id:'kie-pro',name:'Gemini 3.1 Pro · KIE',provider:'Google'}]}={}){
  const context=await browser.newContext({viewport:{width,height:900},deviceScaleFactor:1,reducedMotion:motion,hasTouch:touch,permissions:['clipboard-read','clipboard-write']});
  await context.addInitScript(d=>localStorage.setItem('estudio-personal-v2',JSON.stringify(d)),fixture);
  const page=await context.newPage();const posts=[];
  page.on('pageerror',error=>results.consoleErrors.push(String(error)));page.on('console',message=>{if(message.type()==='error')results.consoleErrors.push(message.text());});
  await page.route('**/api/personal-chat',async route=>{
-  if(route.request().method()==='GET')return route.fulfill({json:{models:[{id:'kie-flash',name:'Gemini 3.8 Flash · KIE',provider:'Google'},{id:'kie-pro',name:'Gemini 3.1 Pro · KIE',provider:'Google'}]}});
+  if(route.request().method()==='GET')return route.fulfill({json:{models}});
   posts.push(route.request().postDataJSON());
   if(state==='streaming')return route.continue({url:streamURL});
   const events=fail?[{type:'model',name:'Gemini 3.8 Flash · KIE'},{type:'error',error:'PROVIDER_UNAVAILABLE'}]:responseEvents;
@@ -131,6 +131,8 @@ try{
   const {context,page,posts}=await setup(1280,'empty',{motion:'no-preference'});
   const trigger=page.getByRole('button',{name:'Modelo de chat: Auto',exact:true});await trigger.focus();await page.keyboard.press('ArrowDown');
   const search=page.getByRole('combobox',{name:'Buscar modelo'});await search.waitFor();assert(await search.evaluate(e=>e===document.activeElement));
+  assert.equal(await page.getByRole('group',{name:'Proveedores'}).count(),0);
+  assert.equal(await page.locator('.chat-model-options small').count(),0);
   await search.fill('inexistente');assert.equal(await page.getByRole('option').count(),0);await search.fill('Google');assert.equal(await page.getByRole('option').count(),2);
   await search.fill('Pro');await page.keyboard.press('Enter');await focused(page.getByRole('button',{name:'Modelo de chat: Gemini 3.1 Pro · KIE',exact:true}));
   await page.getByRole('button',{name:/Modelo de chat:/}).click();await page.getByRole('combobox',{name:'Buscar modelo'}).fill('Flash');await page.keyboard.press('Escape');await page.waitForFunction(()=>!document.querySelector('.studio-modal,.chat-model-popover,.studio-drawer'));assert.equal(await page.getByRole('combobox',{name:'Buscar modelo'}).count(),0);
@@ -169,6 +171,78 @@ try{
  {
   const {context,page}=await setup(1280,'empty',{fail:true});await page.locator('#personal-message').fill('Provocar un error controlado');await page.getByRole('button',{name:'Enviar mensaje',exact:true}).click();await page.getByRole('button',{name:'Reintentar',exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Reintentar',exact:true}).count(),1);assert.equal(await page.locator('.chat-notice').count(),0);assert.equal(await page.getByText('No pude terminar esta respuesta.',{exact:true}).count(),1);await context.close();results.checks.push('An actual SSE error produces one inline error with one retry and no duplicate banner');
  }
+ // Test-only catalog: never written to the app configuration or sent to a provider.
+ const railModels=[
+  ...Array.from({length:8},(_,i)=>({id:`fixture-google-${i}`,name:`Modelo de prueba Google ${i+1}`,provider:'Google'})),
+  {id:'fixture-other',name:'Modelo de prueba Anthropic',provider:'Anthropic',description:'Descripción de la fixture local'},
+  {id:'fixture-fallback',name:'Modelo de prueba sin proveedor'},
+ ];
+ for(const {width,height} of [{width:1280,height:900},{width:390,height:900},{width:390,height:480}]){
+  const {context,page}=await setup(width,'normal',{touch:width===390,models:railModels});
+  await page.setViewportSize({width,height});
+  const trigger=page.getByRole('button',{name:/Modelo de chat:/});
+  await trigger.click();
+  const input=page.getByRole('combobox',{name:'Buscar modelo'});
+  const rail=page.getByRole('group',{name:'Proveedores'});
+  const list=page.getByRole('listbox');
+  await focused(input);
+  assert(await input.evaluate(e=>{
+   const probe=document.createElement('span');probe.style.color='var(--accent)';e.parentElement.append(probe);
+   const accent=getComputedStyle(probe).color;probe.remove();const label=getComputedStyle(e.parentElement);
+   return label.borderBottomWidth==='1px'&&label.borderBottomColor===accent;
+  }));
+  assert.equal(await rail.locator('button').count(),3);
+  assert.equal(await rail.evaluate(e=>e.getBoundingClientRect().width),52);
+  for(const button of await rail.locator('button').all()){
+   assert.equal(await button.getAttribute('tabindex'),'-1');
+   assert.equal(await button.evaluate(e=>e.getBoundingClientRect().width),38);
+  }
+  assert.equal(await list.getByRole('option').first().innerText(),'Auto');
+  assert.equal(await page.locator('.chat-model-divider').getAttribute('aria-hidden'),'true');
+  assert.equal(await list.locator('small').count(),0);
+  assert.equal(await page.locator('.chat-model-provider svg[viewBox="0 0 296 298"]').count(),8);
+  await input.press('ArrowRight');await focused(input);
+  assert.equal(await rail.getByRole('button',{name:'Anthropic',exact:true}).getAttribute('aria-pressed'),'true');
+  assert.equal(await list.getByRole('option').first().innerText(),'Auto');
+  assert.equal(await list.locator('small').innerText(),'Descripción de la fixture local');
+  await input.dispatchEvent('keydown',{key:'ArrowRight',isComposing:true});
+  await input.dispatchEvent('keydown',{key:'Enter',isComposing:true});
+  assert.equal(await rail.getByRole('button',{name:'Anthropic',exact:true}).getAttribute('aria-pressed'),'true');
+  await input.fill('Modelo de prueba');
+  assert.equal(await list.getByRole('option').count(),10);
+  assert.deepEqual(new Set(await list.locator('small').allTextContents()),new Set(['Google','Anthropic','Kie.ai']));
+  await input.press('ArrowRight');assert.equal(await list.getByRole('option').count(),10);
+  await input.fill('Kie.ai');await page.getByRole('option',{name:/Modelo de prueba sin proveedor/}).waitFor();
+  await input.fill('   ');await input.press('ArrowRight');
+  assert.equal(await rail.getByRole('button',{name:'Kie.ai',exact:true}).getAttribute('aria-pressed'),'true');
+  await input.fill('');await input.press('ArrowRight');
+  assert.equal(await rail.getByRole('button',{name:'Google',exact:true}).getAttribute('aria-pressed'),'true');
+  await input.press('ArrowLeft');
+  assert.equal(await rail.getByRole('button',{name:'Kie.ai',exact:true}).getAttribute('aria-pressed'),'true');
+  await rail.getByRole('button',{name:'Google',exact:true}).click();await focused(input);
+  assert.equal(await list.getByRole('option',{name:'Auto',exact:true}).getAttribute('aria-selected'),'true');
+  assert.equal(await list.locator('[data-active=true]').getAttribute('aria-selected'),'false');
+  await list.getByRole('option').last().hover();await input.press('ArrowDown');
+  const activeID=await input.getAttribute('aria-activedescendant');
+  assert.equal(await list.locator('[data-active=true]').getAttribute('id'),activeID);
+  const bounds=await page.locator('.chat-model-popover').evaluate(e=>{
+   const b=e.getBoundingClientRect();const input=e.querySelector('input').getBoundingClientRect();const list=e.querySelector('[role=listbox]').getBoundingClientRect();
+   return {left:b.left,right:b.right,top:b.top,bottom:b.bottom,width:b.width,height:b.height,inputBottom:input.bottom,listBottom:list.bottom,overflow:document.documentElement.scrollWidth>innerWidth,available:parseFloat(getComputedStyle(e).getPropertyValue('--radix-popover-content-available-height')),animation:getComputedStyle(e).animationName,help:getComputedStyle(e.querySelector('.chat-model-help')).display};
+  });
+  assert(bounds.left>=11&&bounds.right<=width-11&&bounds.top>=11&&bounds.bottom<=height-11,JSON.stringify(bounds));
+  assert(bounds.height<=bounds.available+1&&!bounds.overflow,JSON.stringify(bounds));
+  assert(bounds.inputBottom<=bounds.bottom&&bounds.listBottom<=bounds.bottom,JSON.stringify(bounds));
+  assert.equal(bounds.animation,'none');if(width===390)assert.equal(bounds.help,'none');
+  await capture(page,`model-rail-${height}`,width);await scan(page,`model-rail-${width}x${height}`);
+  await input.press('Tab');await focused(page.getByRole('switch',{name:/Preguntar antes/}));
+  await trigger.click();await input.press('Shift+Tab');await focused(page.locator('#personal-message'));
+  await trigger.click();await input.press('Escape');await focused(trigger);
+  await trigger.click();await input.fill('Anthropic');await input.press('Enter');await focused(trigger);
+  assert.equal(await trigger.getAttribute('aria-label'),'Modelo de chat: Modelo de prueba Anthropic');
+  await trigger.click();assert.equal(await rail.getByRole('button',{name:'Anthropic',exact:true}).getAttribute('aria-pressed'),'true');
+  await input.press('Escape');await context.close();
+ }
+ results.checks.push('Multi-provider local fixture at 1280x900, 390x900 and 390x480: rail geometry, Auto, actual descriptions, fallback provider, cross-provider search, left/right and whitespace, IME, active versus selected, activedescendant, pointer focus, Tab/Shift+Tab, Escape, selected provider on reopening, bounds, touch help, reduced motion and axe');
  assert.equal(results.consoleErrors.length,0);assert.equal(results.unexpectedRequests.length,0);
  console.log(JSON.stringify({screens:results.screens.length,checks:results.checks,axe:results.axe.map(x=>({label:x.label,violations:x.violations})),consoleErrors:results.consoleErrors},null,2));
 }finally{

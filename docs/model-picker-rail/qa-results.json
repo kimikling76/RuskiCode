@@ -1,0 +1,447 @@
+{
+  "screens": [
+    {
+      "name": "empty",
+      "width": 390,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 578,
+        "composerTop": 578,
+        "composerBottom": 900,
+        "footerBottom": 810,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "normal",
+      "width": 390,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 726,
+        "composerTop": 726,
+        "composerBottom": 900,
+        "footerBottom": 886,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "long",
+      "width": 390,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 726,
+        "composerTop": 726,
+        "composerBottom": 900,
+        "footerBottom": 886,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "code",
+      "width": 390,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 726,
+        "composerTop": 726,
+        "composerBottom": 900,
+        "footerBottom": 886,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "error",
+      "width": 390,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 726,
+        "composerTop": 726,
+        "composerBottom": 900,
+        "footerBottom": 886,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "empty",
+      "width": 768,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 525.8125,
+        "composerTop": 525.8125,
+        "composerBottom": 900,
+        "footerBottom": 747,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "normal",
+      "width": 768,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 726.8125,
+        "composerTop": 726.8125,
+        "composerBottom": 900,
+        "footerBottom": 884,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "long",
+      "width": 768,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 726.8125,
+        "composerTop": 726.8125,
+        "composerBottom": 900,
+        "footerBottom": 884,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "error",
+      "width": 768,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 726.8125,
+        "composerTop": 726.8125,
+        "composerBottom": 900,
+        "footerBottom": 884,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "empty",
+      "width": 1280,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 545,
+        "composerTop": 545,
+        "composerBottom": 900,
+        "footerBottom": 0,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "normal",
+      "width": 1280,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 750,
+        "composerTop": 750,
+        "composerBottom": 900,
+        "footerBottom": 0,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "long",
+      "width": 1280,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 750,
+        "composerTop": 750,
+        "composerBottom": 900,
+        "footerBottom": 0,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "long-content",
+      "width": 1280,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 750,
+        "composerTop": 750,
+        "composerBottom": 900,
+        "footerBottom": 0,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "error",
+      "width": 1280,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 750,
+        "composerTop": 750,
+        "composerBottom": 900,
+        "footerBottom": 0,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "empty",
+      "width": 1920,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 545,
+        "composerTop": 545,
+        "composerBottom": 900,
+        "footerBottom": 0,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "normal",
+      "width": 1920,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 750,
+        "composerTop": 750,
+        "composerBottom": 900,
+        "footerBottom": 0,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "long",
+      "width": 1920,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 750,
+        "composerTop": 750,
+        "composerBottom": 900,
+        "footerBottom": 0,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "error",
+      "width": 1920,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 750,
+        "composerTop": 750,
+        "composerBottom": 900,
+        "footerBottom": 0,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "streaming",
+      "width": 390,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 726,
+        "composerTop": 726,
+        "composerBottom": 900,
+        "footerBottom": 886,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "streaming",
+      "width": 768,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 726.8125,
+        "composerTop": 726.8125,
+        "composerBottom": 900,
+        "footerBottom": 884,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "streaming",
+      "width": 1280,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 750,
+        "composerTop": 750,
+        "composerBottom": 900,
+        "footerBottom": 0,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "streaming",
+      "width": 1920,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 750,
+        "composerTop": 750,
+        "composerBottom": 900,
+        "footerBottom": 0,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "model-picker",
+      "width": 1280,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 545,
+        "composerTop": 545,
+        "composerBottom": 900,
+        "footerBottom": 0,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "ready-to-send",
+      "width": 1280,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 545,
+        "composerTop": 545,
+        "composerBottom": 900,
+        "footerBottom": 0,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "mobile-navigation",
+      "width": 390,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 726,
+        "composerTop": 726,
+        "composerBottom": 900,
+        "footerBottom": 886,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "keyboard-sized-viewport",
+      "width": 390,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 228,
+        "composerTop": 228,
+        "composerBottom": 480,
+        "footerBottom": 466,
+        "height": 480,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "model-picker",
+      "width": 390,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 648,
+        "composerTop": 648,
+        "composerBottom": 900,
+        "footerBottom": 886,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "model-rail-900",
+      "width": 1280,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 750,
+        "composerTop": 750,
+        "composerBottom": 900,
+        "footerBottom": 0,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "model-rail-900",
+      "width": 390,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 726,
+        "composerTop": 726,
+        "composerBottom": 900,
+        "footerBottom": 886,
+        "height": 900,
+        "outerScroll": false
+      }
+    },
+    {
+      "name": "model-rail-480",
+      "width": 390,
+      "metrics": {
+        "overflow": false,
+        "logBottom": 306,
+        "composerTop": 306,
+        "composerBottom": 480,
+        "footerBottom": 466,
+        "height": 480,
+        "outerScroll": false
+      }
+    }
+  ],
+  "checks": [
+    "Four widths: no overlap, clipping or page overflow; missing costs hidden; one error and one retry; desktop timestamps reveal on hover/focus",
+    "Incremental HTTP SSE at all widths; manual scroll preserved; stop aborts and leaves a single inline error; jump-to-latest works",
+    "Search, provider filtering by text, keyboard selection/Escape/focus; no fabricated model metadata; confirmation focus trap; send, real fixture usage, model change mid-chat, copy, rename, regenerate, manual conversion; message delete preserves project copy; menu keyboard/focus; chat delete/undo/8s purge preserves project",
+    "Retry of older failed response replaces only that response and preserves later messages",
+    "Mobile drawer focus/Escape; touch metadata; reduced-motion messages and portals; multi-line composer at keyboard-sized viewport",
+    "An actual SSE error produces one inline error with one retry and no duplicate banner",
+    "Multi-provider local fixture at 1280x900, 390x900 and 390x480: rail geometry, Auto, actual descriptions, fallback provider, cross-provider search, left/right and whitespace, IME, active versus selected, activedescendant, pointer focus, Tab/Shift+Tab, Escape, selected provider on reopening, bounds, touch help, reduced motion and axe"
+  ],
+  "axe": [
+    {
+      "label": "empty-mobile",
+      "violations": []
+    },
+    {
+      "label": "normal-desktop",
+      "violations": []
+    },
+    {
+      "label": "long-desktop",
+      "violations": []
+    },
+    {
+      "label": "model-picker",
+      "violations": []
+    },
+    {
+      "label": "delete-message-confirmation",
+      "violations": []
+    },
+    {
+      "label": "mobile-navigation",
+      "violations": []
+    },
+    {
+      "label": "model-picker-mobile",
+      "violations": []
+    },
+    {
+      "label": "model-rail-1280x900",
+      "violations": []
+    },
+    {
+      "label": "model-rail-390x900",
+      "violations": []
+    },
+    {
+      "label": "model-rail-390x480",
+      "violations": []
+    }
+  ],
+  "consoleErrors": [],
+  "unexpectedRequests": []
+}
