@@ -1,17 +1,125 @@
 'use client';
-import {useEffect,useState} from 'react';
-import * as Dialog from '@radix-ui/react-dialog';
+import {useEffect, useState} from 'react';
 import {create} from 'zustand';
+import {toast} from 'sonner';
 import {usePersonal} from '@/store/personal-chat';
-import {X} from 'lucide-react';
-type DialogState={renameId:string|null;deleteId:string|null;settings:boolean;openRename:(id:string)=>void;openDelete:(id:string)=>void;openSettings:()=>void;close:()=>void};
-export const useChatDialogs=create<DialogState>(set=>({renameId:null,deleteId:null,settings:false,openRename:id=>set({renameId:id}),openDelete:id=>set({deleteId:id}),openSettings:()=>set({settings:true}),close:()=>set({renameId:null,deleteId:null,settings:false})}));
-export function PersonalModal({open,onClose,title,description,children}:{open:boolean;onClose:()=>void;title:string;description:string;children:React.ReactNode}){return <Dialog.Root open={open} onOpenChange={v=>{if(!v)onClose();}}><Dialog.Portal><Dialog.Overlay className="studio-modal-overlay"/><Dialog.Content className="studio-modal personal-modal"><Dialog.Title>{title}</Dialog.Title><Dialog.Description>{description}</Dialog.Description><Dialog.Close asChild><button className="studio-icon-button studio-modal-close" aria-label="Cerrar"><X size={18}/></button></Dialog.Close>{children}</Dialog.Content></Dialog.Portal></Dialog.Root>;}
-export function ChatDialogs({onChat}:{onChat:()=>void}){
- const d=useChatDialogs();const data=usePersonal(s=>s.data);const error=usePersonal(s=>s.error);const rename=usePersonal(s=>s.rename);const remove=usePersonal(s=>s.remove);const undo=usePersonal(s=>s.undo);const clear=usePersonal(s=>s.clear);const [title,setTitle]=useState('');const [step,setStep]=useState(0);const [confirmation,setConfirmation]=useState('');const [now,setNow]=useState(Date.now());
- useEffect(()=>{setTitle(data.chats.find(c=>c.id===d.renameId)?.title||'');},[d.renameId]);useEffect(()=>{if(!d.settings){setStep(0);setConfirmation('');}},[d.settings]);useEffect(()=>{if(!data.pending.length)return;setNow(Date.now());const t=setInterval(()=>setNow(Date.now()),250);return()=>clearInterval(t);},[data.pending.length]);
- return <><PersonalModal open={Boolean(d.renameId)} onClose={d.close} title="Renombrar chat" description="El título no cambia el contenido ni crea un proyecto."><form onSubmit={e=>{e.preventDefault();if(d.renameId&&rename(d.renameId,title))d.close();}}><label>Nombre del chat<input autoFocus maxLength={100} required value={title} onChange={e=>setTitle(e.target.value)}/></label><button className="studio-primary" disabled={!title.trim()}>Guardar nombre</button></form></PersonalModal>
- <PersonalModal open={Boolean(d.deleteId)} onClose={d.close} title="¿Borrar este chat?" description="Se quitará de este navegador y tendrás 8 segundos para deshacer. Los proyectos creados a partir de él NO se borran; se eliminan desde su propio estudio."><div className="personal-dialog-actions"><button className="studio-text-button" onClick={d.close}>Cancelar</button><button className="studio-primary" onClick={()=>{if(d.deleteId&&remove(d.deleteId))d.close();}}>Borrar chat</button></div></PersonalModal>
- <PersonalModal open={d.settings} onClose={d.close} title="Ajustes del Chat" description="Los chats personales se guardan solo en este navegador. No se sincronizan entre tu compañero y vos.">{step===0?<><p className="studio-footnote">La solución simple para sincronizarlos es guardarlos en el Postgres existente, asociados a la cuenta compartida. Esa migración no está activada en esta entrega.</p><button className="personal-danger" disabled={!data.chats.length&&!data.pending.length} onClick={()=>setStep(1)}>Borrar todos los chats</button></>:step===1?<><p>Primera confirmación: se borrarán todos los chats personales y sus mensajes. Los proyectos convertidos y el consumo se conservan.</p><div className="personal-dialog-actions"><button className="studio-text-button" onClick={()=>setStep(0)}>Cancelar</button><button className="personal-danger" onClick={()=>setStep(2)}>Continuar al borrado definitivo</button></div></>:<><p>Segunda confirmación: esta acción no tiene Deshacer. Escribí BORRAR.</p><input autoFocus aria-label="Escribir BORRAR para confirmar" value={confirmation} onChange={e=>setConfirmation(e.target.value)}/><div className="personal-dialog-actions"><button className="studio-text-button" onClick={()=>setStep(0)}>Cancelar</button><button className="personal-danger" disabled={confirmation!=='BORRAR'} onClick={()=>{if(clear())d.close();}}>Eliminar todos definitivamente</button></div></>}{error?<p role="alert" className="pure-error">{error}</p>:null}</PersonalModal>
- <div className="personal-toasts" aria-live="polite">{data.pending.filter(p=>p.deadline>now).map(p=><div key={p.id} role="status"><span>Chat borrado · <small>{Math.max(1,Math.ceil((p.deadline-now)/1000))} s</small></span><button onClick={()=>{undo(p.id);onChat();}}>Deshacer</button></div>)}</div></>;
+import {UNDO_MS} from '@/lib/personal-chat/state';
+import {Dialog, ConfirmDialog} from '@/components/ui/dialog';
+
+type DialogState = {
+  renameId: string | null;
+  deleteId: string | null;
+  settings: boolean;
+  openRename: (id: string) => void;
+  openDelete: (id: string) => void;
+  openSettings: () => void;
+  close: () => void;
+};
+
+export const useChatDialogs = create<DialogState>(set => ({
+  renameId: null,
+  deleteId: null,
+  settings: false,
+  openRename: id => set({renameId: id}),
+  openDelete: id => set({deleteId: id}),
+  openSettings: () => set({settings: true}),
+  close: () => set({renameId: null, deleteId: null, settings: false}),
+}));
+
+/** Chat-level dialogs shared by the sidebar and the chat header. */
+export function ChatDialogs({onChat}: {onChat: () => void}) {
+  const d = useChatDialogs();
+  const data = usePersonal(s => s.data);
+  const error = usePersonal(s => s.error);
+  const rename = usePersonal(s => s.rename);
+  const remove = usePersonal(s => s.remove);
+  const undo = usePersonal(s => s.undo);
+  const clear = usePersonal(s => s.clear);
+  const [title, setTitle] = useState('');
+  const [step, setStep] = useState(0);
+  const [confirmation, setConfirmation] = useState('');
+
+  // Only reset the field when a different chat is opened, not on every history change.
+  useEffect(() => { setTitle(usePersonal.getState().data.chats.find(c => c.id === d.renameId)?.title || ''); }, [d.renameId]);
+  useEffect(() => { if (!d.settings) { setStep(0); setConfirmation(''); } }, [d.settings]);
+
+  function confirmDelete() {
+    const id = d.deleteId;
+    if (!id || !remove(id)) return;
+    d.close();
+    toast('Chat borrado', {
+      duration: UNDO_MS,
+      action: {label: 'Deshacer', onClick: () => { undo(id); onChat(); }},
+    });
+  }
+
+  return (
+    <>
+      <Dialog open={Boolean(d.renameId)} onClose={d.close} title="Renombrar chat">
+        <form onSubmit={e => { e.preventDefault(); if (d.renameId && rename(d.renameId, title)) d.close(); }}>
+          <label className="rc-field">
+            <span>Nombre</span>
+            <input className="rc-input" autoFocus maxLength={100} required value={title} onChange={e => setTitle(e.target.value)} />
+          </label>
+          <div className="rc-dialog-footer rc-dialog-footer--end">
+            <button type="button" className="rc-btn rc-btn--ghost" onClick={d.close}>Cancelar</button>
+            <button type="submit" className="rc-btn rc-btn--primary" disabled={!title.trim()}>Guardar</button>
+          </div>
+        </form>
+      </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(d.deleteId)}
+        onClose={d.close}
+        onConfirm={confirmDelete}
+        title="¿Borrar este chat?"
+        description="Vas a tener unos segundos para deshacerlo. Los proyectos creados a partir de este chat no se borran."
+        confirmLabel="Borrar chat"
+        tone="danger"
+      />
+
+      <Dialog
+        open={d.settings}
+        onClose={d.close}
+        title="Ajustes del Chat"
+        description="Los chats se guardan solo en este navegador. Todavía no se sincronizan entre dispositivos ni entre personas."
+      >
+        {step === 0 ? (
+          <div className="rc-dialog-body">
+            <div className="rc-setting-row">
+              <div>
+                <strong>Borrar todos los chats</strong>
+                <p className="rc-hint">Los proyectos convertidos y el registro de consumo se conservan.</p>
+              </div>
+              <button type="button" className="rc-btn rc-btn--danger rc-btn--sm" disabled={!data.chats.length && !data.pending.length} onClick={() => setStep(1)}>
+                Borrar todo
+              </button>
+            </div>
+          </div>
+        ) : step === 1 ? (
+          <div className="rc-dialog-body">
+            <p className="rc-hint">Se van a borrar todos los chats y sus mensajes de este navegador. Esta acción no se puede deshacer.</p>
+            <div className="rc-dialog-footer rc-dialog-footer--end">
+              <button type="button" className="rc-btn rc-btn--ghost" onClick={() => setStep(0)}>Cancelar</button>
+              <button type="button" className="rc-btn rc-btn--danger" onClick={() => setStep(2)}>Continuar</button>
+            </div>
+          </div>
+        ) : (
+          <div className="rc-dialog-body">
+            <label className="rc-field">
+              <span>Para confirmar, escribí BORRAR</span>
+              <input className="rc-input" autoFocus autoComplete="off" value={confirmation} onChange={e => setConfirmation(e.target.value)} />
+            </label>
+            <div className="rc-dialog-footer rc-dialog-footer--end">
+              <button type="button" className="rc-btn rc-btn--ghost" onClick={() => setStep(0)}>Cancelar</button>
+              <button type="button" className="rc-btn rc-btn--danger" disabled={confirmation.trim().toUpperCase() !== 'BORRAR'} onClick={() => { if (clear()) d.close(); }}>
+                Borrar todos los chats
+              </button>
+            </div>
+          </div>
+        )}
+        {error ? <p role="alert" className="rc-form-error">{error}</p> : null}
+      </Dialog>
+    </>
+  );
 }
