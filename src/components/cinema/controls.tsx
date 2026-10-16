@@ -1,0 +1,100 @@
+'use client';
+import {Fragment, useState, type ReactNode} from 'react';
+import {Sparkles} from 'lucide-react';
+import {aspectRatios, imageModel, ratioValue, type AspectRatio} from '@/lib/cinema/capabilities';
+import {useCinemaUi} from '@/store/cinema-ui';
+import {ConfirmDialog} from '@/components/ui/dialog';
+import {Switch} from '@/components/ui/switch';
+
+export function Field({label, hint, children, action}: {label: string; hint?: ReactNode; children: ReactNode; action?: ReactNode}) {
+  return (
+    <div className="rc-cine-field">
+      <div className="rc-cine-field-head"><span>{label}</span>{action}</div>
+      {children}
+      {hint ? <p className="rc-hint">{hint}</p> : null}
+    </div>
+  );
+}
+
+export function Segmented<T extends string | number>({name, label, options, value, onChange, disabled}: {name: string; label: string; options: {value: T; label: string}[]; value: T; onChange: (value: T) => void; disabled?: boolean}) {
+  return (
+    <div className="rc-segmented rc-segmented--compact" role="radiogroup" aria-label={label}>
+      {options.map(o => (
+        <label key={String(o.value)}>
+          <input type="radio" name={name} checked={value === o.value} disabled={disabled} onChange={() => onChange(o.value)} />
+          <strong>{o.label}</strong>
+        </label>
+      ))}
+    </div>
+  );
+}
+
+/** Each ratio is drawn to scale inside the same 22px box. */
+export function AspectPicker({value, onChange, name = 'aspect', disabled, options = aspectRatios}: {value: AspectRatio; onChange: (v: AspectRatio) => void; name?: string; disabled?: boolean; options?: readonly AspectRatio[]}) {
+  return (
+    <div className="rc-aspects" role="radiogroup" aria-label="Formato">
+      {options.map(a => {
+        const r = ratioValue(a);
+        const w = r >= 1 ? 22 : Math.round(22 * r);
+        const h = r >= 1 ? Math.round(22 / r) : 22;
+        return (
+          <label key={a} className="rc-aspect" title={a === 'auto' ? 'Automático' : a}>
+            <input type="radio" name={name} checked={value === a} disabled={disabled} onChange={() => onChange(a)} />
+            <span className="rc-aspect-shape" data-auto={a === 'auto' ? 'true' : undefined} style={{width: w, height: h}} aria-hidden="true" />
+            <span className="rc-aspect-label">{a === 'auto' ? 'Auto' : a}</span>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
+export function ModelRow({detail}: {detail?: string}) {
+  return (
+    <div className="rc-cine-model">
+      <span className="rc-model-icon" aria-hidden="true">G</span>
+      <span className="rc-model-text">
+        <strong>{imageModel.name}</strong>
+        <small>{imageModel.provider} · vía Kie{detail ? ' · ' + detail : ''}</small>
+      </span>
+    </div>
+  );
+}
+
+export function AssistantButton({onClick}: {onClick: () => void}) {
+  return (
+    <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm rc-cine-assist" onClick={onClick}>
+      <Sparkles aria-hidden="true" />Ayuda con el prompt
+    </button>
+  );
+}
+
+/** «Preguntar antes» + the single primary action of a panel. Confirmation never shows a cost Kie has not reported. */
+export function GenerateBar({label, disabled, facts, onGenerate}: {label: string; disabled?: boolean; facts: [string, string][]; onGenerate: () => void}) {
+  const askFirst = useCinemaUi(s => s.askFirst);
+  const setAskFirst = useCinemaUi(s => s.setAskFirst);
+  const [confirm, setConfirm] = useState(false);
+  return (
+    <div className="rc-cine-generate">
+      <label className="rc-ask" htmlFor="cinema-ask-first">
+        <span className="rc-ask-label">Preguntar antes</span>
+        <Switch id="cinema-ask-first" checked={askFirst} onCheckedChange={setAskFirst} />
+      </label>
+      <button type="button" className="rc-btn rc-btn--primary" disabled={disabled} onClick={() => askFirst ? setConfirm(true) : onGenerate()}>
+        {label}
+      </button>
+      <ConfirmDialog
+        open={confirm}
+        onClose={() => setConfirm(false)}
+        onConfirm={() => { setConfirm(false); onGenerate(); }}
+        title="¿Generar en Kie?"
+        description="Cada imagen es una tarea en Kie y consume créditos. El costo real aparece al terminar, cuando Kie lo informa."
+        confirmLabel={label}
+      >
+        <dl className="rc-facts">
+          {facts.map(([k, v]) => <Fragment key={k}><dt>{k}</dt><dd>{v}</dd></Fragment>)}
+        </dl>
+      </ConfirmDialog>
+    </div>
+  );
+}

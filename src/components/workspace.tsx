@@ -8,6 +8,8 @@ import {PersonalChatPanel} from '@/components/studio/personal-chat';
 import {ChatDialogs} from '@/components/studio/chat-dialogs';
 import {ConfirmDialog} from '@/components/ui/dialog';
 import {Tip} from '@/components/ui/tooltip';
+import {CinemaStudio} from '@/components/cinema/cinema-studio';
+import {CinemaJobRunner} from '@/components/cinema/job-runner';
 import {usePersonal, type StudioProject} from '@/store/personal-chat';
 import {useProjects} from '@/store/projects';
 
@@ -83,6 +85,14 @@ export function Workspace() {
           <main id="studio-main" className="rc-main-body" tabIndex={-1}>
             <PersonalChatPanel key={nonce} onCreated={(p: StudioProject) => navigate(p.destination, p.id)} />
           </main>
+        ) : view === 'cinema' && hydrated && !project && !legacy ? (
+          <main id="studio-main" className="rc-main-body" tabIndex={-1}>
+            <CinemaStudio
+              projects={own.map(p => ({id: p.id, name: p.name, brief: p.brief}))}
+              legacy={previous.map(p => ({id: p.id, brief: p.brief}))}
+              onOpenLegacy={id => { selectOld(id); setLegacy(true); }}
+            />
+          </main>
         ) : (
           <>
             <header className={'rc-topbar' + (project || legacy ? '' : ' rc-topbar--mobile-only')}>
@@ -137,7 +147,7 @@ export function Workspace() {
               ) : (
                 <section className="rc-studio-page">
                   <h1 className="rc-page-title"><studio.icon className="rc-page-icon" aria-hidden="true" />{studio.name}</h1>
-                  <p className="rc-page-lead">{view === 'pdf' ? 'Libros, documentos y materiales.' : 'Imagen y video.'}</p>
+                  <p className="rc-page-lead">Libros, documentos y materiales.</p>
                   {projectId ? <p className="rc-form-error" role="alert">Ese proyecto no está en este navegador o ya se borró.</p> : null}
 
                   {own.length ? (
@@ -159,11 +169,7 @@ export function Workspace() {
                     </div>
                   )}
 
-                  {view === 'pdf' ? (
-                    <Link href="/workspace/editor" className="rc-btn rc-btn--secondary rc-page-action">Abrir el editor de libros<ArrowUpRight /></Link>
-                  ) : (
-                    <p className="rc-hint rc-page-note">La generación de imagen y video llega en la próxima etapa, con Kie.</p>
-                  )}
+                  <Link href="/workspace/editor" className="rc-btn rc-btn--secondary rc-page-action">Abrir el editor de libros<ArrowUpRight /></Link>
 
                   {previous.length ? (
                     <section className="rc-page-section">
@@ -189,6 +195,7 @@ export function Workspace() {
       </div>
 
       <ChatDialogs onChat={() => navigate('chat')} />
+      <CinemaJobRunner />
       <ConfirmDialog
         open={removeProject}
         onClose={() => setRemoveProject(false)}
