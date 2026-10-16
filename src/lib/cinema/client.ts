@@ -1,8 +1,6 @@
 'use client';
 import {toast} from 'sonner';
 import {useCinema, type CinemaJob, type JobMode} from '@/store/cinema';
-import {usePersonal} from '@/store/personal-chat';
-import {sseData} from '@/lib/ai/sse';
 import type {AspectRatio, Resolution} from './capabilities';
 
 export type GenerationRequest = {
@@ -76,37 +74,7 @@ export function retryJob(job: CinemaJob) {
   });
 }
 
-/** One text answer from the configured Kie chat model (personal-chat endpoint, Cinema purposes). */
-export async function textRequest(purpose: 'storyboard' | 'prompt', content: string, signal?: AbortSignal) {
-  const requestId = crypto.randomUUID();
-  let text = '', done = false, accepted = false, credits: number | undefined;
-  try {
-    const r = await fetch('/api/personal-chat', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({requestId, purpose, model: 'auto', messages: [{role: 'user', content}]}),
-      signal,
-    });
-    if (!r.ok) {
-      const body = await r.json().catch(() => ({}));
-      throw Error(typeof body.error === 'string' ? body.error : 'PROVIDER_UNAVAILABLE');
-    }
-    accepted = true;
-    if (!r.body) throw Error('PROVIDER_UNAVAILABLE');
-    for await (const frame of sseData(r.body)) {
-      const e = JSON.parse(frame);
-      if (e.type === 'delta') text += e.text;
-      if (e.type === 'usage' && typeof e.usage?.credits === 'number') credits = e.usage.credits;
-      if (e.type === 'error') throw Error(e.error);
-      if (e.type === 'done') done = true;
-    }
-    if (!done) throw Error('STREAM_INTERRUPTED');
-    return text.trim();
-  } finally {
-    // Keep the sidebar usage line honest: text requests to Kie are recorded too.
-    if (accepted) usePersonal.getState().charge(requestId, credits);
-  }
-}
+export {textRequest} from '@/lib/ai/text-request';
 
 /** Saves an image through the server so it gets a real file name; falls back to opening it. */
 export async function downloadImage(url: string, name: string) {

@@ -9,6 +9,5 @@ COPY src ./src
 COPY worker ./worker
 COPY skills ./skills
 ENV CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
-ENV BOOK_FONT_FILE=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
 ENV NODE_ENV=production
 CMD ["node", "--import", "tsx", "worker/index.ts"]

@@ -1,14 +1,16 @@
 'use client';
 import {useEffect, useState} from 'react';
-import Link from 'next/link';
+import {useRouter} from 'next/navigation';
 import dynamic from 'next/dynamic';
-import {ArrowUpRight, ChevronRight, Trash2} from 'lucide-react';
+import {ChevronRight, Trash2} from 'lucide-react';
 import {StudioSidebar, NavTrigger, studios, type StudioView} from '@/components/studio/sidebar';
 import {PersonalChatPanel} from '@/components/studio/personal-chat';
 import {ChatDialogs} from '@/components/studio/chat-dialogs';
 import {ConfirmDialog} from '@/components/ui/dialog';
 import {Tip} from '@/components/ui/tooltip';
 import {CinemaStudio} from '@/components/cinema/cinema-studio';
+import {PdfHome, NewBookDialog} from '@/components/pdf/pdf-home';
+import {editorHref} from '@/lib/books/library';
 import {CinemaJobRunner} from '@/components/cinema/job-runner';
 import {usePersonal, type StudioProject} from '@/store/personal-chat';
 import {useProjects} from '@/store/projects';
@@ -34,6 +36,8 @@ export function Workspace() {
   const [nonce, setNonce] = useState(0);
   const [legacy, setLegacy] = useState(false);
   const [removeProject, setRemoveProject] = useState(false);
+  const [bookFrom, setBookFrom] = useState<{id: string; name: string; brief: string} | null>(null);
+  const router = useRouter();
   const data = usePersonal(s => s.data);
   const hydrate = usePersonal(s => s.hydrate);
   const hydrated = usePersonal(s => s.hydrated);
@@ -141,53 +145,19 @@ export function Workspace() {
                   </section>
                   <p className="rc-hint">Es una copia independiente: borrar el chat no borra este proyecto.</p>
                   {view === 'pdf' ? (
-                    <Link href="/workspace/editor" className="rc-btn rc-btn--primary rc-page-action">Abrir el editor<ArrowUpRight /></Link>
+                    <button type="button" className="rc-btn rc-btn--primary rc-page-action" onClick={() => setBookFrom({id: project.id, name: project.name, brief: project.brief})}>Crear un libro con este brief</button>
                   ) : null}
                 </article>
               ) : (
-                <section className="rc-studio-page">
-                  <h1 className="rc-page-title"><studio.icon className="rc-page-icon" aria-hidden="true" />{studio.name}</h1>
-                  <p className="rc-page-lead">Libros, documentos y materiales.</p>
-                  {projectId ? <p className="rc-form-error" role="alert">Ese proyecto no está en este navegador o ya se borró.</p> : null}
-
-                  {own.length ? (
-                    <ul className="rc-project-list" aria-label="Proyectos">
-                      {own.map(p => (
-                        <li key={p.id}>
-                          <button type="button" className="rc-project-row" onClick={() => navigate(view, p.id)}>
-                            <span className="rc-project-name">{p.name}</span>
-                            <span className="rc-project-type">{typeNames[p.projectType] || p.projectType}</span>
-                            <ChevronRight aria-hidden="true" />
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div className="rc-empty">
-                      <p className="rc-empty-title">Todavía no hay proyectos.</p>
-                      <p className="rc-hint">Se crean desde el Chat con «Convertir en proyecto».</p>
-                    </div>
-                  )}
-
-                  <Link href="/workspace/editor" className="rc-btn rc-btn--secondary rc-page-action">Abrir el editor de libros<ArrowUpRight /></Link>
-
-                  {previous.length ? (
-                    <section className="rc-page-section">
-                      <h2>Proyectos anteriores</h2>
-                      <ul className="rc-project-list">
-                        {previous.map(p => (
-                          <li key={p.id}>
-                            <button type="button" className="rc-project-row" onClick={() => { selectOld(p.id); setLegacy(true); }}>
-                              <span className="rc-project-name">{p.brief}</span>
-                              <span className="rc-project-type">Herramientas anteriores</span>
-                              <ChevronRight aria-hidden="true" />
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </section>
-                  ) : null}
-                </section>
+                <>
+                  {projectId ? <p className="rc-form-error rc-pdf-home-error" role="alert">Ese proyecto no está en este navegador o ya se borró.</p> : null}
+                  <PdfHome
+                    projects={own.map(p => ({id: p.id, name: p.name, brief: p.brief}))}
+                    legacy={previous.map(p => ({id: p.id, brief: p.brief}))}
+                    onOpenProject={id => navigate(view, id)}
+                    onOpenLegacy={id => { selectOld(id); setLegacy(true); }}
+                  />
+                </>
               )}
             </main>
           </>
@@ -195,6 +165,7 @@ export function Workspace() {
       </div>
 
       <ChatDialogs onChat={() => navigate('chat')} />
+      <NewBookDialog open={Boolean(bookFrom)} from={bookFrom || undefined} onClose={() => setBookFrom(null)} onCreate={id => router.push(editorHref({kind: 'local', id}))} />
       <CinemaJobRunner />
       <ConfirmDialog
         open={removeProject}

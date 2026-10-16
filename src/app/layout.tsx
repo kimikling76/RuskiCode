@@ -7,6 +7,7 @@ import '../styles/system.css';
 import '../styles/shell.css';
 import '../styles/chat.css';
 import '../styles/cinema.css';
+import '../styles/pdf.css';
 
 export const metadata: Metadata = {
   title: 'Russian Code · Русский код',
