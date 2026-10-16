@@ -1,0 +1,137 @@
+{
+  "audit": [
+    {
+      "priority": 1,
+      "finding": "Mientras carga el catálogo, o si llega vacío, el selector queda deshabilitado mostrando «Auto» y el botón Enviar también se desactiva. No hay ningún mensaje que lo explique. Solo el caso isError tiene aviso.",
+      "path": "src/components/studio/personal-chat.tsx",
+      "visualImpact": "medio",
+      "usability": "alta",
+      "effort": "bajo",
+      "risk": "bajo"
+    },
+    {
+      "priority": 2,
+      "finding": "Dentro del drawer, Escape en la búsqueda de historial también lo recibe Dialog.Content de Radix y cierra toda la navegación. En el aside de escritorio, Escape cierra la búsqueda pero el foco no vuelve al botón «Buscar chats».",
+      "path": "src/components/studio/sidebar.tsx",
+      "visualImpact": "bajo",
+      "usability": "alta",
+      "effort": "bajo",
+      "risk": "bajo"
+    },
+    {
+      "priority": 3,
+      "finding": "Se informó que en mobile el botón de búsqueda del drawer queda oculto. Esa regla no está en los CSS entregados (probablemente esté en otra hoja), así que no pude confirmarla. Si está oculto, no hay forma de buscar en el historial desde mobile.",
+      "path": "src/styles/redesign-foundation.css",
+      "visualImpact": "medio",
+      "usability": "alta",
+      "effort": "bajo",
+      "risk": "medio"
+    },
+    {
+      "priority": 4,
+      "finding": "«Ajustes del Chat» se abre desde tres lugares: el header del chat, el menú «Ver más» y un ícono en el encabezado de Conversaciones. El tercero mete ruido justo al lado del toggle del historial.",
+      "path": "src/components/studio/sidebar.tsx",
+      "visualImpact": "medio",
+      "usability": "media",
+      "effort": "bajo",
+      "risk": "medio"
+    },
+    {
+      "priority": 5,
+      "finding": "El foco del composer usa rgba(200,232,121,…) fijo en lugar de var(--accent). Si cambia el token, el anillo de foco se desincroniza.",
+      "path": "src/styles/chat.css",
+      "visualImpact": "bajo",
+      "usability": "baja",
+      "effort": "bajo",
+      "risk": "bajo"
+    },
+    {
+      "priority": 6,
+      "finding": "Hay radios fuera de la escala acordada (24/18/12/9/8): modal 20px, studio-new-chat 11px, action-item y tooltip 7px, tabla 10px, botón de toolbar de código 6px.",
+      "path": "src/styles/redesign-foundation.css",
+      "visualImpact": "medio",
+      "usability": "baja",
+      "effort": "bajo",
+      "risk": "bajo"
+    },
+    {
+      "priority": 7,
+      "finding": "En chat.css hay overrides duplicados: font-size de .chat-composer-caption, .chat-storage-note y .chat-message-meta repetido fuera y dentro de media queries, y .chat-ask margin-left, .chat-send.chat-stop y .chat-suggestions redefinidos. Esto complica mantener la cascada.",
+      "path": "src/styles/chat.css",
+      "visualImpact": "bajo",
+      "usability": "baja",
+      "effort": "medio",
+      "risk": "medio"
+    },
+    {
+      "priority": 8,
+      "finding": "El aside y el drawer comparten un mismo ref `search` sobre dos inputs. Al desmontar el drawer, el ref queda en null aunque el input del aside siga existiendo. El efecto de autofocus depende de [searchOpen, mobile] y compite con el autofocus de Radix.",
+      "path": "src/components/studio/sidebar.tsx",
+      "visualImpact": "bajo",
+      "usability": "media",
+      "effort": "medio",
+      "risk": "medio"
+    },
+    {
+      "priority": 9,
+      "finding": "«Pensando…» lleva role=status dentro de un role=log con aria-live=polite, así que puede anunciarse dos veces en lectores de pantalla.",
+      "path": "src/components/studio/personal-chat.tsx",
+      "visualImpact": "bajo",
+      "usability": "media",
+      "effort": "bajo",
+      "risk": "bajo"
+    },
+    {
+      "priority": 10,
+      "finding": "El estado vacío funciona bien (Ж con opacidad .018, kicker, h2 y tres starters). Solo falta unificar ritmo y espaciado con tokens, por ejemplo cambiar el margin 14px por var(--chat-gap-3/4), sin agregar decoración.",
+      "path": "src/styles/chat.css",
+      "visualImpact": "medio",
+      "usability": "baja",
+      "effort": "bajo",
+      "risk": "bajo"
+    }
+  ],
+  "direction": "Reforzar lo que ya existe: superficies oscuras neutras, lima como único acento reservado a foco, selección y envío, Onest para títulos, Inter para la UI y JetBrains Mono para código. Todo el estado debe ser visible y honesto (catálogo cargando o vacío, errores en línea, solo costo real) y el teclado tiene que funcionar de punta a punta. Escala de radios 24/18/12/9/8 y colores siempre desde tokens. Sin dependencias, colores ni metadatos de modelos nuevos.",
+  "plan": {
+    "high": [
+      "Estado del catálogo de modelos (cargando o vacío) en un role=status dentro de la línea bajo el composer",
+      "Escape en la búsqueda del historial: no cerrar el drawer y devolver el foco a «Buscar chats»",
+      "aria-expanded en el botón de búsqueda",
+      "Confirmar con grep qué regla oculta la búsqueda en el drawer mobile y asegurar que sea visible",
+      "Quitar el acceso duplicado a Ajustes del encabezado de Conversaciones"
+    ],
+    "medium": [
+      "Foco del composer derivado de var(--accent) con color-mix",
+      "Normalizar radios a la escala: modal 18, new-chat 12, action-item y tooltip 8, tabla 12 o 9",
+      "Consolidar los overrides duplicados de chat.css en sus reglas base",
+      "Sacar role=status de .chat-thinking dentro del log (aria-busy ya comunica la generación)"
+    ],
+    "optional": [
+      "Separar los refs de búsqueda del aside y del drawer",
+      "Espaciado del estado vacío con tokens --chat-gap-*",
+      "Más adelante, en la etapa Cinema: evaluar adjuntos con contrato de API propio"
+    ]
+  },
+  "limitations": [
+    "No tuve navegador, terminal ni acceso a la web en esta llamada. La investigación de componentes se basa en lo que verificó el orquestador y en conocimiento previo. Las licencias van marcadas como no reverificadas.",
+    "No ejecuté build, typecheck, tests, axe ni capturas. El orquestador tiene que correr npm run typecheck, npm test y las capturas en 390/768/1280/1920.",
+    "La regla que oculta la búsqueda en el drawer mobile no está en los archivos entregados. La edición 10 depende de su especificidad: hay que buscar esa regla con grep (por ejemplo, en la hoja studio) y, si conviene, corregirla en su origen.",
+    "La edición 4 elimina un botón con aria-label «Ajustes del Chat». Hay que revisar los tests que cuenten esas instancias. Siguen el del header del chat y el ítem del menú «Ver más».",
+    "color-mix requiere navegadores de 2023 en adelante. Si hace falta más compatibilidad, conviene definir un token --accent-soft con el mismo valor rgba en la foundation.",
+    "La edición 2 asume que el aria-label «Buscar chats» se mantiene, porque es el selector usado para devolver el foco.",
+    "isPending es la API de TanStack Query v5 y está instalada ^5.0.0; conviene confirmarlo en el typecheck."
+  ],
+  "proposedFiles": [
+    "src/components/studio/sidebar.tsx",
+    "src/components/studio/sidebar.tsx",
+    "src/components/studio/sidebar.tsx",
+    "src/components/studio/sidebar.tsx",
+    "src/components/studio/personal-chat.tsx",
+    "src/components/studio/personal-chat.tsx",
+    "src/styles/chat.css",
+    "src/styles/chat.css",
+    "src/styles/redesign-foundation.css",
+    "src/styles/redesign-foundation.css"
+  ],
+  "status": "Propuesta original de Claude; no es un registro de ejecución ni una afirmación de que todas las recomendaciones estén implementadas. Ver README e informe de verificación."
+}

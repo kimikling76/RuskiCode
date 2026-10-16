@@ -66,7 +66,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (project: StudioProje
   const viewedChat = useRef(activeId);
   const renameInput = useRef<HTMLInputElement>(null);
   const titleTrigger = useRef<HTMLButtonElement>(null);
-  const {data: models, isError, refetch, isFetching} = useQuery<{models: ChatModel[]}>({
+  const {data: models, isError, isPending, refetch, isFetching} = useQuery<{models: ChatModel[]}>({
     queryKey: ['personal-kie-models'],
     queryFn: async () => {
       const response = await fetch('/api/personal-chat');
@@ -76,6 +76,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (project: StudioProje
     staleTime: 60000,
   });
   const hasMessages = Boolean(chat?.messages.length);
+  const catalogLoading = isPending || (isFetching && !models?.models.length);
   const last = chat?.messages.at(-1);
   const jump = useCallback(() => {
     if (!log.current) return;
@@ -209,7 +210,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (project: StudioProje
       </div>
     </header>
     <div className="chat-scroll-zone">
-      <div ref={log} className="chat-log" role="log" aria-label="Mensajes de la conversación" aria-live="polite" aria-busy={busy} onScroll={() => {
+      <div ref={log} className="chat-log" role="log" tabIndex={0} aria-label="Mensajes de la conversación" aria-live="polite" aria-busy={busy} onScroll={() => {
         const element = log.current;
         if (element) {nearBottom.current = element.scrollHeight - element.clientHeight - element.scrollTop < 100; lastScrollTop.current = element.scrollTop; setShowJump(!nearBottom.current);}
       }}>
@@ -245,7 +246,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (project: StudioProje
           {busy ? <IconButton className="chat-send chat-stop" label="Detener respuesta" onClick={() => abort.current?.abort()}><Square size={15}/></IconButton> : <IconButton type="submit" className="chat-send" label="Enviar mensaje" disabled={!hydrated || !text.trim() || !models?.models.length}><ArrowUp size={19}/></IconButton>}
         </div>
       </form>
-      <div className="chat-composer-caption"><span className="chat-keyboard-hint">Ctrl / ⌘ + Enter para enviar</span></div>
+      <div className="chat-composer-caption"><span className="chat-catalog-status" role="status">{catalogLoading ? 'Cargando modelos…' : !isError && !models?.models.length ? 'Todavía no hay modelos disponibles.' : ''}</span>{!catalogLoading && !isError && !models?.models.length ? <button className="chat-ghost" type="button" onClick={() => void refetch()}>Volver a cargar modelos</button> : null}<span className="chat-keyboard-hint">Ctrl / ⌘ + Enter para enviar</span></div>
       {!hasMessages ? <div className="chat-suggestions">{starters.map(starter => <button key={starter.title} onClick={() => {setText(starter.prompt); textarea.current?.focus();}}>{starter.title}</button>)}</div> : null}
       <p className="chat-storage-note">Historial en este navegador <span aria-hidden="true">·</span> <a href="https://kie.ai/logs" target="_blank" rel="noreferrer">Consumo en Kie ↗</a></p>
     </div></div>

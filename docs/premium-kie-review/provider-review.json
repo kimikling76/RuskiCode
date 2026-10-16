@@ -1,0 +1,23 @@
+{
+  "provider": "Kie.ai",
+  "requestedModel": "claude-opus-5-5",
+  "returnedModel": "claude-opus-5-5",
+  "endpoint": "/anthropic/v1/messages",
+  "dateUTC": "2026-10-16",
+  "stopReason": "end_turn",
+  "usageReported": {
+    "output_tokens": 10921,
+    "cache_creation_input_tokens": 45822,
+    "input_tokens": 2,
+    "cache_read_input_tokens": 2837
+  },
+  "creditsConsumedReported": 17.52,
+  "attribution": "Auditoría y diez propuestas por Claude Opus 5.5; investigación web, revisión, adaptación, aplicación y verificación por Codex.",
+  "notes": [
+    "La primera llamada a /claude/v1/messages devolvió HTTP500.",
+    "Sonnet5.5 fue rechazado con código401 en /claude/v1/messages.",
+    "Un intento de Gemini, previo a la instrucción de usar solo Claude, fue rechazado con código401; no se aplicó ningún resultado de otro modelo.",
+    "No se informa costo de intentos fallidos porque no devolvieron créditos consumidos. No se interpreta la diferencia de saldo como costo comprobado.",
+    "No se cambió el modelo interno de este chat. Se llamó a Claude por la API oficial de Kie.ai."
+  ]
+}

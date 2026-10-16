@@ -57,30 +57,38 @@ ${Array.from({length:14},(_,i)=>`### Nota ${i+1}\n\n${'Una respuesta puede ser e
 const streamServer=http.createServer((req,res)=>{res.setHeader('Access-Control-Allow-Origin','*');res.setHeader('Access-Control-Allow-Headers','Content-Type');if(req.method==='OPTIONS'){res.end();return;}res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-store'});const send=e=>res.write('data: '+JSON.stringify(e)+'\n\n');send({type:'model',name:'Gemini 3.8 Flash · KIE'});let i=0;const timer=setInterval(()=>{send({type:'delta',text:markdown.slice(i,i+200)});i+=200;if(i>=markdown.length){clearInterval(timer);send({type:'usage',usage:{credits:1}});send({type:'done'});res.end();}},150);res.on('close',()=>clearInterval(timer));});
 await new Promise(r=>streamServer.listen(0,'127.0.0.1',r));const streamURL='http://127.0.0.1:'+streamServer.address().port+'/stream';
 const browser=await chromium.launch({executablePath,headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
-const evidence='docs/codigo-de-autor';
+const outputIndex=process.argv.indexOf('--output-dir');
+const evidence=outputIndex<0?'docs/codigo-de-autor':process.argv[outputIndex+1];
+if(!evidence)throw Error('Indicá una carpeta después de --output-dir.');
 const behaviorOnly=process.argv.includes('--behavior-only');
 await fs.mkdir(evidence,{recursive:true});
-const results={screens:[],checks:[],axe:[],consoleErrors:[],unexpectedRequests:[]};
+const results={screens:[],checks:[],axe:[],consoleErrors:[],expectedConsoleErrors:[],unexpectedRequests:[]};
 const normal='## De una idea a algo concreto\n\nPodemos empezar por lo que querés contar y darle forma juntos. **Primero, lo esencial:** ¿qué te gustaría que entienda quien lo lea?\n\n- Una idea clara.\n- Un ejemplo que la acerque.\n- Un cierre que invite a seguir.\n\nПривет! Давай начнём с одной хорошей идеи.\n\nNo hace falta tenerlo todo resuelto para empezar.';
 const responseEvents=[{type:'model',name:'Gemini 3.8 Flash · KIE'},{type:'delta',text:'Respuesta de QA: **recibida**.'},{type:'usage',usage:{credits:1}},{type:'done'}];
 function data(state){
  const messages=['empty','streaming'].includes(state)?[]:[{id:'u1',role:'user',content:'Quiero darle forma a una idea. ¿Por dónde empezamos?',createdAt:'2026-10-15T17:00:00Z'},{id:'a1',role:'assistant',content:state==='error'?'':state==='normal'?normal:markdown,model:'Gemini 3.8 Flash · KIE',status:state==='error'?'error':'done',createdAt:'2026-10-15T17:00:02Z',...(state==='long'?{credits:2}:{})}];
  return {version:2,chats:messages.length?[{id:'fixture',title:'Una idea que vale la pena explorar',model:'auto',createdAt:'2026-10-15T17:00:00Z',messages,conversions:[]}]:[],projects:[],pending:[],usage:[]};
 }
-async function setup(width,state,{motion='reduce',touch=false,fixture=data(state),fail=false,models=[{id:'kie-flash',name:'Gemini 3.8 Flash · KIE',provider:'Google'},{id:'kie-pro',name:'Gemini 3.1 Pro · KIE',provider:'Google'}]}={}){
+async function setup(width,state,{motion='reduce',touch=false,fixture=data(state),fail=false,catalogGate,catalogError=false,models=[{id:'kie-flash',name:'Gemini 3.8 Flash · KIE',provider:'Google'},{id:'kie-pro',name:'Gemini 3.1 Pro · KIE',provider:'Google'}]}={}){
  const context=await browser.newContext({viewport:{width,height:900},deviceScaleFactor:1,reducedMotion:motion,hasTouch:touch,permissions:['clipboard-read','clipboard-write']});
  await context.addInitScript(d=>localStorage.setItem('estudio-personal-v2',JSON.stringify(d)),fixture);
  const page=await context.newPage();const posts=[];
- page.on('pageerror',error=>results.consoleErrors.push(String(error)));page.on('console',message=>{if(message.type()==='error')results.consoleErrors.push(message.text());});
+ page.on('pageerror',error=>results.consoleErrors.push(String(error)));page.on('console',message=>{if(message.type()==='error'){
+  if(catalogError&&message.text().includes('503 (Service Unavailable)'))results.expectedConsoleErrors.push(message.text());
+  else results.consoleErrors.push(message.text());
+ }});
  await page.route('**/api/personal-chat',async route=>{
-  if(route.request().method()==='GET')return route.fulfill({json:{models}});
+  if(route.request().method()==='GET'){
+   if(catalogGate)await catalogGate;
+   return route.fulfill(catalogError?{status:503,json:{error:'MODELS_UNAVAILABLE'}}:{json:{models}});
+  }
   posts.push(route.request().postDataJSON());
   if(state==='streaming')return route.continue({url:streamURL});
   const events=fail?[{type:'model',name:'Gemini 3.8 Flash · KIE'},{type:'error',error:'PROVIDER_UNAVAILABLE'}]:responseEvents;
   return route.fulfill({contentType:'text/event-stream',body:events.map(event=>'data: '+JSON.stringify(event)+'\n\n').join('')});
  });
  await page.route('**/api/auth/**',route=>{results.unexpectedRequests.push(route.request().url());return route.abort();});
- await page.goto(base+'/redesign-qa',{waitUntil:'networkidle'});
+ await page.goto(base+'/redesign-qa',{waitUntil:catalogGate?'domcontentloaded':'networkidle'});
  await page.waitForSelector('.chat-composer');await page.evaluate(()=>document.fonts.ready);
  if(['normal','long'].includes(state))await page.waitForSelector('.chat-markdown');
  return {context,page,posts};
@@ -171,6 +179,84 @@ try{
  {
   const {context,page}=await setup(1280,'empty',{fail:true});await page.locator('#personal-message').fill('Provocar un error controlado');await page.getByRole('button',{name:'Enviar mensaje',exact:true}).click();await page.getByRole('button',{name:'Reintentar',exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Reintentar',exact:true}).count(),1);assert.equal(await page.locator('.chat-notice').count(),0);assert.equal(await page.getByText('No pude terminar esta respuesta.',{exact:true}).count(),1);await context.close();results.checks.push('An actual SSE error produces one inline error with one retry and no duplicate banner');
  }
+ {
+  let release;
+  const gate=new Promise(resolve=>{release=resolve;});
+  const {context,page,posts}=await setup(390,'empty',{touch:true,catalogGate:gate});
+  await page.setViewportSize({width:390,height:480});
+  await page.getByText('Cargando modelos…',{exact:true}).waitFor();
+  assert(await page.getByRole('button',{name:'Modelo de chat: Auto',exact:true}).isDisabled());
+  await page.locator('#personal-message').fill('No se envía durante la carga.');
+  assert(await page.getByRole('button',{name:'Enviar mensaje',exact:true}).isDisabled());
+  await capture(page,'catalog-loading',390);await scan(page,'catalog-loading-mobile');
+  release();await page.getByRole('button',{name:'Modelo de chat: Auto',exact:true}).waitFor();
+  await page.waitForFunction(()=>!document.querySelector('.chat-model-trigger').disabled);
+  assert.equal(await page.locator('.chat-catalog-status').innerText(),'');assert.equal(posts.length,0);
+  await context.close();
+ }
+ {
+  const {context,page,posts}=await setup(390,'empty',{touch:true,models:[]});
+  await page.setViewportSize({width:390,height:480});
+  await page.getByText('Todavía no hay modelos disponibles.',{exact:true}).waitFor();
+  await page.locator('#personal-message').fill('No se envía sin catálogo.');
+  assert(await page.getByRole('button',{name:'Enviar mensaje',exact:true}).isDisabled());
+  assert.equal(await page.getByRole('button',{name:'Volver a cargar modelos',exact:true}).count(),1);
+  await capture(page,'catalog-empty',390);await scan(page,'catalog-empty-mobile');
+  await page.route('**/api/personal-chat',route=>route.fulfill({json:{models:[{id:'kie-pro',name:'Gemini 3.1 Pro · KIE',provider:'Google'}]}}));
+  await page.getByRole('button',{name:'Volver a cargar modelos',exact:true}).click();
+  await page.waitForFunction(()=>!document.querySelector('.chat-model-trigger').disabled);
+  assert.equal(await page.locator('.chat-catalog-status').innerText(),'');assert.equal(posts.length,0);
+  await context.close();
+ }
+ {
+  const {context,page,posts}=await setup(1280,'empty',{catalogError:true});
+  await page.getByText('No pude cargar los modelos. Probemos de nuevo.',{exact:true}).waitFor();
+  assert.equal(await page.locator('.chat-notice').count(),1);
+  assert.equal(await page.getByRole('button',{name:'Reintentar',exact:true}).count(),1);
+  assert.equal(await page.locator('.chat-catalog-status').innerText(),'');
+  await capture(page,'catalog-error',1280);await scan(page,'catalog-error-desktop');
+  await page.route('**/api/personal-chat',route=>route.fulfill({json:{models:[{id:'kie-pro',name:'Gemini 3.1 Pro · KIE',provider:'Google'}]}}));
+  await page.getByRole('button',{name:'Reintentar',exact:true}).click();
+  await page.waitForFunction(()=>!document.querySelector('.chat-notice')&&!document.querySelector('.chat-model-trigger').disabled);
+  assert.equal(posts.length,0);await context.close();
+ }
+ for(const width of [1280,390]){
+  const {context,page}=await setup(width,'normal',{touch:width===390});
+  if(width===390)await page.getByRole('button',{name:'Abrir navegación',exact:true}).click();
+  const owner=width===390?page.getByRole('dialog',{name:'Navegación del estudio'}):page.getByRole('complementary',{name:'Navegación principal'});
+  const trigger=owner.getByRole('button',{name:'Buscar chats',exact:true});
+  await trigger.click();
+  const input=owner.getByRole('textbox',{name:'Buscar en los títulos de chats'});
+  await focused(input);assert.equal(await trigger.getAttribute('aria-expanded'),'true');
+  await input.fill('sin coincidencias');await owner.getByText('No hay chats con ese título.',{exact:true}).waitFor();
+  await input.dispatchEvent('keydown',{key:'Escape',isComposing:true});assert(await input.isVisible());
+  if(width===390){await capture(page,'mobile-history-search',width);await scan(page,'mobile-history-search');}
+  await input.press('Escape');await focused(trigger);assert.equal(await trigger.getAttribute('aria-expanded'),'false');
+  if(width===390){
+   assert(await owner.isVisible());await trigger.press('Escape');
+   await owner.waitFor({state:'hidden'});await focused(page.getByRole('button',{name:'Abrir navegación',exact:true}));
+   await page.getByRole('button',{name:'Abrir navegación',exact:true}).click();
+   const more=owner.getByRole('button',{name:'Más opciones del estudio',exact:true});
+   await more.click();await page.getByRole('menuitem',{name:'Guía del estudio',exact:true}).waitFor();
+   await page.keyboard.press('Escape');await page.getByRole('menuitem',{name:'Guía del estudio',exact:true}).waitFor({state:'hidden'});
+   assert(await owner.isVisible());await focused(more);await more.press('Escape');await owner.waitFor({state:'hidden'});
+   await page.setViewportSize({width:1280,height:900});
+   const desktopTrigger=page.getByRole('button',{name:'Buscar chats',exact:true});
+   await desktopTrigger.click();await focused(page.getByRole('textbox',{name:'Buscar en los títulos de chats'}));
+  }
+  await context.close();
+ }
+ {
+  const {context,page}=await setup(1280,'long');
+  const log=page.getByRole('log',{name:'Mensajes de la conversación'});
+  await log.evaluate(e=>e.scrollTop=e.scrollHeight);await log.focus();await focused(log);
+  assert.equal(await log.evaluate(e=>getComputedStyle(e).outlineWidth),'2px');
+  const before=await log.evaluate(e=>e.scrollTop);await log.press('PageUp');
+  await page.waitForFunction(before=>document.querySelector('.chat-log').scrollTop<before-20,before);
+  await context.close();
+ }
+ results.checks.push('Catalog loading, empty and 503 error: disabled sending, one recovery action and successful refetch; desktop/mobile history search, composing Escape, Escape closes search before drawer, focus returns, aria-expanded and independent refs after drawer unmount');
+ results.checks.push('Keyboard scrolls the focused conversation with PageUp and a visible ring; portaled action menu Escape closes only the menu before the drawer');
  // Test-only catalog: never written to the app configuration or sent to a provider.
  const railModels=[
   ...Array.from({length:8},(_,i)=>({id:`fixture-google-${i}`,name:`Modelo de prueba Google ${i+1}`,provider:'Google'})),

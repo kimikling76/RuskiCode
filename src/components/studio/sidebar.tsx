@@ -1,6 +1,6 @@
 'use client';
 
-import {useEffect, useRef, useState} from 'react';
+import {useEffect, useRef, useState, type KeyboardEvent} from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import {Plus, MessageSquare, BookOpen, Clapperboard, MoreHorizontal, Menu, X, Settings, Search, PanelLeftClose, PanelLeftOpen, FolderPlus, ChevronDown, ArrowUpRight, Pencil, Trash2} from 'lucide-react';
 import {StudioMark} from './brand';
@@ -25,6 +25,7 @@ export function StudioSidebar({view, onNavigate, onNew}: {view: StudioView; onNa
   const [help, setHelp] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(true);
   const search = useRef<HTMLInputElement>(null);
+  const drawerSearch = useRef<HTMLInputElement>(null);
   const data = usePersonal(s => s.data);
   const hydrated = usePersonal(s => s.hydrated);
   const select = usePersonal(s => s.select);
@@ -33,16 +34,22 @@ export function StudioSidebar({view, onNavigate, onNew}: {view: StudioView; onNa
   const reported = data.usage.filter(entry => hasCredits(entry.credits));
   const known = reported.reduce((total, entry) => total + (entry.credits || 0), 0);
   const chats = data.chats.filter(chat => chat.title.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
-  useEffect(() => {if (searchOpen) search.current?.focus();}, [searchOpen, mobile]);
+  useEffect(() => {if (searchOpen) (mobile ? drawerSearch.current : search.current)?.focus();}, [searchOpen, mobile]);
   function go(next: StudioView) {onNavigate(next); setMobile(false);}
   function collapse() {
     setMode(current => current === 'auto' ? (window.matchMedia('(min-width:768px) and (max-width:1199px)').matches ? 'open' : 'closed') : current === 'closed' ? 'open' : 'closed');
   }
-  const content = <>
+  function dismissDrawer(event: KeyboardEvent<HTMLDivElement>) {
+    const target = event.target;
+    // Los menús portados conservan su propio Escape; un tooltip del botón no bloquea el cierre del drawer.
+    if (event.key !== 'Escape' || event.nativeEvent.isComposing || !(target instanceof Element) || !event.currentTarget.contains(target) || target.closest('.workspace-chat-search')) return;
+    event.preventDefault(); event.stopPropagation(); setMobile(false);
+  }
+  const content = (surface: 'aside' | 'drawer') => <>
     <div className="studio-sidebar-brand">
       <button className="studio-space-button" onClick={() => go('chat')} aria-label="Russian Code · Ir al Chat"><StudioMark/><span className="workspace-rail-hide">Russian Code<span>Estudio creativo</span></span></button>
       <div className="workspace-sidebar-controls">
-        <IconButton className="studio-icon-button" label="Buscar chats" onClick={() => {setMode('open'); setHistoryOpen(true); setSearchOpen(value => !value);}}><Search size={16}/></IconButton>
+        <IconButton className="studio-icon-button" label="Buscar chats" aria-expanded={searchOpen} onClick={() => {setMode('open'); setHistoryOpen(true); setSearchOpen(value => !value);}}><Search size={16}/></IconButton>
         <IconButton className="studio-icon-button workspace-collapse" label={mode === 'closed' ? 'Expandir navegación' : 'Expandir o plegar navegación'} onClick={collapse}>{mode === 'closed' ? <PanelLeftOpen size={16}/> : <PanelLeftClose size={16}/>}</IconButton>
         <IconButton className="studio-mobile-close studio-icon-button" label="Cerrar navegación" onClick={() => setMobile(false)}><X size={18}/></IconButton>
       </div>
@@ -59,9 +66,8 @@ export function StudioSidebar({view, onNavigate, onNew}: {view: StudioView; onNa
     <div className="studio-history workspace-rail-hide">
       <div className="studio-history-heading">
         <button className="workspace-history-toggle" aria-expanded={historyOpen} onClick={() => setHistoryOpen(value => !value)}>Conversaciones<ChevronDown size={12}/></button>
-        <IconButton className="studio-icon-button" label="Ajustes del Chat" onClick={dialogs.openSettings}><Settings size={14}/></IconButton>
       </div>
-      {searchOpen ? <label className="workspace-chat-search"><Search size={14}/><input ref={search} aria-label="Buscar en los títulos de chats" placeholder="Buscar conversación…" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => {if (event.key === 'Escape') {setQuery(''); setSearchOpen(false);}}}/></label> : null}
+      {searchOpen ? <label className="workspace-chat-search"><Search size={14}/><input ref={surface === 'drawer' ? drawerSearch : search} aria-label="Buscar en los títulos de chats" placeholder="Buscar conversación…" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => {if (event.key === 'Escape' && !event.nativeEvent.isComposing) {const owner = event.currentTarget.closest('.studio-sidebar'); setQuery(''); setSearchOpen(false); requestAnimationFrame(() => owner?.querySelector<HTMLButtonElement>('[aria-label="Buscar chats"]')?.focus());}}}/></label> : null}
       {!historyOpen ? null : !hydrated ? <div className="studio-shimmer pure-model-skeleton" role="status" aria-label="Cargando chats"/> : !data.chats.length ? <div className="studio-empty-chats"><FolderPlus size={24}/><strong>Aún no hay chats</strong><p>Empezá con una idea.</p></div> : !chats.length ? <p className="workspace-no-results" role="status">No hay chats con ese título.</p> : chats.map(chat => <div key={chat.id} className={'personal-history-row ' + (activeId === chat.id && view === 'chat' ? 'is-active' : '')}>
         <button className="studio-history-item" aria-current={activeId === chat.id && view === 'chat' ? 'true' : undefined} onClick={() => {select(chat.id); go('chat');}} title={chat.title}><span>{chat.title}</span></button>
         <ActionMenu label={'Menú de ' + chat.title} className="studio-history-menu" items={[
@@ -80,11 +86,11 @@ export function StudioSidebar({view, onNavigate, onNew}: {view: StudioView; onNa
     </div>
   </>;
   return <>
-    <aside className={'studio-sidebar workspace-sidebar workspace-mode-' + mode} aria-label="Navegación principal">{content}</aside>
+    <aside className={'studio-sidebar workspace-sidebar workspace-mode-' + mode} aria-label="Navegación principal">{content('aside')}</aside>
     <Dialog.Root open={mobile} onOpenChange={setMobile}>
       <Dialog.Trigger asChild><IconButton className="studio-menu-trigger studio-icon-button" label="Abrir navegación"><Menu size={20}/></IconButton></Dialog.Trigger>
-      <Dialog.Portal><Dialog.Overlay className="studio-drawer-overlay"/><Dialog.Content className="studio-sidebar studio-drawer workspace-sidebar">
-        <Dialog.Title className="sr-only">Navegación del estudio</Dialog.Title><Dialog.Description className="sr-only">Chat personal y estudios con proyectos independientes.</Dialog.Description>{content}
+      <Dialog.Portal><Dialog.Overlay className="studio-drawer-overlay"/><Dialog.Content className="studio-sidebar studio-drawer workspace-sidebar" onKeyDownCapture={dismissDrawer} onEscapeKeyDown={event => {if (event.target instanceof Element && event.target.closest('.workspace-chat-search')) event.preventDefault();}}>
+        <Dialog.Title className="sr-only">Navegación del estudio</Dialog.Title><Dialog.Description className="sr-only">Chat personal y estudios con proyectos independientes.</Dialog.Description>{content('drawer')}
       </Dialog.Content></Dialog.Portal>
     </Dialog.Root>
     <PersonalModal open={help} onClose={() => setHelp(false)} title="Tu espacio de trabajo" description="Tres espacios para desarrollar tus ideas, con el acceso del equipo.">
