@@ -131,6 +131,35 @@
 .rc-pdf-project-row .rc-project-row { flex: 1; min-width: 0; }
 a.rc-project-row { text-decoration: none; color: inherit; }
 
+/* Dropping a file anywhere on the home page imports it. */
+.rc-pdf-home { position: relative; }
+.rc-pdf-drop { position: absolute; inset: var(--sp-3); z-index: 2; display: grid; place-content: center; justify-items: center; gap: var(--sp-3); border: 1.5px dashed var(--accent); border-radius: var(--radius-12); background: rgba(11, 12, 14, 0.88); color: var(--fg-1); font-size: var(--fs-14); pointer-events: none; }
+.rc-pdf-drop svg { width: 24px; height: 24px; color: var(--accent); }
+
+/* ---------- Import dialog ---------- */
+.rc-import { display: grid; gap: var(--sp-5); }
+.rc-import-reading { display: grid; gap: var(--sp-4); }
+.rc-import-reading > p:first-child { margin: 0; font-size: var(--fs-14); color: var(--fg-1); }
+.rc-import-bar { height: 4px; border-radius: 2px; background: var(--bg-3); overflow: hidden; }
+.rc-import-bar span { display: block; height: 100%; background: var(--accent); transition: width 0.2s ease; }
+.rc-import-form { display: grid; gap: var(--sp-5); }
+.rc-import-summary { display: flex; align-items: center; gap: var(--sp-3); margin: 0; padding: var(--sp-4); border: 1px solid var(--line); border-radius: var(--radius-12); background: var(--bg-1); }
+.rc-import-summary > svg { flex: none; width: 20px; height: 20px; color: var(--fg-2); }
+.rc-import-summary > span { display: grid; gap: 2px; min-width: 0; }
+.rc-import-summary strong { font-size: var(--fs-14); font-weight: 500; }
+.rc-import-options { display: flex; flex-wrap: wrap; gap: var(--sp-5); }
+.rc-import-chapters h3, .rc-import-notes h3 { display: flex; align-items: center; gap: var(--sp-2); margin: 0 0 var(--sp-3); font-size: var(--fs-13); font-weight: 500; color: var(--fg-2); }
+.rc-import-chapters ol { display: grid; gap: 1px; max-height: 196px; margin: 0; padding: 0; overflow-y: auto; list-style: none; counter-reset: chapter; border: 1px solid var(--line); border-radius: var(--radius-8); }
+.rc-import-chapters li { display: flex; justify-content: space-between; gap: var(--sp-4); padding: var(--sp-3) var(--sp-4); font-size: var(--fs-13); counter-increment: chapter; }
+.rc-import-chapters li + li { border-top: 1px solid var(--line); }
+.rc-import-chapters li > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rc-import-chapters li > span:first-child::before { content: counter(chapter) '. '; color: var(--fg-3); font-family: var(--font-code); }
+.rc-import-chapters li > span:last-child { flex: none; }
+.rc-import-notes h3 svg { width: 14px; height: 14px; color: var(--warning); }
+.rc-import-notes ul { display: grid; gap: var(--sp-2); margin: 0; padding: var(--sp-4); border-radius: var(--radius-8); background: var(--bg-1); box-shadow: inset 2px 0 0 var(--warning); list-style: none; font-size: var(--fs-13); line-height: 1.5; color: var(--fg-2); }
+.rc-pdf-fit { margin: var(--sp-2) 0; }
+@media (prefers-reduced-motion: reduce) { .rc-import-bar span { transition: none; } }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 1279px) {
   .rc-pdf-layout { grid-template-columns: 132px minmax(0, 1fr) 312px; }
