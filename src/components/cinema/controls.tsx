@@ -107,7 +107,7 @@ export function GenerateBar({label, disabled, facts, onGenerate}: {label: string
         onClose={() => setConfirm(false)}
         onConfirm={() => { setConfirm(false); onGenerate(); }}
         title="¿Generar en Kie?"
-        description="Cada imagen es una tarea en Kie y consume créditos. El costo real aparece al terminar, cuando Kie lo informa."
+        description="Cada resultado es una tarea en Kie y consume créditos. El costo real aparece al terminar, cuando Kie lo informa."
         confirmLabel={label}
       >
         <dl className="rc-facts">

@@ -5,12 +5,15 @@ import {Clapperboard} from 'lucide-react';
 import {useCinema, type CinemaJob} from '@/store/cinema';
 import {useCinemaUi, cinemaTabs, type CinemaTab} from '@/store/cinema-ui';
 import {NavTrigger} from '@/components/studio/sidebar';
+import {videoModels, enabledStatus} from '@/lib/ai/models';
 import {ImageTab} from './image-tab';
 import {VideoTab} from './video-tab';
 import {EditTab} from './edit-tab';
 import {DirectTab, type CinemaProject} from './direct-tab';
 import {GalleryTab} from './gallery-tab';
 import {ImageViewer} from './image-viewer';
+
+const videoReady = videoModels.some(enabledStatus);
 
 const tabNames: Record<CinemaTab, string> = {image: 'Imagen', video: 'Video', edit: 'Editar', direct: 'Dirigir', gallery: 'Galería'};
 
@@ -39,7 +42,7 @@ export function CinemaStudio({projects, legacy, onOpenLegacy}: {projects: Cinema
           {cinemaTabs.map(id => (
             <Tabs.Trigger key={id} value={id} className="rc-tab">
               {tabNames[id]}
-              {id === 'video' ? <span className="rc-tab-soon">Próximamente</span> : null}
+              {id === 'video' && !videoReady ? <span className="rc-tab-soon">Próximamente</span> : null}
             </Tabs.Trigger>
           ))}
         </Tabs.List>
