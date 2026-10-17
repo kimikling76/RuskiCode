@@ -3,10 +3,12 @@ import {useEffect, useState} from 'react';
 import Link from 'next/link';
 import {useRouter} from 'next/navigation';
 import {toast} from 'sonner';
-import {BookOpen, ChevronRight, Plus, Upload} from 'lucide-react';
+import {BookOpen, ChevronRight, FileText, Plus, Trash2, Upload} from 'lucide-react';
 import type {EditableBook} from '@/lib/books/editable';
 import {acceptedFiles, kindOf, ImportError} from '@/lib/books/import/browser';
 import {ImportDialog} from './import-dialog';
+import {createOriginal, deleteOriginal, fileSize, listOriginals, restoreOriginal, type OriginalPdf} from '@/lib/books/originals';
+import {ConfirmDialog} from '@/components/ui/dialog';
 import {editableBookSchema} from '@/lib/books/editable';
 import type {BookSpec} from '@/lib/books/spec';
 import {newBook} from '@/lib/books/templates';
@@ -25,11 +27,14 @@ export function PdfHome({projects, legacy, onOpenProject, onOpenLegacy}: {projec
   const [storageError, setStorageError] = useState(false);
   const [importing, setImporting] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [originals, setOriginals] = useState<OriginalPdf[]>([]);
+  const [removing, setRemoving] = useState<OriginalPdf | null>(null);
 
   useEffect(() => {
     const load = () => {
       setComposer(composerBooks());
       listLocalBooks().then(setBooks).catch(() => { setBooks([]); setStorageError(true); });
+      listOriginals().then(setOriginals).catch(() => setOriginals([]));
     };
     load();
     // Books that arrive from another computer show up without reloading.
@@ -57,6 +62,24 @@ export function PdfHome({projects, legacy, onOpenProject, onOpenLegacy}: {projec
       return;
     }
     setImporting(file);
+  }
+
+  async function editOriginal(file: File) {
+    try {
+      const id = await createOriginal(file.name, await file.arrayBuffer());
+      setImporting(null);
+      router.push('/workspace/documento?id=' + id);
+    } catch (e) {
+      toast(e instanceof Error && e.message === 'NOT_PDF' ? 'Ese archivo no es un PDF válido.' : 'No se pudo guardar el PDF en este navegador.');
+    }
+  }
+
+  async function confirmRemove() {
+    if (!removing) return;
+    const saved = await deleteOriginal(removing.id);
+    setRemoving(null);
+    setOriginals(await listOriginals());
+    if (saved) toast('PDF borrado', {action: {label: 'Deshacer', onClick: () => { void restoreOriginal(saved).then(() => listOriginals().then(setOriginals)); }}, duration: 8000});
   }
 
   async function createImported(book: EditableBook) {
@@ -88,7 +111,7 @@ export function PdfHome({projects, legacy, onOpenProject, onOpenLegacy}: {projec
           <input type="file" accept={acceptedFiles} className="sr-only" aria-describedby="pdf-import-hint" onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; importFile(f); }} />
         </label>
       </div>
-      <p id="pdf-import-hint" className="rc-hint rc-pdf-home-note">PDF, Word (.docx), texto, Markdown, HTML o un editable (.json). También podés arrastrarlo hasta acá. Se convierte en bloques editables y después lo exportás como PDF.</p>
+      <p id="pdf-import-hint" className="rc-hint rc-pdf-home-note">PDF, Word (.docx), texto, Markdown, HTML o un editable (.json). También podés arrastrarlo hasta acá. Un PDF se puede editar tal cual o convertir en bloques.</p>
       {storageError ? <p className="rc-form-error" role="alert">Este navegador no permite guardar libros (almacenamiento bloqueado o modo privado).</p> : null}
 
       <section className="rc-page-section">
@@ -115,6 +138,32 @@ export function PdfHome({projects, legacy, onOpenProject, onOpenLegacy}: {projec
         )}
         <p className="rc-hint rc-pdf-home-note">Se guardan en tu cuenta y aparecen en tus otras computadoras. También podés descargar el editable (.json) como copia.</p>
       </section>
+
+      {originals.length ? (
+        <section className="rc-page-section">
+          <h2>PDF originales</h2>
+          <ul className="rc-project-list">
+            {originals.map(p => (
+              <li key={p.id} className="rc-pdf-project-row">
+                {p.missing ? (
+                  <span className="rc-project-row" aria-disabled="true">
+                    <span className="rc-project-name"><FileText aria-hidden="true" />{p.name}</span>
+                    <span className="rc-project-type">Más de 4 MB: quedó en la otra computadora</span>
+                  </span>
+                ) : (
+                  <Link href={'/workspace/documento?id=' + p.id} className="rc-project-row">
+                    <span className="rc-project-name"><FileText aria-hidden="true" />{p.name}</span>
+                    <span className="rc-project-type">{fileSize(p.size)} · {dateFormat.format(new Date(p.updatedAt))}</span>
+                    <ChevronRight aria-hidden="true" />
+                  </Link>
+                )}
+                <button type="button" className="rc-icon-btn" aria-label={'Borrar ' + p.name} onClick={() => setRemoving(p)}><Trash2 aria-hidden="true" /></button>
+              </li>
+            ))}
+          </ul>
+          <p className="rc-hint rc-pdf-home-note">Se editan tal cual, con el editor de Nutrient. Los de hasta 4 MB se guardan en tu cuenta y aparecen en tus otras computadoras.</p>
+        </section>
+      ) : null}
 
       {composer.length ? (
         <section className="rc-page-section">
@@ -180,7 +229,16 @@ export function PdfHome({projects, legacy, onOpenProject, onOpenLegacy}: {projec
       ) : null}
 
       {/* A new dialog per file, so it never shows the previous file's summary. */}
-      <ImportDialog key={importing ? importing.name + importing.size + importing.lastModified : 'closed'} file={importing} onClose={() => setImporting(null)} onCreate={createImported} />
+      <ImportDialog key={importing ? importing.name + importing.size + importing.lastModified : 'closed'} file={importing} onClose={() => setImporting(null)} onCreate={createImported} onEditOriginal={editOriginal} />
+      <ConfirmDialog
+        open={Boolean(removing)}
+        onClose={() => setRemoving(null)}
+        onConfirm={() => void confirmRemove()}
+        title={'¿Borrar «' + (removing?.name || '') + '»?'}
+        description="Se borra de tu cuenta, también en tus otras computadoras. Si querés conservarlo, descargalo antes desde el editor."
+        confirmLabel="Borrar PDF"
+        tone="danger"
+      />
       <NewBookDialog open={Boolean(creating)} from={creating?.from} onClose={() => setCreating(null)} onCreate={id => router.push(editorHref({kind: 'local', id}))} />
     </section>
   );

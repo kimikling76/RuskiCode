@@ -11,5 +11,6 @@ export const syncKinds = [
   'composer-book', // books made by the server composer, so the list follows the account
   'assistant',     // assistants with saved instructions
   'favorite',      // favorite models
+  'pdf-original',  // PDFs edited in place with Nutrient (the file as an asset, up to 4 MB)
 ] as const;
 export type SyncKind = (typeof syncKinds)[number];

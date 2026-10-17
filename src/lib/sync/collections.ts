@@ -10,6 +10,9 @@ import {
   composerBooks, putSyncedComposerBook, type LocalBook, type Draft,
 } from '@/lib/books/library';
 import {decodeAssets, encodeAssets} from './assets';
+import {
+  listOriginals, loadOriginalData, isOriginalOpen, putSyncedOriginal, removeSyncedOriginal, bytesToDataUrl, dataUrlToBytes, SYNC_LIMIT, type OriginalPdf,
+} from '@/lib/books/originals';
 import type {PersonalChat, StudioProject} from '@/store/personal-chat';
 import type {UsageEntry} from '@/lib/personal-chat/state';
 import type {Board} from '@/store/cinema';
@@ -278,7 +281,45 @@ const favorites: Collection = {
   merge: (_local, remote) => remote,
 };
 
-export const collections: Collection[] = [chats, projects, usage, jobs, boards, notes, books, drafts, composer, assistants, favorites];
+// The record carries the PDF as an asset reference; files over the limit stay on their computer.
+type SyncedOriginal = OriginalPdf & {file?: string | null; copyOf?: string; bytes?: ArrayBuffer | null};
+const originals: Collection = {
+  kind: 'pdf-original',
+  list: async () => (await listOriginals()).map(p => ({key: p.id, data: p})),
+  apply: async changes => {
+    for (const {key, data} of changes) {
+      if (data === null) { await removeSyncedOriginal(key); continue; }
+      const d = data as SyncedOriginal;
+      await putSyncedOriginal({...d, id: key}, d.bytes ?? null, d.copyOf);
+    }
+    libraryEvents?.dispatchEvent(new Event('synced'));
+  },
+  subscribe: onLibrary,
+  label: data => (data as OriginalPdf).name || 'PDF',
+  token: data => 'u' + (data as OriginalPdf).updatedAt,
+  busy: key => isOriginalOpen(key),
+  duplicate: data => {
+    const p = data as OriginalPdf;
+    const id = crypto.randomUUID();
+    return {key: id, data: {...p, id, name: copyLabel(p.name, 200), updatedAt: Date.now(), copyOf: p.id}};
+  },
+  encode: async data => {
+    const {id, name, size, createdAt, updatedAt} = data as OriginalPdf;
+    const meta = {id, name, size, createdAt, updatedAt};
+    const bytes = await loadOriginalData(id);
+    if (!bytes || bytes.byteLength > SYNC_LIMIT) return {...meta, file: null};
+    const {pdf} = await encodeAssets({pdf: await bytesToDataUrl(bytes)});
+    return {...meta, file: pdf};
+  },
+  decode: async data => {
+    const d = data as SyncedOriginal;
+    if (!d.file) return {...d, bytes: null};
+    const {pdf} = await decodeAssets({pdf: d.file});
+    return {...d, file: undefined, bytes: await dataUrlToBytes(pdf)};
+  },
+};
+
+export const collections: Collection[] = [chats, projects, usage, jobs, boards, notes, books, drafts, composer, assistants, favorites, originals];
 
 /** Loads every store from this browser before the first sync. */
 export function hydrateAll() {
