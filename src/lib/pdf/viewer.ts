@@ -55,6 +55,16 @@ export async function drawTextLayer(page: PDFPageProxy, container: HTMLElement, 
   return layer;
 }
 
+/**
+ * Text as pdf.js extracts it, cleaned without guessing: control characters some PDFs map to their glyphs are dropped,
+ * and spaces before a Russian stress mark (U+0301) go, since a mark never starts a word. Some PDFs (LibreOffice with
+ * combining marks) still show a stray space after a stressed vowel; it is left, because it cannot be told apart from
+ * a real space between words.
+ */
+export function joinStress(text: string) {
+  return text.normalize('NFC').replace(/[\u0000-\u0008\u000b-\u001f]/g, '').replace(/[^\S\n]+(?=\u0301)/g, '');
+}
+
 /** The page's text in reading order as pdf.js gives it; empty for a scanned page. */
 export async function pageText(page: PDFPageProxy) {
   const content = await page.getTextContent();
@@ -63,7 +73,7 @@ export async function pageText(page: PDFPageProxy) {
     if (!('str' in item)) continue;
     out += item.str + (item.hasEOL ? '\n' : '');
   }
-  return out.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  return joinStress(out.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim());
 }
 
 /** Page size in points (as the page is shown, rotation included). */

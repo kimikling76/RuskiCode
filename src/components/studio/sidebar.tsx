@@ -281,7 +281,8 @@ function SidebarContent({view, rail, drawer, onGo, onNew, onHelp}: {view: Studio
         <Menu>
           <RailTip rail={rail} label="Cuenta y ajustes">
             <MenuTrigger asChild>
-              <button type="button" className="rc-account" aria-label="Cuenta y ajustes">
+              <button type="button" className="rc-account">
+                <span className="sr-only">Cuenta y ajustes: </span>
                 <span className="rc-avatar" aria-hidden="true">RC</span>
                 <span className="rc-rail-hide rc-account-text">
                   <strong>Equipo Russian Code</strong>

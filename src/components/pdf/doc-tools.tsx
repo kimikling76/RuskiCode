@@ -13,9 +13,9 @@ function Tool({icon, op, title, children, open, onToggle}: {icon: ReactNode; op:
   return (
     <section className="rc-doc-tool" data-open={open ? 'true' : undefined}>
       <button type="button" className="rc-doc-tool-head" aria-expanded={open} onClick={onToggle}>
-        {icon}<span>{title || operationInfo[op].label}</span><small>{creditEstimate(op)}</small>
+        {icon}<span>{title || operationInfo[op].label}</span>
       </button>
-      {open ? <div className="rc-doc-tool-body"><p className="rc-hint">{operationInfo[op].effect}</p>{children}</div> : null}
+      {open ? <div className="rc-doc-tool-body"><p className="rc-hint">{operationInfo[op].effect} <span className="rc-doc-cost">{creditEstimate(op)}.</span></p>{children}</div> : null}
     </section>
   );
 }
@@ -69,7 +69,7 @@ export function DocTools({count, active, selected, busy, unavailable, run}: {
     <div className="rc-pdf-form rc-doc-tools">
       {unavailable ? <p className="rc-notice" role="status"><span className="rc-dot" aria-hidden="true" />{unavailable}</p> : null}
 
-      <Tool icon={<Layers aria-hidden="true" />} op="move" title="Páginas: rotar, mover, borrar, extraer" open={open === 'pages'} onToggle={() => toggle('pages')}>
+      <Tool icon={<Layers aria-hidden="true" />} op="move" title="Rotar, mover, borrar o extraer páginas" open={open === 'pages'} onToggle={() => toggle('pages')}>
         {pagesField}
         <div className="rc-pdf-inline rc-pdf-inline--wrap">
           <button type="button" className="rc-btn rc-btn--secondary rc-btn--sm" disabled={off || !pages} onClick={() => run({op: 'rotate', params: {pages, angle: 90}, label: 'Rotar ' + pagesLabel})}><RotateCw aria-hidden="true" />Rotar 90°</button>
@@ -92,7 +92,7 @@ export function DocTools({count, active, selected, busy, unavailable, run}: {
         <label className="rc-field"><span>Nota en la página {active + 1}</span>
           <textarea className="rc-textarea" rows={3} maxLength={2000} value={note} onChange={e => setNote(e.target.value)} />
         </label>
-        <button type="button" className="rc-btn rc-btn--secondary rc-btn--sm" disabled={off || !note.trim()} onClick={() => { run({op: 'note', params: {page: active + 1, text: note.trim()}, label: 'Nota en la página ' + (active + 1)}); setNote(''); }}>Agregar nota</button>
+        <button type="button" className="rc-btn rc-btn--secondary rc-btn--sm" disabled={off || !note.trim()} onClick={() => { run({op: 'note', params: {page: active + 1, text: note.trim()}, label: 'Nota en la página ' + (active + 1)}); setNote(''); }}>Agregar la nota</button>
       </Tool>
 
       <Tool icon={<Type aria-hidden="true" />} op="stamp" open={open === 'stamp'} onToggle={() => toggle('stamp')}>

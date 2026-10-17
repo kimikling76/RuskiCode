@@ -1,5 +1,7 @@
 # Etapa 7 — Editar un PDF tal cual, con Nutrient
 
+> **Desde la Etapa 8:** un PDF importado se abre primero en el editor de páginas con Stirling PDF (ver `ETAPA_8_STIRLING_PDF_STUDIO.md`). El editor de Nutrient sigue disponible para cambiar el texto en su lugar: menú «…» → «Editar el texto en su lugar (Nutrient)». Cada guardado de Nutrient ahora es una versión más.
+
 PDF Studio puede abrir un PDF **exactamente como es** y editarlo en su lugar: cambiar textos e imágenes, anotar, firmar, llenar formularios y reordenar páginas.
 
 El resto del documento queda igual: fuentes, diseño, imágenes, páginas, colores. No se pasa a bloques. El editor es **Nutrient Web SDK** (antes PSPDFKit) y corre en el navegador.

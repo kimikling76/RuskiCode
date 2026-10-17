@@ -6,6 +6,7 @@ import {toast} from 'sonner';
 import {addDocMessages, clearDocThread, type DocMessage} from '@/lib/books/doc-chat';
 import {docChatRequest} from '@/lib/ai/doc-chat-request';
 import {draftToBlocks} from '@/lib/assistant/draft';
+import {alternateTurns} from '@/lib/assistant/edit-plan';
 import {errorDetail} from '@/lib/cinema/errors';
 import type {Block} from '@/lib/pipeline/types';
 import {MessageMarkdown} from '@/components/studio/message-markdown';
@@ -63,7 +64,7 @@ export function CreateChat({doc, context, targets, onClose}: {doc: string; conte
     setText('');
     const userMessage: DocMessage = {id: crypto.randomUUID(), thread: 'create', role: 'user', content: clean, createdAt: Date.now()};
     await addDocMessages(doc, [userMessage]);
-    const turns = [...messages, userMessage].filter(m => m.content).slice(-12).map(m => ({role: m.role, content: m.content.slice(0, 12000)}));
+    const turns = alternateTurns([...messages, userMessage].slice(-12).map(m => ({role: m.role, content: m.content.slice(0, 12000)})));
     // The document's context goes with the first turn sent, as material.
     turns[0] = {...turns[0], content: context() + '\n\n' + turns[0].content};
     const controller = new AbortController();

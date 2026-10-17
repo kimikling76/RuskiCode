@@ -1,7 +1,7 @@
 import {authorized, sameOrigin, limit} from '@/lib/ai/security';
 import {resolveText, textConfig} from '@/lib/ai/kie-text';
 import {createProvider, ProviderError} from '@/lib/ai/provider';
-import {assistantRequestSchema, bookMessage, bookSystem, checkBookPlan, checkPdfPlan, pdfMessage, pdfSystem, type AssistantRequest} from '@/lib/assistant/edit-plan';
+import {alternateTurns, assistantRequestSchema, bookMessage, bookSystem, checkBookPlan, checkPdfPlan, pdfMessage, pdfSystem, type AssistantRequest} from '@/lib/assistant/edit-plan';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
   const model = {id: entry.id, name: entry.name};
   let text: string, credits: number | undefined;
   try {
-    const result = await createProvider(textConfig(entry)).generate({system, signal, messages: [...input.history, {role: 'user', content: message}]});
+    const result = await createProvider(textConfig(entry)).generate({system, signal, messages: alternateTurns([...input.history, {role: 'user' as const, content: message}])});
     text = result.text;
     credits = result.usage.credits;
   } catch (e) {

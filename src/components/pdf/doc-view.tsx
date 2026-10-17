@@ -1,7 +1,7 @@
 'use client';
 import {memo, useEffect, useRef, useState, type KeyboardEvent} from 'react';
 import type {PDFDocumentProxy} from 'pdfjs-dist';
-import {drawPage, drawTextLayer} from '@/lib/pdf/viewer';
+import {drawPage, drawTextLayer, joinStress} from '@/lib/pdf/viewer';
 
 // The two views of an imported PDF: the thumbnails (left) and the active page (center).
 
@@ -136,11 +136,11 @@ export function DocPage({doc, index, zoom, onSelectText}: {doc: PDFDocumentProxy
   function readSelection() {
     const s = window.getSelection();
     if (!s || !layer.current || !s.anchorNode || !layer.current.contains(s.anchorNode)) return;
-    onSelectText(s.toString().replace(/\s+/g, ' ').trim().slice(0, 2000));
+    onSelectText(joinStress(s.toString().replace(/\s+/g, ' ').trim()).slice(0, 2000));
   }
 
   return (
-    <div ref={box} className="rc-doc-stage" onMouseUp={readSelection} onKeyUp={readSelection}>
+    <div ref={box} className="rc-doc-stage" tabIndex={0} aria-label="Página del documento (desplazable)" onMouseUp={readSelection} onKeyUp={readSelection}>
       {failed ? <p className="rc-form-error" role="alert">No se pudo dibujar esta página.</p> : null}
       <div className="rc-doc-paper">
         <canvas ref={canvas} aria-hidden="true" />

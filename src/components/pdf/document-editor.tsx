@@ -61,6 +61,17 @@ function focusFor(op: OperationId, p: Record<string, unknown>, before: number, a
   }
 }
 
+/** Where `needle` starts in `text`, ignoring spaces and stress marks (page text extraction can misplace both). */
+function looseIndex(text: string, needle: string) {
+  const skip = (c: string) => /\s|\u0301/.test(c);
+  const map: number[] = [];
+  let flat = '';
+  for (let i = 0; i < text.length; i++) if (!skip(text[i])) { map.push(i); flat += text[i].toLowerCase(); }
+  const want = [...needle].filter(c => !skip(c)).join('').toLowerCase();
+  const at = want ? flat.indexOf(want) : -1;
+  return at < 0 ? -1 : map[at];
+}
+
 /** Short text around each replacement, before and after, read back from both PDFs. */
 async function textChanges(before: ArrayBuffer, after: ArrayBuffer, pages: number[], edits: {find: string; replace: string}[]) {
   const [a, b] = await Promise.all([openPdf(before), openPdf(after)]);
@@ -69,9 +80,9 @@ async function textChanges(before: ArrayBuffer, after: ArrayBuffer, pages: numbe
     for (const n of pages.slice(0, 5)) {
       const [ta, tb] = await Promise.all([a.getPage(n).then(pageText), b.getPage(n).then(pageText)]);
       for (const e of edits) {
-        const i = ta.indexOf(e.find);
+        const i = looseIndex(ta, e.find);
         if (i < 0) continue;
-        const j = e.replace ? tb.indexOf(e.replace) : Math.max(0, i - 40);
+        const j = e.replace ? looseIndex(tb, e.replace) : Math.max(0, i - 40);
         const cut = (t: string, at: number, len: number) => (at > 40 ? '…' : '') + t.slice(Math.max(0, at - 40), at + len + 40).replace(/\s+/g, ' ') + (at + len + 40 < t.length ? '…' : '');
         out.push({before: cut(ta, i, e.find.length), after: j >= 0 ? cut(tb, j, e.replace.length) : '(no se encontró el texto nuevo en la página: revisá la imagen)'});
       }
@@ -185,6 +196,9 @@ export function DocumentEditor() {
     libraryEvents?.addEventListener('synced', onSynced);
     return () => { window.removeEventListener('rc-sync-applied', onApplied); libraryEvents?.removeEventListener('synced', onSynced); };
   }, [id]);
+
+  // Moving to a page outside the selection (pager, keys, a click) makes that page the selection.
+  useEffect(() => { setSelected(s => s.has(active) ? s : new Set([active])); }, [active]);
 
   // The active page's text: the assistant reads it, and an empty one means a scanned page.
   useEffect(() => {
@@ -347,7 +361,7 @@ export function DocumentEditor() {
             <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm" aria-pressed={zoom === 'fit'} onClick={() => setZoom(zoom === 'fit' ? 1 : 'fit')}>{zoom === 'fit' ? 'Ajustar' : Math.round(zoom * 100) + '%'}</button>
             <button type="button" className="rc-icon-btn" aria-label="Acercar" disabled={zoomIndex === zoomSteps.length - 1} onClick={() => setZoom(zoomIndex < 0 ? 1.25 : zoomSteps[zoomIndex + 1])}><Plus /></button>
           </div>
-          <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm" aria-pressed={chat} onClick={() => setChat(c => !c)}><Sparkles aria-hidden="true" /><span>Crear con IA</span></button>
+          <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm" aria-pressed={chat} aria-label="Crear con IA" onClick={() => setChat(c => !c)}><Sparkles aria-hidden="true" /><span>Crear con IA</span></button>
           <button type="button" className="rc-btn rc-btn--primary rc-btn--sm" disabled={!bytes} onClick={() => bytes && meta && download(bytes, meta.name + '.pdf')} aria-label="Descargar PDF"><Download aria-hidden="true" /><span>Descargar PDF</span></button>
           <Menu>
             <MenuTrigger asChild><button type="button" className="rc-icon-btn" aria-label="Más opciones del PDF"><MoreHorizontal /></button></MenuTrigger>

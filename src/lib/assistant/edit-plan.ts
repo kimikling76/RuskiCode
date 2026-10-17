@@ -147,11 +147,28 @@ export function pdfMessage(c: PdfContext, instruction: string) {
   ].join('\n\n');
 }
 
+/**
+ * Turns some providers accept only alternating and starting with the author (Claude's Messages API):
+ * leading answers are dropped and consecutive turns of the same side are joined.
+ */
+export function alternateTurns<T extends {role: 'user' | 'assistant'; content: string}>(turns: T[]): {role: 'user' | 'assistant'; content: string}[] {
+  const out: {role: 'user' | 'assistant'; content: string}[] = [];
+  for (const t of turns) {
+    if (!t.content.trim()) continue;
+    if (!out.length && t.role === 'assistant') continue;
+    const last = out[out.length - 1];
+    if (last && last.role === t.role) last.content += '\n\n' + t.content;
+    else out.push({role: t.role, content: t.content});
+  }
+  return out;
+}
+
 // ---------- Reading and checking the answer ----------
 
 export const STRESS = '́';
 export const stressCount = (s: string) => s.split(STRESS).length - 1;
-const normalize = (s: string) => s.normalize('NFC').replace(/\s+/g, ' ').trim();
+/** For «is this text on the page»: page text extraction can misplace stress marks and spaces, so both are ignored. */
+const loose = (s: string) => s.normalize('NFC').replace(/\u0301/g, '').replace(/\s+/g, '').toLowerCase();
 
 function json(text: string): unknown {
   const raw = text.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
@@ -214,8 +231,8 @@ export function checkPdfPlan(answer: string, c: PdfContext): Plan<PdfAction> {
   const warnings: string[] = [];
   if (a.tool === 'replace_text') {
     if (a.page !== c.page) { plan.rejected.push('La corrección apuntaba a otra página: abrí esa página y pedila de nuevo.'); return plan; }
-    const pageText = normalize(c.pageText);
-    const missing = a.edits.filter(e => !pageText.includes(normalize(e.find)));
+    const pageText = loose(c.pageText);
+    const missing = a.edits.filter(e => !pageText.includes(loose(e.find)));
     if (missing.length) { plan.rejected.push(`El asistente quiso reemplazar un texto que no está en la página («${missing[0].find.slice(0, 60)}»).`); return plan; }
     const lost = a.edits.reduce((n, e) => n + stressCount(e.find) - stressCount(e.replace), 0);
     if (lost > 0) warnings.push(`El reemplazo quita ${lost} ${lost === 1 ? 'tilde de acento' : 'tildes de acento'}.`);

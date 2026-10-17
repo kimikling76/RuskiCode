@@ -134,3 +134,14 @@ test('the assistant request is bounded and typed', () => {
   assert.ok(!assistantRequestSchema.safeParse({...base, instruction: 'x'.repeat(2001)}).success);
   assert.equal(stressCount('приве́т, зову́т'), 2);
 });
+
+test('conversations sent to a model start with the author and alternate', async () => {
+  const {alternateTurns} = await import('../src/lib/assistant/edit-plan');
+  assert.deepEqual(alternateTurns([
+    {role: 'assistant', content: 'respuesta vieja'},
+    {role: 'user', content: 'uno'},
+    {role: 'user', content: 'dos'},
+    {role: 'assistant', content: ''},
+    {role: 'assistant', content: 'tres'},
+  ]), [{role: 'user', content: 'uno\n\ndos'}, {role: 'assistant', content: 'tres'}]);
+});

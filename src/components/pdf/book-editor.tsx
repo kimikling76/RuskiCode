@@ -523,7 +523,7 @@ export function BookEditor() {
               <label key={String(v)}><input type="radio" name="zoom" checked={zoom === v} onChange={() => setZoom(v)} /><strong>{label}</strong></label>
             ))}
           </div>
-          <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm" aria-pressed={chat} onClick={() => setChat(c => !c)}><Sparkles aria-hidden="true" /><span>Crear con IA</span></button>
+          <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm" aria-pressed={chat} aria-label="Crear con IA" onClick={() => setChat(c => !c)}><Sparkles aria-hidden="true" /><span>Crear con IA</span></button>
           <Tip label="Se abre el diálogo de impresión: elegí «Guardar como PDF».">
             <button type="button" className="rc-btn rc-btn--primary rc-btn--sm rc-pdf-export" aria-label="Exportar PDF" disabled={layout.status !== 'ready'} onClick={exportPdf}><Download aria-hidden="true" /><span>Exportar PDF</span></button>
           </Tip>

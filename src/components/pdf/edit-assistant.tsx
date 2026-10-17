@@ -137,7 +137,7 @@ export function EditAssistant({kind, doc, contextLabel, buildContext, describe, 
       {disabled ? <p className="rc-hint" role="status">{disabled}</p> : null}
       <form className="rc-assist-form" onSubmit={e => { e.preventDefault(); void send(text); }}>
         <TextareaAutosize
-          className="rc-textarea" minRows={2} maxRows={6} maxLength={2000} value={text} lang="es"
+          className="rc-textarea" minRows={2} maxRows={6} maxLength={2000} value={text} onChange={e => setText(e.target.value)} lang="es"
           placeholder={kind === 'pdf' ? '¿Qué querés cambiar? «Agregá una página de ejercicios después de esta»' : '¿Qué querés cambiar? «Insertá un cuadro de vocabulario»'}
           aria-label="Instrucción para el asistente" disabled={busy || Boolean(disabled)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(text); } }}
