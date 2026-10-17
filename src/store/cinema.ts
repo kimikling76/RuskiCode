@@ -4,7 +4,7 @@ import type {AspectRatio, Resolution, TaskState} from '@/lib/cinema/capabilities
 
 const KEY = 'rc-cinema-v1';
 
-export type JobMode = 'create' | 'edit' | 'shot';
+export type JobMode = 'create' | 'edit' | 'shot' | 'video';
 export type JobState = 'sending' | TaskState | 'error';
 
 export type CinemaJob = {
@@ -15,6 +15,9 @@ export type CinemaJob = {
   aspect: AspectRatio;
   resolution: Resolution;
   references: string[];
+  /** Catalog model id (absent on older jobs: the default image model). */
+  model?: string;
+  duration?: string;
   /** Edit mode: the image being edited (also references[0]). */
   source?: string;
   boardId?: string;
@@ -32,7 +35,7 @@ export type CinemaJob = {
 export type Shot = {id: string; title: string; description: string; prompt: string};
 export type Board = {id: string; title: string; idea: string; script: string; aspect: AspectRatio; shots: Shot[]; createdAt: number; updatedAt: number};
 
-type CinemaData = {version: 1; jobs: CinemaJob[]; boards: Board[]};
+export type CinemaData = {version: 1; jobs: CinemaJob[]; boards: Board[]};
 
 type Store = {
   data: CinemaData;
@@ -44,6 +47,8 @@ type Store = {
   removeJobs: (ids: string[]) => void;
   saveBoard: (board: Board) => void;
   removeBoard: (id: string) => void;
+  /** Sync only: replaces the saved data with records merged from another computer. */
+  replaceSynced: (data: CinemaData) => void;
 };
 
 const empty = (): CinemaData => ({version: 1, jobs: [], boards: []});
@@ -99,6 +104,7 @@ export const useCinema = create<Store>((set, get) => ({
     persist({...get().data, boards: next});
   },
   removeBoard: id => persist({...get().data, boards: get().data.boards.filter(b => b.id !== id)}),
+  replaceSynced: data => persist(data),
 }));
 
 export const isActive = (job: CinemaJob) => job.state === 'sending' || job.state === 'waiting' || job.state === 'queuing' || job.state === 'generating';

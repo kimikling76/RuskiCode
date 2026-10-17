@@ -40,7 +40,7 @@ export function NotesPanel({api, bookKey, onGoToBlock}: {api: EditorApi; bookKey
         <button type="button" className="rc-btn rc-btn--secondary rc-btn--sm" disabled={!text.trim() || chapter < 0} onClick={save}>Agregar nota</button>
         <label className="rc-check rc-pdf-check"><input type="checkbox" checked={showResolved} onChange={e => setShowResolved(e.target.checked)} /><span>Mostrar resueltas</span></label>
       </div>
-      <p className="rc-hint">Las notas se guardan en este navegador; todavía no se comparten.</p>
+      <p className="rc-hint">Las notas se guardan en tu cuenta, con el libro.</p>
 
       {notes.length ? (
         <ul className="rc-pdf-notes">

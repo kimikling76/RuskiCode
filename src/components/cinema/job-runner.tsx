@@ -3,7 +3,7 @@ import {useEffect, useRef} from 'react';
 import {useCinema, isActive, type CinemaJob} from '@/store/cinema';
 import {usePersonal} from '@/store/personal-chat';
 
-const modeLabels: Record<CinemaJob['mode'], string> = {create: 'Imagen', edit: 'Edición de imagen', shot: 'Imagen de un plano'};
+const modeLabels: Record<CinemaJob['mode'], string> = {create: 'Imagen', edit: 'Edición de imagen', shot: 'Imagen de un plano', video: 'Video'};
 
 // Kie recommends polling with backoff starting at 2–3 s.
 function delayFor(job: CinemaJob, failures: number) {

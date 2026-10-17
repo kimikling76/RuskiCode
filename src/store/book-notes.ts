@@ -24,6 +24,8 @@ type Store = {
   add: (notes: BookNote[]) => void;
   update: (id: string, patch: Partial<BookNote>) => void;
   remove: (id: string) => void;
+  /** Sync only: replaces the notes with the merged set. */
+  replaceSynced: (notes: BookNote[]) => void;
 };
 
 function persist(notes: BookNote[]) {
@@ -44,4 +46,5 @@ export const useNotes = create<Store>((set, get) => ({
   add: notes => persist([...notes, ...get().notes]),
   update: (id, patch) => persist(get().notes.map(n => n.id === id ? {...n, ...patch} : n)),
   remove: id => persist(get().notes.filter(n => n.id !== id)),
+  replaceSynced: notes => persist(notes),
 }));

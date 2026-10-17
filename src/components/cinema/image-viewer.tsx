@@ -9,7 +9,7 @@ import {credits, useImageActions} from './job-card';
 
 const dateFormat = new Intl.DateTimeFormat('es-AR', {day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'});
 const dayFormat = new Intl.DateTimeFormat('es-AR', {day: 'numeric', month: 'long'});
-const modeName = {create: 'Imagen', edit: 'Edición', shot: 'Plano'} as const;
+const modeName = {create: 'Imagen', edit: 'Edición', shot: 'Plano', video: 'Video'} as const;
 
 /** Large view with every real detail Kie returned, and the actions that exist. */
 export function ImageViewer({job, onClose}: {job: CinemaJob | null; onClose: () => void}) {

@@ -1,15 +1,16 @@
 import {z} from 'zod';
 import {authorized,sameOrigin,limit} from '@/lib/ai/security';
-import {modelCatalog,configured} from '@/lib/ai/catalog';
+import {textModels,publicModel} from '@/lib/ai/models';
+import {resolveText,textConfig} from '@/lib/ai/kie-text';
 import {createProvider,ProviderError} from '@/lib/ai/provider';
 import {personalInput,systemForPersonal} from '@/lib/personal-chat/input';
 export const runtime='nodejs';export const maxDuration=120;
-const choices=()=>modelCatalog.filter(m=>m.id.startsWith('kie-')&&configured(m));
-export async function GET(req:Request){if(!await authorized(req))return Response.json({error:'AUTH_REQUIRED'},{status:401});return Response.json({models:choices().map(m=>({id:m.id,name:m.name,provider:'Google'}))},{headers:{'Cache-Control':'no-store'}});}
+
+export async function GET(req:Request){if(!await authorized(req))return Response.json({error:'AUTH_REQUIRED'},{status:401});const key=Boolean(process.env.KIE_API_KEY);return Response.json({models:textModels.map(m=>publicModel(m,key))},{headers:{'Cache-Control':'no-store'}});}
 export async function POST(req:Request){
  if(!sameOrigin(req)||!req.headers.get('origin'))return Response.json({error:'FORBIDDEN'},{status:403});if(!await authorized(req))return Response.json({error:'AUTH_REQUIRED'},{status:401});
  let input:z.infer<typeof personalInput>;try{const text=await req.text();if(text.length>100000)throw Error();input=personalInput.parse(JSON.parse(text));}catch{return Response.json({error:'INVALID_REQUEST'},{status:400});}
- const all=choices();const selected=input.model==='auto'?(all.find(m=>m.id==='kie-flash')||all[0]):all.find(m=>m.id===input.model);if(!selected)return Response.json({error:'MODEL_NOT_CONFIGURED'},{status:503});
+ const entry=resolveText(input.model);if(!entry)return Response.json({error:'MODEL_NOT_CONFIGURED'},{status:503});const selected=textConfig(entry);
  try{if(!await limit('personal-kie-new',10,10)||!await limit('personal-hour',100,3600))return Response.json({error:'RATE_LIMIT'},{status:429});if(!await limit('personal-request:'+input.requestId,1,3600))return Response.json({error:'ALREADY_SENT'},{status:409});}catch{return Response.json({error:'RATE_LIMIT_UNAVAILABLE'},{status:503});}
  const abort=new AbortController();const signal=AbortSignal.any([req.signal,abort.signal,AbortSignal.timeout(105000)]);const encoder=new TextEncoder();const system=systemForPersonal(input);
  return new Response(new ReadableStream({async start(controller){let closed=false;let started=false;const send=(e:unknown)=>{if(closed)return;try{controller.enqueue(encoder.encode('data: '+JSON.stringify(e)+'\n\n'));}catch{closed=true;}};

@@ -7,7 +7,7 @@ export type CinemaTab = (typeof cinemaTabs)[number];
 
 const ASK_KEY = 'rc-cinema-ask';
 
-type ImageDraft = {prompt: string; aspect: AspectRatio; resolution: Resolution; count: number; references: string[]};
+type ImageDraft = {model: string; prompt: string; aspect: AspectRatio; resolution: Resolution; count: number; references: string[]};
 type EditDraft = {source: string | null; instruction: string; count: number};
 
 type CinemaUi = {
@@ -29,7 +29,7 @@ type CinemaUi = {
 export const useCinemaUi = create<CinemaUi>((set, get) => ({
   tab: 'image',
   askFirst: true,
-  image: {prompt: '', aspect: 'auto', resolution: '1K', count: 1, references: []},
+  image: {model: 'nano-banana-2-1', prompt: '', aspect: 'auto', resolution: '1K', count: 1, references: []},
   edit: {source: null, instruction: '', count: 1},
   boardId: null,
   setTab: tab => {

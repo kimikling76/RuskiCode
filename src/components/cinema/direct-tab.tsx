@@ -14,6 +14,8 @@ import {parsePlan} from '@/lib/cinema/plan';
 import {Menu, MenuTrigger, MenuContent, MenuItem, MenuSeparator} from '@/components/ui/menu';
 import {ConfirmDialog} from '@/components/ui/dialog';
 import {AspectPicker, Field} from './controls';
+import {AssistantSelect} from '@/components/studio/assistant-chooser';
+import {useAssistants, type Assistant} from '@/store/assistants';
 import {Elapsed, KieImage, credits} from './job-card';
 
 const SHOT_RESOLUTION = '1K' as const;
@@ -33,6 +35,9 @@ export function DirectTab({projects, legacy, onOpenLegacy}: {projects: CinemaPro
   const [error, setError] = useState('');
   const abort = useRef<AbortController | null>(null);
   const board = boards.find(b => b.id === boardId) || null;
+  const [assistant, setAssistant] = useState<Assistant | null>(null);
+  const hydrateAssistants = useAssistants(s => s.hydrate);
+  useEffect(() => { hydrateAssistants(); }, [hydrateAssistants]);
 
   useEffect(() => () => abort.current?.abort(), []);
 
@@ -42,7 +47,7 @@ export function DirectTab({projects, legacy, onOpenLegacy}: {projects: CinemaPro
     const controller = new AbortController();
     abort.current = controller;
     try {
-      const plan = parsePlan(await textRequest('storyboard', idea.trim(), controller.signal));
+      const plan = parsePlan(await textRequest('storyboard', idea.trim(), controller.signal, assistant));
       if (!plan) throw Error('INVALID_PLAN');
       const now = Date.now();
       const next: Board = {
@@ -115,6 +120,7 @@ export function DirectTab({projects, legacy, onOpenLegacy}: {projects: CinemaPro
           ) : null}
         </div>
         <div className="rc-cine-generate">
+          <AssistantSelect scope="cinema" value={assistant?.id || null} onChange={setAssistant} />
           <button type="button" className="rc-btn rc-btn--primary" disabled={busy || !idea.trim()} onClick={createPlan}>{busy ? 'Armando el plan…' : 'Crear plan'}</button>
         </div>
       </section>
@@ -260,7 +266,7 @@ function BoardView({board}: {board: Board}) {
         onClose={() => setRemove(false)}
         onConfirm={() => { removeBoard(board.id); setBoard(null); setRemove(false); }}
         title="¿Borrar este plan?"
-        description="Se borran el guion y los planos de este navegador. Las imágenes generadas siguen en la galería."
+        description="Se borran el guion y los planos, también en tus otras computadoras. Las imágenes generadas siguen en la galería."
         confirmLabel="Borrar plan"
         tone="danger"
       />

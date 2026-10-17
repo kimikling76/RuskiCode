@@ -6,6 +6,8 @@ import {textRequest, type TextPurpose} from '@/lib/ai/text-request';
 import {chapterMessage, parseExercises, parseReview, parseRewrite, rewriteMessage, type Review} from '@/lib/books/assistant';
 import {errorDetail} from '@/lib/cinema/errors';
 import {useNotes} from '@/store/book-notes';
+import {useAssistants, type Assistant} from '@/store/assistants';
+import {AssistantSelect} from '@/components/studio/assistant-chooser';
 import {blockSummary, type EditorApi} from './editor-api';
 
 type Result =
@@ -35,6 +37,9 @@ export function AssistantPanel({api, bookKey, onGoToBlock}: {api: EditorApi; boo
   const [request, setRequest] = useState('');
   const [hidden, setHidden] = useState<number[]>([]);
   const abort = useRef<AbortController | null>(null);
+  const [assistant, setAssistant] = useState<Assistant | null>(null);
+  const hydrateAssistants = useAssistants(s => s.hydrate);
+  useEffect(() => { hydrateAssistants(); }, [hydrateAssistants]);
 
   useEffect(() => { setResult(null); setError(''); setHidden([]); }, [index]);
   useEffect(() => () => abort.current?.abort(), []);
@@ -47,7 +52,7 @@ export function AssistantPanel({api, bookKey, onGoToBlock}: {api: EditorApi; boo
     abort.current = controller;
     setBusy(purpose); setError(''); setResult(null); setHidden([]);
     try {
-      const value = read(await textRequest(purpose, content, controller.signal));
+      const value = read(await textRequest(purpose, content, controller.signal, assistant));
       if (!value) throw Error('INVALID_ANSWER');
       setResult(value);
     } catch (e) {
@@ -74,6 +79,7 @@ export function AssistantPanel({api, bookKey, onGoToBlock}: {api: EditorApi; boo
     <div className="rc-pdf-form">
       <div className="rc-pdf-form-head"><span className="rc-pdf-kind">Capítulo {index + 1} · {chapter.title}</span></div>
       <p className="rc-hint">Usa el modelo de chat de Kie con los datos de este libro (nivel, público, reglas). Puede consumir créditos. No cambia nada hasta que lo apliques.</p>
+      <AssistantSelect scope="pdf" value={assistant?.id || null} onChange={setAssistant} />
       <div className="rc-pdf-assist-actions">
         <button type="button" className="rc-btn rc-btn--secondary rc-btn--sm" disabled={Boolean(busy)} onClick={() => void review()}>{busy === 'book-review' ? 'Revisando…' : 'Revisar la calidad pedagógica'}</button>
         <button type="button" className="rc-btn rc-btn--secondary rc-btn--sm" disabled={Boolean(busy)} onClick={() => void exercises()}>{busy === 'book-exercises' ? 'Preparando…' : 'Proponer ejercicios'}</button>

@@ -46,7 +46,7 @@ export function CinemaStudio({projects, legacy, onOpenLegacy}: {projects: Cinema
       </header>
       {storageError ? <p className="rc-cinema-warning" role="alert">{storageError}</p> : null}
       <Tabs.Content value="image" className="rc-tab-panel"><ImageTab onOpen={setViewing} /></Tabs.Content>
-      <Tabs.Content value="video" className="rc-tab-panel"><VideoTab /></Tabs.Content>
+      <Tabs.Content value="video" className="rc-tab-panel"><VideoTab onOpen={setViewing} /></Tabs.Content>
       <Tabs.Content value="edit" className="rc-tab-panel"><EditTab onOpen={setViewing} /></Tabs.Content>
       <Tabs.Content value="direct" className="rc-tab-panel"><DirectTab projects={projects} legacy={legacy} onOpenLegacy={onOpenLegacy} /></Tabs.Content>
       <Tabs.Content value="gallery" className="rc-tab-panel rc-tab-panel--scroll"><GalleryTab onOpen={setViewing} /></Tabs.Content>

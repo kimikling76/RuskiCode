@@ -2,6 +2,8 @@
 import {Fragment, useState, type ReactNode} from 'react';
 import {Sparkles} from 'lucide-react';
 import {aspectRatios, imageModel, ratioValue, type AspectRatio} from '@/lib/cinema/capabilities';
+import {imageModels, videoModels, publicModel} from '@/lib/ai/models';
+import {ChatModelPicker} from '@/components/studio/chat-model-picker';
 import {useCinemaUi} from '@/store/cinema-ui';
 import {ConfirmDialog} from '@/components/ui/dialog';
 import {Switch} from '@/components/ui/switch';
@@ -47,6 +49,12 @@ export function AspectPicker({value, onChange, name = 'aspect', disabled, option
       })}
     </div>
   );
+}
+
+/** Image or video model picker from the catalog: verified models are selectable, the rest are listed as «No verificado». */
+export function MediaModelPicker({category, value, onChange}: {category: 'image' | 'video'; value: string; onChange: (id: string) => void}) {
+  const models = (category === 'image' ? imageModels : videoModels).map(m => publicModel(m, true));
+  return <div className="rc-cine-model-picker"><ChatModelPicker models={models} value={value} onChange={onChange} category={category} allowAuto={false} title={category === 'image' ? 'Modelo de imagen' : 'Modelo de video'} /></div>;
 }
 
 export function ModelRow({detail}: {detail?: string}) {

@@ -4,6 +4,8 @@ import dynamic from 'next/dynamic';
 import {useQuery} from '@tanstack/react-query';
 import TextareaAutosize from 'react-textarea-autosize';
 import {ArrowUp, ArrowDown, ArrowUpRight, Copy, Check, RotateCcw, Square, FolderPlus, Pencil, MoreHorizontal, X} from 'lucide-react';
+import {useAssistants, type Assistant} from '@/store/assistants';
+import {AssistantMenu, AssistantPreview, AssistantChip, preferredModel} from './assistant-chooser';
 import {usePersonal, type PersonalMessage, type StudioProject} from '@/store/personal-chat';
 import {useChatDialogs} from './chat-dialogs';
 import {ConvertChat} from './convert-chat';
@@ -64,6 +66,8 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
   const storageError = usePersonal(s => s.error);
   const dialogs = useChatDialogs();
   const chat = data.chats.find(c => c.id === activeId);
+  const assistants = useAssistants(s => s.assistants);
+  const hydrateAssistants = useAssistants(s => s.hydrate);
 
   const [text, setText] = useState('');
   const [model, setModel] = useState('auto');
@@ -77,6 +81,9 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState('');
   const [showJump, setShowJump] = useState(false);
+  // Chosen before the first message; afterwards it lives in the chat itself.
+  const [pendingAssistant, setPendingAssistant] = useState<Assistant | null>(null);
+  const [preview, setPreview] = useState<{assistant: Assistant; choose: boolean} | null>(null);
 
   const abort = useRef<AbortController | null>(null);
   const stoppedByUser = useRef(false);
@@ -96,7 +103,9 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
     queryFn: async () => { const r = await fetch('/api/personal-chat'); if (!r.ok) throw Error(); return r.json(); },
     staleTime: 60000,
   });
-  const models = modelData?.models || [];
+  const allModels = modelData?.models || [];
+  // Only models that can really answer; unverified ones stay visible (disabled) in the picker.
+  const models = allModels.filter(m => m.available !== false && m.status !== 'unverified');
   const selectedModel = chat?.model || model;
   const hasMessages = Boolean(chat?.messages.length);
   const last = chat?.messages.at(-1);
@@ -110,12 +119,29 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
     setShowJump(false);
   }, []);
 
+  // Only when the conversation really changes (not on mount, nor React's development re-run of effects),
+  // so a preview opened from «Usar en el Chat» is not closed right away.
+  const shownChat = useRef(activeId);
   useEffect(() => {
+    if (shownChat.current === activeId) return;
+    shownChat.current = activeId;
     if (abort.current && requestChat.current !== activeId) abort.current.abort();
-    setText(''); setConversion(false); setConfirmSend(false); setConfirmRegenerate(null); setEditing(false);
+    setText(''); setConversion(false); setConfirmSend(false); setConfirmRegenerate(null); setEditing(false); setPendingAssistant(null); setPreview(null);
     nearBottom.current = true; setShowJump(false);
   }, [activeId]);
   useEffect(() => () => abort.current?.abort(), []);
+  useEffect(() => { hydrateAssistants(); }, [hydrateAssistants]);
+  // «Usar en el Chat» from the Assistants page: open a new chat with that assistant's preview.
+  useEffect(() => {
+    if (!assistants.length) return;
+    const url = new URL(window.location.href);
+    const id = url.searchParams.get('asistente');
+    if (!id) return;
+    url.searchParams.delete('asistente');
+    window.history.replaceState(null, '', url);
+    const a = assistants.find(x => x.id === id);
+    if (a) { usePersonal.getState().select(null); setPreview({assistant: a, choose: true}); }
+  }, [assistants]);
   useEffect(() => {
     try { setAskFirst(localStorage.getItem(ASK_KEY) === '1'); } catch {}
     try {
@@ -210,9 +236,14 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
     // A new chat uses the model chosen before it existed; an existing chat keeps its own.
     const selected = existing ? usePersonal.getState().data.chats.find(c => c.id === id)?.model || 'auto' : model;
     const assistant: PersonalMessage = {id: messageId, role: 'assistant', content: '', status: 'streaming', createdAt: new Date().toISOString()};
+    // The assistant applies only if it was chosen for this chat. Its current instructions are sent and kept.
+    const chosen = existing ? usePersonal.getState().data.chats.find(c => c.id === id)?.assistant : pendingAssistant ? {id: pendingAssistant.id, name: pendingAssistant.name, instructions: pendingAssistant.instructions, mediaCatalog: pendingAssistant.mediaCatalog} : undefined;
+    const live = chosen ? useAssistants.getState().assistants.find(a => a.id === chosen.id) : undefined;
+    const active = chosen ? (live ? {id: live.id, name: live.name, instructions: live.instructions, mediaCatalog: live.mediaCatalog} : chosen) : undefined;
     nearBottom.current = true;
     lastScrollTop.current = log.current?.scrollTop || 0;
-    if (!patch(id, {messages: [...base, assistant], model: selected})) return;
+    if (!patch(id, {messages: [...base, assistant], model: selected, ...(active ? {assistant: active} : {})})) return;
+    if (!existing) setPendingAssistant(null);
 
     const chatId = id;
     sending.current = true; setBusy(true);
@@ -232,7 +263,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
       const r = await fetch('/api/personal-chat', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({requestId, purpose: 'chat', model: selected, messages: outbound}),
+        body: JSON.stringify({requestId, purpose: 'chat', model: selected, messages: outbound, ...(active ? {assistant: {name: active.name, instructions: active.instructions, mediaCatalog: active.mediaCatalog}} : {})}),
         signal: controller.signal,
       });
       if (!r.ok) { const e = await r.json(); throw Error(e.error); }
@@ -285,6 +316,25 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
     if (modifier || (desktop && !e.shiftKey)) { e.preventDefault(); requestSend(); }
   }
 
+  function chooseAssistant(a: Assistant) {
+    setPendingAssistant(a);
+    setPreview(null);
+    const pref = preferredModel(a, allModels);
+    if (pref.state === 'ok') setModel(a.model);
+    textarea.current?.focus();
+  }
+
+  function neutralChat() {
+    usePersonal.getState().select(null);
+    setPendingAssistant(null);
+  }
+
+    const openAssistant = (id: string) => {
+    const a = assistants.find(x => x.id === id);
+    if (a) setPreview({assistant: a, choose: false});
+    else if (chat?.assistant) setPreview({assistant: {...chat.assistant, description: 'Este asistente ya no existe; esta conversación conserva las últimas instrucciones que usó.', model: 'auto', scope: 'chat', createdAt: '', updatedAt: ''}, choose: false});
+  };
+
   const modelName = (id: string) => id === 'auto' ? 'Automático' : modelLabel(models.find(m => m.id === id)?.name || id);
   const otherModels = models.filter(m => m.id !== chat?.model);
 
@@ -321,6 +371,9 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
             </>
           )}
         </div>
+        {chat?.assistant ? (
+          <AssistantChip name={chat.assistant.name} onView={() => openAssistant(chat.assistant!.id)} onClear={neutralChat} clearLabel="Nuevo chat neutro" />
+        ) : null}
         <div className="rc-topbar-actions">
           {hasMessages ? (
             <Tip label="Llevar este chat a PDF Studio o Cinema Studio">
@@ -363,6 +416,19 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
             <div className="rc-chat-empty">
               <span className="rc-chat-glyph" aria-hidden="true">Ж</span>
               <h2>¿En qué estás pensando?</h2>
+              <div className="rc-chat-mode">
+                {pendingAssistant ? (
+                  <>
+                    <span className="rc-hint">Con asistente:</span>
+                    <AssistantChip name={pendingAssistant.name} onView={() => setPreview({assistant: pendingAssistant, choose: false})} onClear={() => setPendingAssistant(null)} />
+                  </>
+                ) : (
+                  <>
+                    <span className="rc-hint">Chat neutro, sin instrucciones guardadas.</span>
+                    <AssistantMenu onPick={a => setPreview({assistant: a, choose: true})} />
+                  </>
+                )}
+              </div>
               <ul className="rc-suggestions" aria-label="Sugerencias para empezar">
                 {suggestions.map(s => (
                   <li key={s.title}>
@@ -518,7 +584,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
               onKeyDown={onKeyDown}
             />
             <div className="rc-composer-bar">
-              <ChatModelPicker models={models} value={selectedModel} onChange={chooseModel} disabled={busy || !models.length} />
+              <ChatModelPicker models={allModels} value={selectedModel} onChange={chooseModel} disabled={busy || !models.length} />
               <div className="rc-composer-spacer" />
               <label className="rc-ask" htmlFor="ask-first">
                 <span className="rc-ask-label">Preguntar antes</span>
@@ -547,7 +613,10 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
         confirmLabel="Enviar"
         busy={busy}
       >
-        <dl className="rc-facts"><dt>Modelo</dt><dd>{modelName(selectedModel)}</dd></dl>
+        <dl className="rc-facts">
+          <dt>Modelo</dt><dd>{modelName(selectedModel)}</dd>
+          <dt>Asistente</dt><dd>{chat?.assistant?.name || pendingAssistant?.name || 'Ninguno (chat neutro)'}</dd>
+        </dl>
       </ConfirmDialog>
 
       <ConfirmDialog
@@ -570,6 +639,13 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
         description="Se elimina de este chat. Los proyectos ya creados conservan su copia."
         confirmLabel="Borrar mensaje"
         tone="danger"
+      />
+
+      <AssistantPreview
+        assistant={preview?.assistant || null}
+        models={allModels}
+        onClose={() => setPreview(null)}
+        onUse={preview?.choose ? () => chooseAssistant(preview.assistant) : undefined}
       />
 
       {chat ? <ConvertChat key={chat.id} chat={chat} open={conversion} onClose={() => setConversion(false)} onCreated={onCreated} /> : null}

@@ -4,6 +4,8 @@ import TextareaAutosize from 'react-textarea-autosize';
 import {Dialog} from '@/components/ui/dialog';
 import {textRequest} from '@/lib/cinema/client';
 import {errorDetail} from '@/lib/cinema/errors';
+import {AssistantSelect} from '@/components/studio/assistant-chooser';
+import {useAssistants, type Assistant} from '@/store/assistants';
 
 /** Turns a rough idea into one concrete prompt with the chat model. It never generates an image. */
 export function PromptAssistant({open, onClose, initial, onUse}: {open: boolean; onClose: () => void; initial: string; onUse: (prompt: string) => void}) {
@@ -12,6 +14,9 @@ export function PromptAssistant({open, onClose, initial, onUse}: {open: boolean;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const abort = useRef<AbortController | null>(null);
+  const [assistant, setAssistant] = useState<Assistant | null>(null);
+  const hydrateAssistants = useAssistants(s => s.hydrate);
+  useEffect(() => { hydrateAssistants(); }, [hydrateAssistants]);
 
   useEffect(() => { if (open) { setIdea(initial); setResult(''); setError(''); } }, [open]); // reset on every opening
   useEffect(() => () => abort.current?.abort(), []);
@@ -22,7 +27,7 @@ export function PromptAssistant({open, onClose, initial, onUse}: {open: boolean;
     const controller = new AbortController();
     abort.current = controller;
     try {
-      setResult(await textRequest('prompt', idea.trim(), controller.signal));
+      setResult(await textRequest('prompt', idea.trim(), controller.signal, assistant));
     } catch (e) {
       if (!controller.signal.aborted) setError(e instanceof Error ? e.message : 'PROVIDER_UNAVAILABLE');
     } finally {
@@ -41,6 +46,7 @@ export function PromptAssistant({open, onClose, initial, onUse}: {open: boolean;
           <TextareaAutosize className="rc-textarea" minRows={3} maxRows={8} value={idea} disabled={busy} onChange={e => setIdea(e.target.value)} placeholder="Una calle de Moscú en invierno, de noche, con una panadería iluminada" />
         </label>
         <div className="rc-step-inline">
+          <AssistantSelect scope="cinema" value={assistant?.id || null} onChange={setAssistant} />
           <button type="button" className="rc-btn rc-btn--secondary rc-btn--sm" disabled={busy || !idea.trim()} onClick={propose}>{busy ? 'Pensando…' : result ? 'Proponer otro' : 'Proponer prompt'}</button>
           <p className="rc-hint">Usa el modelo de chat de Kie y puede consumir créditos.</p>
         </div>

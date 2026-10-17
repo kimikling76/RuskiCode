@@ -172,7 +172,7 @@ export function Workspace() {
         onClose={() => setRemoveProject(false)}
         onConfirm={() => { if (project && deleteProject(project.id)) { setRemoveProject(false); navigate(view); } }}
         title="¿Borrar este proyecto?"
-        description="Se borran su brief y la copia de mensajes de este navegador. El chat original no se toca."
+        description="Se borran su brief y la copia de mensajes, también en tus otras computadoras. El chat original no se toca."
         confirmLabel="Borrar proyecto"
         tone="danger"
       />

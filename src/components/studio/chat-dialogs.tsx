@@ -82,11 +82,11 @@ export function ChatDialogs({onChat}: {onChat: () => void}) {
         open={d.settings}
         onClose={d.close}
         title="¿Borrar todos los chats?"
-        description="Los chats se guardan solo en este navegador. Los proyectos convertidos y el registro de consumo se conservan."
+        description="Se borran de tu cuenta, en todas tus computadoras. Los proyectos convertidos y el registro de consumo se conservan."
       >
         {step === 1 ? (
           <div className="rc-dialog-body">
-            <p className="rc-hint">Se van a borrar todos los chats y sus mensajes de este navegador. Esta acción no se puede deshacer.</p>
+            <p className="rc-hint">Se van a borrar todos los chats y sus mensajes, también en tus otras computadoras. Esta acción no se puede deshacer.</p>
             <div className="rc-dialog-footer rc-dialog-footer--end">
               <button type="button" className="rc-btn rc-btn--ghost" onClick={d.close}>Cancelar</button>
               <button type="button" className="rc-btn rc-btn--danger" disabled={!data.chats.length && !data.pending.length} onClick={() => setStep(2)}>Continuar</button>

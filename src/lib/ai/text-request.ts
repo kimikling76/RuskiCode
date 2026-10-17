@@ -1,6 +1,7 @@
 'use client';
 import {usePersonal} from '@/store/personal-chat';
 import {sseData} from '@/lib/ai/sse';
+import type {Assistant} from '@/store/assistants';
 
 export type TextPurpose = 'storyboard' | 'prompt' | 'book-review' | 'book-exercises' | 'book-rewrite';
 
@@ -13,14 +14,15 @@ const usageLabels: Record<TextPurpose, {studio: 'cinema' | 'pdf'; label: string}
 };
 
 /** One text answer from the configured Kie chat model (personal-chat endpoint with a studio purpose). */
-export async function textRequest(purpose: TextPurpose, content: string, signal?: AbortSignal) {
+/** `assistant` is optional and only sent when the person chose one in that panel. */
+export async function textRequest(purpose: TextPurpose, content: string, signal?: AbortSignal, assistant?: Assistant | null) {
   const requestId = crypto.randomUUID();
   let text = '', done = false, accepted = false, credits: number | undefined;
   try {
     const r = await fetch('/api/personal-chat', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({requestId, purpose, model: 'auto', messages: [{role: 'user', content}]}),
+      body: JSON.stringify({requestId, purpose, model: assistant && assistant.model !== 'auto' ? assistant.model : 'auto', messages: [{role: 'user', content}], ...(assistant ? {assistant: {name: assistant.name, instructions: assistant.instructions, mediaCatalog: assistant.mediaCatalog}} : {})}),
       signal,
     });
     if (!r.ok) {

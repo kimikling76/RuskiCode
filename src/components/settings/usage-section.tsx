@@ -1,6 +1,6 @@
 'use client';
 import {useMemo, useState} from 'react';
-import {useQuery} from '@tanstack/react-query';
+import {useBalance, balanceErrors} from '@/lib/ai/balance';
 import {ArrowUpRight, RefreshCw} from 'lucide-react';
 import {usePersonal} from '@/store/personal-chat';
 import {summarizeUsage, studioNames, type UsageDay} from '@/lib/usage/summary';
@@ -8,23 +8,6 @@ import {Group, Row, numberFormat, timeFormat} from './parts';
 
 const dayFormat = new Intl.DateTimeFormat('es-AR', {weekday: 'long', day: 'numeric', month: 'long'});
 const yearFormat = new Intl.DateTimeFormat('es-AR', {day: 'numeric', month: 'long', year: 'numeric'});
-
-const balanceErrors: Record<string, string> = {
-  AUTH_REQUIRED: 'Iniciá sesión para ver el saldo.',
-  MODEL_NOT_CONFIGURED: 'Kie no está configurado en el servidor.',
-  PROVIDER_AUTH_ERROR: 'Kie rechazó la clave guardada en el servidor.',
-  RATE_LIMIT: 'Se consultó muchas veces seguidas. Probá en un minuto.',
-  RATE_LIMIT_UNAVAILABLE: 'El servidor no tiene configurado el límite de consultas.',
-};
-
-type Balance = {credits: number; checkedAt: string};
-
-async function fetchBalance(): Promise<Balance> {
-  const r = await fetch('/api/kie/credits', {cache: 'no-store'});
-  const body = await r.json().catch(() => ({}));
-  if (!r.ok || typeof body.credits !== 'number') throw Error(typeof body.error === 'string' ? body.error : 'PROVIDER_UNAVAILABLE');
-  return body;
-}
 
 function credits(value: number) {
   return numberFormat.format(value) + (value === 1 ? ' crédito' : ' créditos');
@@ -45,7 +28,7 @@ export function UsageSection() {
   const hydrated = usePersonal(s => s.hydrated);
   const summary = useMemo(() => summarizeUsage(usage), [usage]);
   const [shown, setShown] = useState(7);
-  const balance = useQuery({queryKey: ['kie-credits'], queryFn: fetchBalance, retry: false, staleTime: 0, refetchOnWindowFocus: false});
+  const balance = useBalance();
 
   return (
     <>
@@ -53,7 +36,7 @@ export function UsageSection() {
         title="Saldo en Kie"
         description="Lo que queda en la cuenta de Kie del estudio, según Kie. Se consulta solo cuando abrís esta página o tocás Actualizar."
         action={
-          <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm" disabled={balance.isFetching} onClick={() => void balance.refetch()}>
+          <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm" disabled={balance.isFetching} onClick={() => void balance.refresh()}>
             <RefreshCw aria-hidden="true" />{balance.isFetching ? 'Consultando…' : 'Actualizar'}
           </button>
         }
@@ -74,14 +57,14 @@ export function UsageSection() {
       </Group>
 
       <Group
-        title="Registrado en este navegador"
-        description="Suma solo el costo real que Kie informó en cada pedido hecho desde este navegador. No hay estimaciones. Otro navegador o computadora tiene su propio registro."
+        title="Pedidos registrados"
+        description="Suma solo el costo real que Kie informó en cada pedido, desde esta computadora y las otras de tu cuenta. No hay estimaciones."
         action={<a className="rc-btn rc-btn--ghost rc-btn--sm" href="https://kie.ai/logs" target="_blank" rel="noreferrer">Registro oficial en Kie<ArrowUpRight aria-hidden="true" /></a>}
       >
         {!hydrated ? (
           <div className="rc-history-loading" role="status" aria-label="Cargando el registro"><span className="rc-skeleton" /><span className="rc-skeleton" /></div>
         ) : !summary.requests ? (
-          <p className="rc-set-quiet">Todavía no hay pedidos a Kie registrados en este navegador.</p>
+          <p className="rc-set-quiet">Todavía no hay pedidos a Kie registrados.</p>
         ) : (
           <>
             <dl className="rc-set-totals">

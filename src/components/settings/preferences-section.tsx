@@ -38,7 +38,7 @@ export function PreferencesSection() {
         </Row>
       </Group>
       <Group title="Chats">
-        <Row label="Borrar todos los chats" detail={chats ? chats + (chats === 1 ? ' chat guardado en este navegador.' : ' chats guardados en este navegador.') : 'No hay chats guardados.'}>
+        <Row label="Borrar todos los chats" detail={chats ? chats + (chats === 1 ? ' chat guardado.' : ' chats guardados.') : 'No hay chats guardados.'}>
           <button type="button" className="rc-btn rc-btn--danger rc-btn--sm" disabled={!chats} onClick={dialogs.openClearAll}>Borrar todo…</button>
         </Row>
       </Group>

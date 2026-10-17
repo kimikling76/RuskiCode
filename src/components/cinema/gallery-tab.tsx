@@ -76,7 +76,7 @@ export function GalleryTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
                   aria-label={(selecting ? (on ? 'Quitar de la selección: ' : 'Seleccionar: ') : 'Ver: ') + job.prompt.slice(0, 80)}
                   onClick={() => selecting ? toggle(job.id) : onOpen(job)}
                 >
-                  <KieImage src={url} alt="" />
+                  {job.mode === 'video' ? <video src={url} muted preload="metadata" playsInline aria-hidden="true" /> : <KieImage src={url} alt="" />}
                   {selecting ? <span className="rc-tile-check" aria-hidden="true">{on ? <Check /> : null}</span> : null}
                 </button>
                 {!selecting ? (
@@ -92,7 +92,7 @@ export function GalleryTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
         </ul>
       )}
 
-      {done.length ? <p className="rc-hint rc-gallery-note">Kie conserva cada imagen {retentionDays} días y esta galería vive en este navegador. Descargá lo que quieras conservar.</p> : null}
+      {done.length ? <p className="rc-hint rc-gallery-note">La galería se guarda en tu cuenta, pero los archivos los guarda Kie solo {retentionDays} días. Descargá lo que quieras conservar.</p> : null}
 
       {selecting && selected.length ? (
         <div className="rc-selection-bar rc-layer" role="region" aria-label="Selección">

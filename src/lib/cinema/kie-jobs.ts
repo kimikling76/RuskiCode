@@ -1,6 +1,9 @@
-import {imageModel, outputFormat, taskStates, type AspectRatio, type Resolution, type TaskState} from './capabilities';
+import {imageModel, taskStates, type AspectRatio, type Resolution, type TaskState} from './capabilities';
+import {imageModels, type ImageModel, type VideoModel} from '@/lib/ai/models';
 
-const JOBS = 'https://api.kie.ai/api/v1/jobs';
+// KIE_BASE_URL exists only for local tests against a fake Kie; production never sets it.
+const JOBS_PATH = '/api/v1/jobs';
+const jobsBase = () => (process.env.KIE_BASE_URL || 'https://api.kie.ai') + JOBS_PATH;
 
 export class CinemaError extends Error {
   constructor(public code: string) { super(code); }
@@ -22,18 +25,34 @@ function key() {
 }
 
 export type ImageJobInput = {prompt: string; aspect: AspectRatio; resolution: Resolution; references: string[]};
+export type JobInput = {prompt: string; aspect?: string; resolution?: string; duration?: string; references: string[]};
 
-export async function createImageJob(input: ImageJobInput, transport: typeof fetch = fetch): Promise<string> {
+/** Builds Kie's `input` object from a catalog entry: only the fields that model documents. */
+export function jobInput(model: ImageModel | VideoModel, input: JobInput) {
+  const f = model.options.fields;
+  const out: Record<string, unknown> = {[f.prompt]: input.prompt};
+  if (f.images && model.options.maxReferences) out[f.images] = input.references;
+  if (f.aspect && input.aspect) out[f.aspect] = input.aspect;
+  if (f.resolution && input.resolution) out[f.resolution] = input.resolution;
+  if (f.duration && input.duration) out[f.duration] = input.duration;
+  if (f.format && model.options.outputFormat) out[f.format] = model.options.outputFormat;
+  return out;
+}
+
+export function createImageJob(input: ImageJobInput, transport: typeof fetch = fetch): Promise<string> {
+  return createJob(imageModels.find(m => m.providerModel === imageModel.id)!, input, transport);
+}
+
+/** One Kie task through the unified jobs API. Kie answers HTTP 200 with the real status in body.code. */
+export async function createJob(model: ImageModel | VideoModel, input: JobInput, transport: typeof fetch = fetch): Promise<string> {
+  if (model.adapter !== 'kie-jobs') throw new CinemaError('MODEL_NOT_CONFIGURED');
   const secret = key();
   let response: Response;
   try {
-    response = await transport(JOBS + '/createTask', {
+    response = await transport(jobsBase() + '/createTask', {
       method: 'POST',
       headers: {Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        model: imageModel.id,
-        input: {prompt: input.prompt, image_input: input.references, aspect_ratio: input.aspect, resolution: input.resolution, output_format: outputFormat},
-      }),
+      body: JSON.stringify({model: model.providerModel, input: jobInput(model, input)}),
       signal: AbortSignal.timeout(30000),
     });
   } catch {
@@ -54,7 +73,7 @@ export async function imageJobStatus(taskId: string, transport: typeof fetch = f
   const secret = key();
   let response: Response;
   try {
-    response = await transport(JOBS + '/recordInfo?taskId=' + encodeURIComponent(taskId), {
+    response = await transport(jobsBase() + '/recordInfo?taskId=' + encodeURIComponent(taskId), {
       headers: {Authorization: `Bearer ${secret}`},
       signal: AbortSignal.timeout(15000),
     });

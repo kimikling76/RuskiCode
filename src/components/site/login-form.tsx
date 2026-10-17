@@ -1,5 +1,5 @@
 'use client';
-import {useState, type FormEvent} from 'react';
+import {useEffect, useState, type FormEvent} from 'react';
 import {Eye, EyeOff} from 'lucide-react';
 import {authClient} from '@/lib/auth/client';
 
@@ -26,6 +26,10 @@ export function LoginForm({setup, unavailable, googleEnabled = false, oauthError
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(oauthError ? 'No se pudo entrar con Google. Elegí la cuenta autorizada del equipo.' : '');
+  // Until the page is interactive the buttons stay off, so the browser never submits the form by itself
+  // (which would put the email in the address bar).
+  const [ready, setReady] = useState(false);
+  useEffect(() => setReady(true), []);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -83,18 +87,18 @@ export function LoginForm({setup, unavailable, googleEnabled = false, oauthError
           </div>
         </>
       ) : null}
-      <button type="submit" disabled={busy || unavailable} className="rc-btn rc-btn--primary rc-btn--lg rc-login-submit">
+      <button type="submit" disabled={!ready || busy || unavailable} className="rc-btn rc-btn--primary rc-btn--lg rc-login-submit">
         {busy ? 'Un momento…' : setup ? 'Activar la cuenta' : 'Entrar'}
       </button>
     </>
   );
 
   return (
-    <form onSubmit={submit} className="rc-login-form">
+    <form onSubmit={submit} className="rc-login-form" method="post">
       {unavailable ? <p role="status" className="rc-login-notice">El acceso se está configurando. Probá de nuevo en unos minutos.</p> : null}
       {googleEnabled ? (
         <>
-          <button type="button" onClick={googleLogin} disabled={busy || unavailable} className="rc-btn rc-btn--secondary rc-btn--lg rc-login-submit">Continuar con Google</button>
+          <button type="button" onClick={googleLogin} disabled={!ready || busy || unavailable} className="rc-btn rc-btn--secondary rc-btn--lg rc-login-submit">Continuar con Google</button>
           <p className="rc-hint rc-login-center">Con la cuenta de Google autorizada para el estudio.</p>
           <details className="rc-login-more">
             <summary>{setup ? 'Activar con correo y contraseña' : 'Entrar con correo y contraseña'}</summary>

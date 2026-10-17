@@ -4,7 +4,9 @@ export const UNDO_MS=8000;
 export const PERSONAL_SYSTEM='Eres un asistente útil; responde en el idioma del usuario.';
 export type PersonalMessage={id:string;role:'user'|'assistant';content:string;createdAt?:string;model?:string;credits?:number;status?:'streaming'|'done'|'error';error?:string;stopped?:boolean};
 export type ConversionLink={projectId:string;name:string;destination:'pdf'|'cinema'};
-export type PersonalChat={id:string;title:string;model:string;createdAt:string;titleEdited?:boolean;messages:PersonalMessage[];conversions:ConversionLink[]};
+/** The assistant chosen for this conversation, with the instructions last sent (kept even if the assistant is deleted). */
+export type ChatAssistant={id:string;name:string;instructions:string;mediaCatalog?:boolean};
+export type PersonalChat={id:string;title:string;model:string;createdAt:string;titleEdited?:boolean;messages:PersonalMessage[];conversions:ConversionLink[];assistant?:ChatAssistant};
 export type ConversionDraft={name:string;destination:'pdf'|'cinema';projectType:string;mode:'all'|'summary'|'selected';selectedIds:string[];brief:string;summary:string};
 export type StudioProject={id:string;name:string;destination:'pdf'|'cinema';projectType:string;brief:string;sourceChatId:string;sourceMode:string;source:{summary?:string;messages?:PersonalMessage[]};createdAt:string};
 export type PersonalData={version:2;chats:PersonalChat[];projects:StudioProject[];pending:{id:string;chat:PersonalChat;index:number;deadline:number}[];usage:UsageEntry[]};

@@ -16,10 +16,11 @@
 export const imageModel = {id: 'nano-banana-2-1', name: 'Nano Banana 2.1', provider: 'Google'} as const;
 
 export const aspectRatios = ['auto', '1:1', '4:3', '3:4', '3:2', '2:3', '16:9', '9:16', '5:4', '4:5', '21:9'] as const;
-export type AspectRatio = (typeof aspectRatios)[number];
+// Other catalog models may accept other values; the catalog entry of each model is the source of truth.
+export type AspectRatio = (typeof aspectRatios)[number] | (string & {});
 
 export const resolutions = ['1K', '2K', '4K'] as const;
-export type Resolution = (typeof resolutions)[number];
+export type Resolution = (typeof resolutions)[number] | (string & {});
 
 export const outputFormat = 'png';
 export const maxReferences = 4;

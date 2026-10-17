@@ -8,6 +8,8 @@ import {ratioValue, imageModel} from '@/lib/cinema/capabilities';
 import {retryJob, downloadImage} from '@/lib/cinema/client';
 import {errorDetail} from '@/lib/cinema/errors';
 import {Tip} from '@/components/ui/tooltip';
+import {ConfirmDialog} from '@/components/ui/dialog';
+import {findModel} from '@/lib/ai/models';
 
 const stateLabel: Record<string, string> = {
   sending: 'Enviando',
@@ -52,7 +54,8 @@ export function useImageActions() {
 }
 
 export function jobMeta(job: CinemaJob) {
-  return [job.aspect === 'auto' ? 'Auto' : job.aspect, job.resolution, job.credits !== undefined ? credits(job.credits) : null].filter(Boolean).join(' · ');
+  const model = job.model && job.model !== 'nano-banana-2-1' ? findModel(job.model)?.name : null;
+  return [model, job.aspect === 'auto' ? 'Auto' : job.aspect, job.resolution, job.duration ? job.duration + ' s' : null, job.credits !== undefined ? credits(job.credits) : null].filter(Boolean).join(' · ');
 }
 
 export function JobCard({job, onOpen}: {job: CinemaJob; onOpen: (job: CinemaJob) => void}) {
@@ -61,11 +64,29 @@ export function JobCard({job, onOpen}: {job: CinemaJob; onOpen: (job: CinemaJob)
   const active = isActive(job);
   const failed = job.state === 'error' || job.state === 'fail';
   const url = job.urls[0];
-  const ratio = job.aspect === 'auto' ? 1 : ratioValue(job.aspect);
+  const ratio = !job.aspect || job.aspect === 'auto' ? 1 : ratioValue(job.aspect);
+  const video = job.mode === 'video';
+  const [confirmRetry, setConfirmRetry] = useState(false);
+  // A request that may already exist at Kie is never repeated without the person agreeing.
+  const retry = () => job.error === 'CREATE_UNCERTAIN' ? setConfirmRetry(true) : void retryJob(job);
 
   return (
-    <article className="rc-job" data-state={job.state} aria-label={active ? 'Imagen en proceso' : failed ? 'Imagen con error' : 'Imagen generada'}>
-      {url ? (
+    <article className="rc-job" data-state={job.state} aria-label={(video ? 'Video' : 'Imagen') + (active ? ' en proceso' : failed ? ' con error' : ' generado' + (video ? '' : 'a'))}>
+      <ConfirmDialog
+        open={confirmRetry}
+        onClose={() => setConfirmRetry(false)}
+        onConfirm={() => { setConfirmRetry(false); void retryJob(job); }}
+        title="¿Generar de nuevo?"
+        description="Kie no confirmó si recibió el pedido anterior. Si lo recibió, ya lo cobró y la nueva generación se cobra aparte. Revisá el registro de Kie antes de seguir."
+        confirmLabel="Generar de nuevo"
+      >
+        <a className="rc-site-link" href="https://kie.ai/logs" target="_blank" rel="noreferrer">Abrir el registro de Kie</a>
+      </ConfirmDialog>
+      {url && video ? (
+        <div className="rc-job-media rc-job-media--video">
+          <video src={url} controls preload="metadata" playsInline aria-label={'Video: ' + job.prompt.slice(0, 120)} />
+        </div>
+      ) : url ? (
         <button type="button" className="rc-job-media" onClick={() => onOpen(job)} aria-label="Ver imagen">
           <KieImage src={url} alt={job.prompt.slice(0, 120)} />
         </button>
@@ -80,8 +101,8 @@ export function JobCard({job, onOpen}: {job: CinemaJob; onOpen: (job: CinemaJob)
           ) : (
             <div className="rc-job-failed" role={job.finishedAt && Date.now() - job.finishedAt < 60000 ? 'alert' : undefined}>
               <span className="rc-dot rc-dot--danger" aria-hidden="true" />
-              <p>No pude generar esta imagen.</p>
-              <button type="button" className="rc-btn rc-btn--secondary rc-btn--sm" onClick={() => void retryJob(job)}>Reintentar</button>
+              <p>{video ? 'No pude generar este video.' : 'No pude generar esta imagen.'}</p>
+              <button type="button" className="rc-btn rc-btn--secondary rc-btn--sm" onClick={retry}>Reintentar</button>
               <details className="rc-msg-error-details">
                 <summary>Detalles</summary>
                 <p>{errorDetail(job.error)}{job.failMessage ? ' Kie: «' + job.failMessage + '»' : ''}</p>

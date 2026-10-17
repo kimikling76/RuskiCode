@@ -46,7 +46,7 @@ export function BrowserSection() {
 
   return (
     <>
-      <Group title="Guardado en este navegador" description="Nada de esto se sincroniza todavía con otra computadora ni con otra persona. Si borrás los datos del navegador, se pierde.">
+      <Group title="Guardado en este navegador" description="Es la copia local de tu trabajo. Cuando abajo a la izquierda dice «Guardado», también está en tu cuenta y vuelve a descargarse si borrás los datos del navegador. Si dice «Solo en este navegador», todavía no.">
         <Row label="Chat" detail={count(personal.projects.length, 'proyecto convertido', 'proyectos convertidos')}>
           <span className="rc-set-value">{count(personal.chats.length, 'chat', 'chats')}</span>
         </Row>

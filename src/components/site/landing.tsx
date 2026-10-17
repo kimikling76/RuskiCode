@@ -8,7 +8,7 @@ const studios = [
     id: 'chat',
     name: 'Chat',
     today: 'Conversaciones con los modelos de Kie, con historial, Markdown y la opción de detener o regenerar. Una conversación se puede convertir en proyecto.',
-    notYet: 'Los chats viven en el navegador donde los escribiste.',
+    notYet: 'Adjuntar archivos o enlaces para que el modelo los lea.',
   },
   {
     id: 'pdf',

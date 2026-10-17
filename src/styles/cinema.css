@@ -377,3 +377,11 @@
 }
 .rc-app .rc-cine-stage:focus-visible { outline-offset: -2px; }
 .rc-kie-missing { display: grid; place-items: center; min-height: 120px; padding: var(--sp-5); font-size: var(--fs-13); color: var(--fg-3); text-align: center; background: #0D0E10; }
+
+/* ---------- Video ---------- */
+.rc-job-media--video { display: block; background: var(--stage); }
+.rc-job-media--video video { display: block; width: 100%; height: auto; }
+.rc-video-pending { list-style: none; display: grid; gap: var(--sp-4); width: min(100%, 520px); margin: var(--sp-6) auto; padding: 0; text-align: left; }
+.rc-video-pending li { padding: var(--sp-4); border: 1px solid var(--line); border-radius: var(--radius-12); background: var(--bg-1); }
+.rc-video-pending p { margin: var(--sp-2) 0; }
+.rc-cine-model-picker .rc-model-trigger { width: 100%; justify-content: space-between; height: var(--control-36); border: 1px solid var(--line-strong); }

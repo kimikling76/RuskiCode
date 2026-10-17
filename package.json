@@ -11,7 +11,8 @@
     "postinstall": "prisma generate",
     "worker": "node --import tsx worker/index.ts",
     "db:migrate": "prisma migrate deploy",
-    "pdf:demo": "node --import tsx scripts/pdf-demo.ts"
+    "pdf:demo": "node --import tsx scripts/pdf-demo.ts",
+    "kie:smoke": "node --import tsx scripts/kie-smoke.ts"
   },
   "dependencies": {
     "@better-auth/prisma-adapter": "^1.7.8",

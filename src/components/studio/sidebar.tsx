@@ -1,7 +1,8 @@
 'use client';
 import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
 import * as RadixDialog from '@radix-ui/react-dialog';
-import {Plus, MessageSquare, BookOpen, Clapperboard, MoreHorizontal, Menu as MenuIcon, X, Settings, Search, PanelLeftClose, ArrowUpRight, LogOut, CircleHelp, ChevronRight, Gauge, Plug} from 'lucide-react';
+import {Plus, MessageSquare, BookOpen, Clapperboard, MoreHorizontal, Menu as MenuIcon, X, Settings, Search, PanelLeftClose, ArrowUpRight, LogOut, CircleHelp, Gauge, Plug, Bot} from 'lucide-react';
+import {usePathname} from 'next/navigation';
 import Link from 'next/link';
 import {BrandMark, Wordmark} from './brand';
 import {usePersonal, type PersonalChat} from '@/store/personal-chat';
@@ -11,6 +12,8 @@ import {Dialog} from '@/components/ui/dialog';
 import {Menu, MenuTrigger, MenuContent, MenuItem, MenuLink, MenuSeparator, MenuLabel} from '@/components/ui/menu';
 import {Tip} from '@/components/ui/tooltip';
 import {authClient} from '@/lib/auth/client';
+import {startSync} from '@/lib/sync/engine';
+import {SidebarStatus} from './sidebar-status';
 
 export type StudioView = 'chat' | 'pdf' | 'cinema';
 
@@ -60,7 +63,7 @@ export function StudioSidebar({view, onNavigate, onNew}: {view: StudioView | nul
   const restore = useShell(s => s.restore);
   const [help, setHelp] = useState(false);
 
-  useEffect(() => { restore(); }, [restore]);
+  useEffect(() => { restore(); startSync(); }, [restore]);
 
   // Close the drawer if the window grows past the mobile breakpoint.
   useEffect(() => {
@@ -95,7 +98,7 @@ export function StudioSidebar({view, onNavigate, onNew}: {view: StudioView | nul
           <p><strong>PDF Studio.</strong> Libros y materiales que se editan por bloques, con páginas reales, y se exportan a PDF.</p>
           <p><strong>Cinema Studio.</strong> Imágenes con Kie: crear, editar, planificar planos y guardar en la galería. El video todavía no está conectado.</p>
           <p>Para llevar una conversación a un estudio, usá «Convertir en proyecto». El chat original se conserva.</p>
-          <p>Lo que hacés se guarda en este navegador. En Ajustes ves qué hay guardado, el consumo y el estado de cada servicio.</p>
+          <p>Lo que hacés se guarda en tu cuenta y aparece en tus otras computadoras. Abajo a la izquierda ves si está guardado y el saldo de Kie.</p>
         </div>
         <div className="rc-dialog-footer rc-dialog-footer--end">
           <button type="button" className="rc-btn rc-btn--primary" onClick={() => setHelp(false)}>Entendido</button>
@@ -121,13 +124,12 @@ function SidebarContent({view, rail, drawer, onGo, onNew, onHelp}: {view: Studio
   const [query, setQuery] = useState('');
   const [signOutError, setSignOutError] = useState(false);
   const search = useRef<HTMLInputElement>(null);
+  const pathname = usePathname();
 
   useEffect(() => { if (searching) search.current?.focus(); }, [searching]);
 
   const needle = query.trim().toLocaleLowerCase('es');
   const groups = useMemo(() => groupChats(data.chats.filter(c => c.title.toLocaleLowerCase('es').includes(needle))), [data.chats, needle]);
-  const credits = data.usage.reduce((sum, entry) => sum + (entry.credits ?? 0), 0);
-  const unreported = data.usage.filter(entry => entry.credits === undefined).length;
 
   async function signOut() {
     setSignOutError(false);
@@ -188,6 +190,15 @@ function SidebarContent({view, rail, drawer, onGo, onNew, onHelp}: {view: Studio
             </button>
           </RailTip>
         ))}
+      </nav>
+
+      <nav className="rc-nav rc-nav--secondary" aria-label="Herramientas">
+        <RailTip rail={rail} label="Asistentes">
+          <Link href="/workspace/asistentes" className="rc-nav-item" aria-current={pathname === '/workspace/asistentes' ? 'page' : undefined} aria-label={rail ? 'Asistentes' : undefined} onClick={() => setDrawer(false)}>
+            <Bot />
+            <span className="rc-rail-hide">Asistentes</span>
+          </Link>
+        </RailTip>
       </nav>
 
       {rail ? <div className="rc-sidebar-spacer" /> : (
@@ -266,14 +277,7 @@ function SidebarContent({view, rail, drawer, onGo, onNew, onHelp}: {view: Studio
       )}
 
       <div className="rc-sidebar-foot">
-        {!rail && credits > 0 ? (
-          <Tip label={unreported ? 'Suma de lo que Kie informó en este navegador. Algunas respuestas no informan su costo.' : 'Suma de lo que Kie informó en este navegador.'}>
-            <Link className="rc-usage" href="/workspace/ajustes?seccion=uso" onClick={() => setDrawer(false)}>
-              <span>{credits.toLocaleString('es-AR')} créditos registrados</span>
-              <ChevronRight />
-            </Link>
-          </Tip>
-        ) : null}
+        <SidebarStatus rail={rail} />
         <Menu>
           <RailTip rail={rail} label="Cuenta y ajustes">
             <MenuTrigger asChild>

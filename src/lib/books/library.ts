@@ -12,6 +12,17 @@ export type LocalBook = {id: string; project: EditableBook; createdAt: number; u
 export type Draft = {revision: number; project: EditableBook; updatedAt: number};
 
 const bookKey = (id: string) => 'book:' + id;
+
+/** Fires after any local book or draft changes, so sync can push it. */
+export const libraryEvents = typeof window === 'undefined' ? null : new EventTarget();
+const changed = () => libraryEvents?.dispatchEvent(new Event('change'));
+
+// Books open in the editor right now. Sync waits to apply changes from another computer to them,
+// so an open editor never overwrites those changes without a conflict.
+const open = new Map<string, number>();
+export function markBookOpen(key: string) { open.set(key, (open.get(key) || 0) + 1); return () => { const n = (open.get(key) || 1) - 1; if (n) open.set(key, n); else open.delete(key); }; }
+export const isBookOpen = (key: string) => open.has(key);
+
 const draftKey = (source: BookSource) => 'draft:' + (source.kind === 'server' ? source.id : 'demo');
 const legacyDraftKey = (source: BookSource) => 'ruskicode-editor-v1-' + (source.kind === 'server' ? source.id : 'demo');
 
@@ -24,6 +35,7 @@ export async function listLocalBooks() {
 export async function createLocalBook(project: EditableBook) {
   const book: LocalBook = {id: crypto.randomUUID(), project: editableBookSchema.parse(project), createdAt: Date.now(), updatedAt: Date.now()};
   await localStore.set(bookKey(book.id), book);
+  changed();
   return book.id;
 }
 
@@ -35,9 +47,26 @@ export async function loadLocalBook(id: string) {
 export async function saveLocalBook(id: string, project: EditableBook) {
   const previous = await localStore.get<LocalBook>(bookKey(id));
   await localStore.set(bookKey(id), {id, project, createdAt: previous?.createdAt || Date.now(), updatedAt: Date.now()} satisfies LocalBook);
+  changed();
 }
 
-export const deleteLocalBook = (id: string) => localStore.remove(bookKey(id));
+export async function deleteLocalBook(id: string) {
+  await localStore.remove(bookKey(id));
+  changed();
+}
+
+/** Sync only: writes a record exactly as it came from another computer (keeps its dates, fires no event). */
+export const putSyncedBook = (book: LocalBook) => localStore.set(bookKey(book.id), book);
+export const removeSyncedBook = (id: string) => localStore.remove(bookKey(id));
+
+/** Drafts of composer books (key = book id) and of the demo (key = 'demo'). */
+export async function listDrafts() {
+  const keys = (await localStore.keys()).filter(k => k.startsWith('draft:'));
+  const drafts = await Promise.all(keys.map(async k => ({key: k.slice('draft:'.length), draft: await localStore.get<Draft>(k)})));
+  return drafts.filter((d): d is {key: string; draft: Draft} => Boolean(d.draft?.project));
+}
+export const putSyncedDraft = (key: string, draft: Draft) => localStore.set('draft:' + key, draft);
+export const removeSyncedDraft = (key: string) => localStore.remove('draft:' + key);
 
 /** Unsent edits on top of a server revision or the demo. Moves an older localStorage draft into IndexedDB once. */
 export async function loadDraft(source: BookSource): Promise<Draft | undefined> {
@@ -55,8 +84,17 @@ export async function loadDraft(source: BookSource): Promise<Draft | undefined> 
   return undefined;
 }
 
-export const saveDraft = (source: BookSource, revision: number, project: EditableBook) => localStore.set(draftKey(source), {revision, project, updatedAt: Date.now()} satisfies Draft);
-export const clearDraft = (source: BookSource) => localStore.remove(draftKey(source));
+export async function saveDraft(source: BookSource, revision: number, project: EditableBook) {
+  await localStore.set(draftKey(source), {revision, project, updatedAt: Date.now()} satisfies Draft);
+  changed();
+}
+export async function clearDraft(source: BookSource) {
+  await localStore.remove(draftKey(source));
+  changed();
+}
+
+/** The key sync uses for a source: 'book:<id>' for own books, 'draft:<id|demo>' for drafts. */
+export const syncKeyFor = (source: BookSource) => source.kind === 'local' ? bookKey(source.id) : draftKey(source);
 
 /** Books created by the composer from the earlier tools: their ids live in localStorage, one per old project. */
 export function composerBooks(): {id: string; projectId: string}[] {
@@ -70,6 +108,10 @@ export function composerBooks(): {id: string; projectId: string}[] {
     }
   } catch {}
   return out;
+}
+
+export function putSyncedComposerBook(projectId: string, id: string | null) {
+  try { if (id) localStorage.setItem('ruskicode-book-job-v1-' + projectId, id); else localStorage.removeItem('ruskicode-book-job-v1-' + projectId); } catch {}
 }
 
 export function editorHref(source: BookSource) {

@@ -11,7 +11,8 @@ import {editableBookSchema, type EditableBook} from '@/lib/books/editable';
 import type {BookSpec} from '@/lib/books/spec';
 import type {Block, Chapter} from '@/lib/pipeline/types';
 import {templateBlocks, unitChapter, emptyChapter, type TemplateId} from '@/lib/books/templates';
-import {clearDraft, createLocalBook, deleteLocalBook, editorHref, loadDraft, loadLocalBook, saveDraft, saveLocalBook, type BookSource} from '@/lib/books/library';
+import {clearDraft, createLocalBook, deleteLocalBook, editorHref, loadDraft, loadLocalBook, saveDraft, saveLocalBook, markBookOpen, syncKeyFor, type BookSource} from '@/lib/books/library';
+import {useSync, applyHeld} from '@/lib/sync/engine';
 import {useNotes} from '@/store/book-notes';
 import {NavTrigger} from '@/components/studio/sidebar';
 import {ConfirmDialog} from '@/components/ui/dialog';
@@ -87,6 +88,22 @@ export function BookEditor() {
 
   useEffect(() => { hydrateNotes(); }, [hydrateNotes]);
 
+  // Sync: while this book is open, changes from another computer wait (never overwrite silently).
+  const syncKind = source.kind === 'local' ? 'book' : 'book-draft';
+  const syncKey = source.kind === 'local' ? source.id : source.kind === 'server' ? source.id : 'demo';
+  const [reloads, setReloads] = useState(0);
+  const waiting = useSync(s => s.waiting.includes(syncKind + '/' + syncKey));
+  const syncing = useSync(s => s.status === 'saved' || s.status === 'saving');
+  useEffect(() => markBookOpen(syncKeyFor(source)), [bookKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const onApplied = (e: Event) => {
+      const d = (e as CustomEvent<{kind: string; key: string}>).detail;
+      if (d?.kind === syncKind && d.key === syncKey) { setReloads(n => n + 1); toast('Se cargó la versión de la otra computadora.'); }
+    };
+    window.addEventListener('rc-sync-applied', onApplied);
+    return () => window.removeEventListener('rc-sync-applied', onApplied);
+  }, [syncKind, syncKey]);
+
   const {data: setup} = useQuery<{configured: boolean; workerOnline: boolean}>({
     queryKey: ['pipeline-setup'], enabled: source.kind === 'server',
     queryFn: () => fetch('/api/books').then(r => r.json()),
@@ -126,11 +143,11 @@ export function BookEditor() {
         if (draft && draft.revision === rev) { replace(draft.project); setDirty(true); setSaveState('saved'); }
         else replace({...base, layout: undefined});
       } catch (e) {
-        if (active) setLoadError(e instanceof Error && e.message === 'AUTH' ? 'Iniciá sesión para abrir este libro.' : e instanceof Error && e.message === 'NOT_FOUND' ? 'Este libro no está en este navegador.' : 'No se pudo abrir el libro.');
+        if (active) setLoadError(e instanceof Error && e.message === 'AUTH' ? 'Iniciá sesión para abrir este libro.' : e instanceof Error && e.message === 'NOT_FOUND' ? 'Este libro todavía no llegó a este navegador. Si lo creaste en otra computadora, esperá unos segundos y recargá.' : 'No se pudo abrir el libro.');
       }
     })();
     return () => { active = false; };
-  }, [bookKey]); // the source is derived from bookKey
+  }, [bookKey, reloads]); // the source is derived from bookKey
 
   // Autosave in this browser shortly after each change.
   useEffect(() => {
@@ -368,7 +385,7 @@ export function BookEditor() {
   }
 
   const selectedBlock = book.chapters[selection.chapter]?.blocks.find(b => b.id === selection.blockId);
-  const sourceLabel = source.kind === 'local' ? 'En este navegador' : source.kind === 'server' ? 'Compositor · revisión ' + revision : 'Muestra';
+  const sourceLabel = source.kind === 'local' ? (syncing ? 'En tu cuenta' : 'En este navegador') : source.kind === 'server' ? 'Compositor · revisión ' + revision : 'Muestra';
   const saveLabel = saveState === 'saving' ? 'Guardando…' : saveState === 'saved' ? (source.kind === 'local' ? 'Guardado' : 'Borrador guardado') : saveState === 'error' ? 'No se pudo guardar' : '';
   const issues = layout.pages.flatMap(p => p.issues.map(code => ({page: p.index + 1, code})));
 
@@ -427,6 +444,13 @@ export function BookEditor() {
         />
 
         <section className="rc-pdf-center" aria-label="Lienzo">
+          {waiting ? (
+            <div className="rc-notice rc-pdf-notice" role="status">
+              <span className="rc-dot" aria-hidden="true" />
+              <span>Este libro cambió en otra computadora. Nada se reemplaza sin que lo pidas; si también lo cambiaste acá, vas a poder elegir.</span>
+              <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm" disabled={saveState === 'saving'} onClick={() => void applyHeld(syncKind, syncKey)}>Cargar esos cambios</button>
+            </div>
+          ) : null}
           {layout.status === 'error' ? (
             <div className="rc-notice rc-pdf-notice" role="alert">
               <span className="rc-dot rc-dot--danger" aria-hidden="true" />
@@ -483,7 +507,7 @@ export function BookEditor() {
         onClose={() => setDeleteConfirm(false)}
         onConfirm={async () => { setDeleteConfirm(false); if (source.kind === 'local') { await deleteLocalBook(source.id).catch(() => undefined); router.push('/workspace?studio=pdf'); } }}
         title="¿Borrar este libro?"
-        description="Se borra de este navegador. Si querés conservarlo, descargá antes el editable (.json)."
+        description="Se borra también en tus otras computadoras. Si querés conservarlo, descargá antes el editable (.json)."
         confirmLabel="Borrar libro"
         tone="danger"
       />

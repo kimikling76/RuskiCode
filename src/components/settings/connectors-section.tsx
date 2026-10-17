@@ -2,9 +2,11 @@
 import {useQuery} from '@tanstack/react-query';
 import {RefreshCw} from 'lucide-react';
 import {imageModel} from '@/lib/cinema/capabilities';
+import type {PublicModel} from '@/lib/ai/models';
+import {ArrowUpRight} from 'lucide-react';
 import {Group, Row, Status, timeFormat, type Health} from './parts';
 
-type Models = {authenticated: boolean; accessConfigured: boolean; models: {id: string; name: string; enabled: boolean}[]};
+type Models = {authenticated: boolean; accessConfigured: boolean; models: {id: string; name: string; enabled: boolean}[]; kie?: PublicModel[]};
 type Composer = {workerOnline: boolean; configured: boolean; visualQAConfigured: boolean; workerRequiresStart: boolean; executor: 'bullmq' | 'inngest'};
 
 async function getJson<T>(url: string): Promise<T> {
@@ -91,6 +93,8 @@ export function ConnectorsSection() {
         {checked && !busy ? <p className="rc-hint rc-set-checked" aria-live="polite">Verificado a las {timeFormat.format(new Date(checked))}</p> : null}
       </Group>
 
+      {m?.kie?.length ? <CatalogTable models={m.kie} /> : null}
+
       {others.length ? (
         <Group title="Otros proveedores" description="El Chat los ofrece solo si tienen clave y modelo configurados en el servidor.">
           {others.map(x => (
@@ -101,5 +105,36 @@ export function ConnectorsSection() {
         </Group>
       ) : null}
     </>
+  );
+}
+
+const categoryNames = {text: 'Texto', image: 'Imagen', video: 'Video'} as const;
+const statusNames = {tested: 'Verificado y en uso', docs: 'Verificado · sin prueba real', unverified: 'No verificado'} as const;
+
+/** The whole Kie catalog with each model's state: what is enabled, what is missing for the rest. */
+function CatalogTable({models}: {models: PublicModel[]}) {
+  const counts = (['tested', 'docs', 'unverified'] as const).map(s => [s, models.filter(m => m.status === s).length] as const);
+  return (
+    <Group
+      title="Catálogo de modelos de Kie"
+      description={'Se mantiene a mano en src/lib/ai/models.ts, porque Kie no documenta un listado general de modelos. ' + counts.map(([s, n]) => n + ' ' + statusNames[s].toLowerCase()).join(' · ') + '.'}
+    >
+      <table className="rc-set-table rc-catalog-table">
+        <thead><tr><th scope="col">Modelo</th><th scope="col">Tipo</th><th scope="col">Estado</th><th scope="col"><span className="sr-only">Documentación</span></th></tr></thead>
+        <tbody>
+          {models.map(m => (
+            <tr key={m.id}>
+              <td>
+                <strong>{m.name}</strong> <span className="rc-hint">{m.provider}</span>
+                {m.missing ? <span className="rc-catalog-missing">{m.missing}</span> : null}
+              </td>
+              <td>{categoryNames[m.category]}</td>
+              <td><Status health={m.status === 'unverified' ? 'off' : m.available ? 'ok' : 'off'}>{m.status !== 'unverified' && !m.available ? 'Sin clave en el servidor' : statusNames[m.status]}</Status></td>
+              <td><a className="rc-catalog-docs" href={m.docs} target="_blank" rel="noreferrer" aria-label={'Documentación de ' + m.name}><ArrowUpRight aria-hidden="true" /></a></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Group>
   );
 }

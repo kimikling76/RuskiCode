@@ -5,6 +5,8 @@ import type {AspectRatio, Resolution} from './capabilities';
 
 export type GenerationRequest = {
   mode: JobMode;
+  model?: string;
+  duration?: string;
   prompt: string;
   aspect: AspectRatio;
   resolution: Resolution;
@@ -31,6 +33,8 @@ export async function startGeneration(request: GenerationRequest) {
     aspect: request.aspect,
     resolution: request.resolution,
     references: request.references,
+    model: request.model,
+    duration: request.duration,
     source: request.source,
     boardId: request.boardId,
     shotId: request.shotId,
@@ -39,20 +43,23 @@ export async function startGeneration(request: GenerationRequest) {
     createdAt: now,
   }));
   addJobs(jobs);
+  // One id per request. If the connection drops, the same id is sent again: the server answers with the
+  // tasks it already created instead of creating (and charging) new ones.
+  const body = JSON.stringify({
+    requestId: crypto.randomUUID(),
+    mode: request.mode,
+    model: request.model || 'nano-banana-2-1',
+    prompt: request.prompt,
+    ...(request.aspect ? {aspect: request.aspect} : {}),
+    ...(request.resolution ? {resolution: request.resolution} : {}),
+    ...(request.duration ? {duration: request.duration} : {}),
+    references: request.references,
+    count: request.count,
+  });
+  const send = () => fetch('/api/cinema/images', {method: 'POST', headers: {'Content-Type': 'application/json'}, body});
   try {
-    const r = await fetch('/api/cinema/images', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        requestId: crypto.randomUUID(),
-        mode: request.mode,
-        prompt: request.prompt,
-        aspect: request.aspect,
-        resolution: request.resolution,
-        references: request.references,
-        count: request.count,
-      }),
-    });
+    let r: Response;
+    try { r = await send(); } catch { await new Promise(res => setTimeout(res, 1500)); r = await send(); }
     const body = await r.json().catch(() => ({}));
     const tasks: string[] = Array.isArray(body.tasks) ? body.tasks : [];
     jobs.forEach((job, i) => {
@@ -69,7 +76,7 @@ export async function startGeneration(request: GenerationRequest) {
 export function retryJob(job: CinemaJob) {
   useCinema.getState().removeJobs([job.id]);
   return startGeneration({
-    mode: job.mode, prompt: job.prompt, aspect: job.aspect, resolution: job.resolution,
+    mode: job.mode, model: job.model, duration: job.duration, prompt: job.prompt, aspect: job.aspect, resolution: job.resolution,
     references: job.references, count: 1, source: job.source, boardId: job.boardId, shotId: job.shotId,
   });
 }

@@ -7,7 +7,7 @@ import {BookOpen, ChevronRight, Plus, Upload} from 'lucide-react';
 import {editableBookSchema} from '@/lib/books/editable';
 import type {BookSpec} from '@/lib/books/spec';
 import {newBook} from '@/lib/books/templates';
-import {composerBooks, createLocalBook, editorHref, listLocalBooks, type LocalBook} from '@/lib/books/library';
+import {composerBooks, createLocalBook, editorHref, listLocalBooks, libraryEvents, type LocalBook} from '@/lib/books/library';
 import {Dialog} from '@/components/ui/dialog';
 import {Segmented} from '@/components/cinema/controls';
 
@@ -22,8 +22,14 @@ export function PdfHome({projects, legacy, onOpenProject, onOpenLegacy}: {projec
   const [storageError, setStorageError] = useState(false);
 
   useEffect(() => {
-    setComposer(composerBooks());
-    listLocalBooks().then(setBooks).catch(() => { setBooks([]); setStorageError(true); });
+    const load = () => {
+      setComposer(composerBooks());
+      listLocalBooks().then(setBooks).catch(() => { setBooks([]); setStorageError(true); });
+    };
+    load();
+    // Books that arrive from another computer show up without reloading.
+    libraryEvents?.addEventListener('synced', load);
+    return () => libraryEvents?.removeEventListener('synced', load);
   }, []);
 
   async function importFile(file?: File) {
@@ -72,7 +78,7 @@ export function PdfHome({projects, legacy, onOpenProject, onOpenLegacy}: {projec
             <p className="rc-hint">Creá uno nuevo, importá un editable o duplicá la muestra.</p>
           </div>
         )}
-        <p className="rc-hint rc-pdf-home-note">Se guardan en este navegador. Descargá el editable (.json) para tener una copia o abrirlo en otra computadora.</p>
+        <p className="rc-hint rc-pdf-home-note">Se guardan en tu cuenta y aparecen en tus otras computadoras. También podés descargar el editable (.json) como copia.</p>
       </section>
 
       {composer.length ? (

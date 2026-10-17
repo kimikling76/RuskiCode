@@ -94,3 +94,48 @@ model RateLimit {
   lastRequest BigInt
   @@map("rateLimit")
 }
+
+/// One synced record of the team's work (a chat, a book, an assistant…), one row per kind and key.
+/// `version` detects conflicting edits from two computers; `seq` orders changes for incremental pulls.
+model SyncItem {
+  userId    String
+  kind      String
+  key       String
+  data      Json?
+  deleted   Boolean  @default(false)
+  version   Int      @default(1)
+  seq       BigInt
+  device    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+  @@id([userId, kind, key])
+  @@index([userId, seq])
+  @@map("sync_item")
+}
+
+/// Files referenced by synced records (book images), stored once per content hash.
+model SyncAsset {
+  userId    String
+  hash      String
+  mime      String
+  size      Int
+  data      Bytes
+  createdAt DateTime @default(now())
+  @@id([userId, hash])
+  @@map("sync_asset")
+}
+
+/// Paid generation requests by client request id, so a retried request returns the tasks already created
+/// instead of creating (and paying for) new ones.
+model GenerationRequest {
+  requestId String   @id
+  userId    String
+  model     String
+  status    String
+  taskIds   Json?
+  error     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+  @@index([userId, createdAt])
+  @@map("generation_request")
+}
