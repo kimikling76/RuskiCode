@@ -3,7 +3,7 @@ import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import dynamic from 'next/dynamic';
 import {useQuery} from '@tanstack/react-query';
 import TextareaAutosize from 'react-textarea-autosize';
-import {ArrowUp, ArrowDown, ArrowUpRight, Copy, Check, RotateCcw, Square, FolderPlus, Pencil, MoreHorizontal, X} from 'lucide-react';
+import {ArrowUp, ArrowDown, ArrowUpRight, Copy, Check, RotateCcw, Square, FolderPlus, Pencil, MoreHorizontal, Paperclip, X} from 'lucide-react';
 import {useAssistants, type Assistant} from '@/store/assistants';
 import {AssistantMenu, AssistantPreview, AssistantChip, preferredModel} from './assistant-chooser';
 import {usePersonal, type PersonalMessage, type StudioProject} from '@/store/personal-chat';
@@ -16,6 +16,8 @@ import {Menu, MenuTrigger, MenuContent, MenuItem, MenuLink, MenuSeparator, MenuL
 import {Tip} from '@/components/ui/tooltip';
 import {Switch} from '@/components/ui/switch';
 import {sseData} from '@/lib/ai/sse';
+import {acceptAttachments} from '@/lib/personal-chat/attach-browser';
+import {AttachmentTray, MessageFiles, filesOf, useAttachments} from './chat-attachments';
 
 const MessageMarkdown = dynamic(() => import('./message-markdown').then(m => m.MessageMarkdown), {
   loading: () => <span className="rc-thinking" aria-hidden="true"><span /><span /><span /></span>,
@@ -33,6 +35,10 @@ const errorDetails: Record<string, string> = {
   INSUFFICIENT_BALANCE: 'Kie informó saldo insuficiente.',
   STREAM_INTERRUPTED: 'La conexión se cortó a mitad de la respuesta. Puede haber consumo: revisá los registros de Kie.',
   PROVIDER_UNAVAILABLE: 'El modelo no respondió. Probá más tarde o elegí otro.',
+  IMAGES_NOT_SUPPORTED: 'Este modelo no lee imágenes en Kie. Elegí uno que diga «lee imágenes» o quitá las imágenes.',
+  ATTACHMENT_MISSING: 'Un archivo adjunto ya no está guardado en el estudio. Adjuntalo de nuevo.',
+  UPLOAD_FAILED: 'No se pudo pasar la imagen a Kie. Probá de nuevo en un momento.',
+  ATTACHMENTS_UNAVAILABLE: 'No se pudieron leer los archivos adjuntos en el servidor. Probá más tarde.',
 };
 
 const suggestions = [
@@ -97,6 +103,9 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
   const lastScrollTop = useRef(0);
   const viewedChat = useRef(activeId);
   const renameInput = useRef<HTMLInputElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const files = useAttachments();
+  const [dragging, setDragging] = useState(false);
 
   const {data: modelData, isError, isPending, refetch, isFetching} = useQuery<{models: ChatModel[]}>({
     queryKey: ['personal-kie-models'],
@@ -109,7 +118,10 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
   const selectedModel = chat?.model || model;
   const hasMessages = Boolean(chat?.messages.length);
   const last = chat?.messages.at(-1);
-  const canSend = hydrated && !busy && Boolean(text.trim()) && models.length > 0;
+  // «Automático» answers with the fast Gemini model (or the first available), as the server resolves it.
+  const effective = selectedModel === 'auto' ? models.find(m => m.id === 'kie-flash') || models[0] : models.find(m => m.id === selectedModel);
+  const imagesBlocked = Boolean(effective) && files.ready.some(a => a.kind === 'image') && !effective!.inputs?.includes('image');
+  const canSend = hydrated && !busy && (Boolean(text.trim()) || files.ready.length > 0) && !files.reading && !imagesBlocked && models.length > 0;
 
   const jump = useCallback(() => {
     if (!log.current) return;
@@ -126,7 +138,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
     if (shownChat.current === activeId) return;
     shownChat.current = activeId;
     if (abort.current && requestChat.current !== activeId) abort.current.abort();
-    setText(''); setConversion(false); setConfirmSend(false); setConfirmRegenerate(null); setEditing(false); setPendingAssistant(null); setPreview(null);
+    setText(''); files.clear(); setConversion(false); setConfirmSend(false); setConfirmRegenerate(null); setEditing(false); setPendingAssistant(null); setPreview(null);
     nearBottom.current = true; setShowJump(false);
   }, [activeId]);
   useEffect(() => () => abort.current?.abort(), []);
@@ -217,9 +229,10 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
   async function send(isRegeneration = false) {
     if (!hydrated || sending.current) return;
     const prompt = text.trim();
-    if (!prompt && !isRegeneration) return;
+    const attached = isRegeneration ? [] : files.ready;
+    if (!prompt && !attached.length && !isRegeneration) return;
     const existing = chat?.id;
-    const id = existing || create(prompt);
+    const id = existing || create(prompt || attached[0]?.name);
     if (!id) return;
     let base = usePersonal.getState().data.chats.find(c => c.id === id)?.messages || [];
     if (isRegeneration) {
@@ -228,9 +241,10 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
       base = base.slice(0, i + 1);
       if (!base.length) return;
     } else {
-      base = [...base, {id: crypto.randomUUID(), role: 'user', content: prompt, createdAt: new Date().toISOString()}];
+      base = [...base, {id: crypto.randomUUID(), role: 'user', content: prompt, ...(attached.length ? {attachments: attached} : {}), createdAt: new Date().toISOString()}];
     }
-    const outbound = base.filter(m => m.content.trim()).map(({role, content}) => ({role, content}));
+    // Files go as references; the server reads them from the studio's stored files.
+    const outbound = base.filter(m => m.content.trim() || m.attachments?.length).map(({role, content, attachments}) => ({role, content, ...(role === 'user' && attachments?.length ? {attachments} : {})}));
     const messageId = crypto.randomUUID();
     const requestId = crypto.randomUUID();
     // A new chat uses the model chosen before it existed; an existing chat keeps its own.
@@ -247,7 +261,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
 
     const chatId = id;
     sending.current = true; setBusy(true);
-    if (!isRegeneration) setText('');
+    if (!isRegeneration) { setText(''); files.clear(); }
     const controller = new AbortController();
     stoppedByUser.current = false;
     requestChat.current = chatId;
@@ -339,7 +353,14 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
   const otherModels = models.filter(m => m.id !== chat?.model);
 
   return (
-    <div ref={shell} className={'rc-chat' + (hasMessages ? '' : ' is-empty')}>
+    <div
+      ref={shell}
+      className={'rc-chat' + (hasMessages ? '' : ' is-empty')}
+      onDragOver={e => { if (hydrated && e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDragging(true); } }}
+      onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false); }}
+      onDrop={e => { if (!e.dataTransfer.files.length) return; e.preventDefault(); setDragging(false); files.add(filesOf(e.dataTransfer)); textarea.current?.focus(); }}
+    >
+      {dragging ? <div className="rc-drop-overlay" aria-hidden="true"><Paperclip /><span>Soltá para adjuntar</span></div> : null}
       <header className="rc-topbar rc-chat-header">
         <NavTrigger />
         <div className="rc-chat-title">
@@ -464,7 +485,10 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
                     aria-label={m.role === 'user' ? 'Tu mensaje' : 'Respuesta'}
                   >
                     {m.role === 'user' ? (
-                      <div className="rc-bubble"><p>{m.content}</p></div>
+                      <div className="rc-bubble">
+                        {m.attachments?.length ? <MessageFiles files={m.attachments} /> : null}
+                        {m.content ? <p>{m.content}</p> : null}
+                      </div>
                     ) : m.content ? (
                       <MessageMarkdown content={m.content} />
                     ) : streaming ? (
@@ -568,7 +592,14 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
             </div>
           ) : null}
 
+          {imagesBlocked ? (
+            <div className="rc-notice" role="status">
+              <span className="rc-dot rc-dot--danger" aria-hidden="true" />
+              <span>{modelLabel(effective!.name)} no lee imágenes en Kie. Elegí un modelo que diga «lee imágenes» o quitá las imágenes.</span>
+            </div>
+          ) : null}
           <form className="rc-composer" onSubmit={e => { e.preventDefault(); requestSend(); }}>
+            <AttachmentTray drafts={files.drafts} onRemove={files.remove} />
             <label className="sr-only" htmlFor="personal-message">Tu mensaje</label>
             <TextareaAutosize
               ref={textarea}
@@ -582,8 +613,17 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
               placeholder="Escribí tu mensaje"
               onChange={e => setText(e.target.value)}
               onKeyDown={onKeyDown}
+              onPaste={e => {
+                // A pasted image (a screenshot, an image copied from a page) is attached; pasted text stays text.
+                const pasted = filesOf(e.clipboardData);
+                if (pasted.length && !e.clipboardData.getData('text/plain')) { e.preventDefault(); files.add(pasted); }
+              }}
             />
             <div className="rc-composer-bar">
+              <Tip label="Adjuntar imágenes o archivos">
+                <button type="button" className="rc-icon-btn rc-attach-btn" aria-label="Adjuntar imágenes o archivos" disabled={!hydrated} onClick={() => fileInput.current?.click()}><Paperclip /></button>
+              </Tip>
+              <input ref={fileInput} type="file" multiple hidden accept={acceptAttachments} onChange={e => { files.add([...(e.target.files || [])]); e.target.value = ''; }} />
               <ChatModelPicker models={allModels} value={selectedModel} onChange={chooseModel} disabled={busy || !models.length} />
               <div className="rc-composer-spacer" />
               <label className="rc-ask" htmlFor="ask-first">
@@ -616,6 +656,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
         <dl className="rc-facts">
           <dt>Modelo</dt><dd>{modelName(selectedModel)}</dd>
           <dt>Asistente</dt><dd>{chat?.assistant?.name || pendingAssistant?.name || 'Ninguno (chat neutro)'}</dd>
+          {files.ready.length ? <><dt>Adjuntos</dt><dd>{files.ready.length}</dd></> : null}
         </dl>
       </ConfirmDialog>
 

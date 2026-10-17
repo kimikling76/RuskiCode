@@ -34,7 +34,7 @@ export function kindOf(file: File): ImportKind {
 }
 
 /** Text files are usually UTF-8; old Russian files are often Windows-1251. */
-async function readText(file: File) {
+export async function readText(file: File) {
   const bytes = new Uint8Array(await file.arrayBuffer());
   try { return new TextDecoder('utf-8', {fatal: true}).decode(bytes); } catch {}
   const cyrillic = new TextDecoder('windows-1251').decode(bytes);
