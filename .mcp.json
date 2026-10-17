@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "stirling-pdf": {
+      "type": "http",
+      "url": "https://api.stirling.com/mcp"
+    }
+  }
+}
