@@ -5,7 +5,9 @@ const blockSchema=z.discriminatedUnion('type',[
  z.object({type:z.literal('heading'),id:z.string().min(1).max(100),text,level:z.number().int().min(1).max(3)}).strict(),
  z.object({type:z.literal('paragraph'),id:z.string().min(1).max(100),text}).strict(),
  z.object({type:z.literal('exercise'),id:z.string().min(1).max(100),instruction:text,items:z.array(text).min(1).max(30),audioId:z.string().max(30).optional()}).strict(),
- z.object({type:z.literal('image'),id:z.string().min(1).max(100),prompt:text,alt:text,assetId:z.string().max(200).optional()}).strict(),
+ // alt is the printed caption and may be empty (imported images without one).
+ // fit 'page': the image takes the page's full text area (an imported scanned page), instead of the normal figure height.
+ z.object({type:z.literal('image'),id:z.string().min(1).max(100),prompt:text,alt:z.string().max(8000),assetId:z.string().max(200).optional(),fit:z.enum(['page']).optional()}).strict(),
  z.object({type:z.literal('callout'),id:z.string().min(1).max(100),text}).strict(),
  z.object({type:z.literal('table'),id:z.string().min(1).max(100),headers:z.array(text).min(1).max(6),rows:z.array(z.array(text).min(1).max(6)).min(1).max(30)}).strict(),
  // Handwriting practice (прописи): a model line of letters or words and ruled lines to copy it.

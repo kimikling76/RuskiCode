@@ -4,3 +4,5 @@
 node_modules/
 .next/
 *.tsbuildinfo
+# Copied from node_modules/pdfjs-dist by scripts/copy-pdfjs-assets.mjs
+public/vendor/pdfjs/

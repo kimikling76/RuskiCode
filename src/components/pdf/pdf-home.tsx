@@ -4,6 +4,9 @@ import Link from 'next/link';
 import {useRouter} from 'next/navigation';
 import {toast} from 'sonner';
 import {BookOpen, ChevronRight, Plus, Upload} from 'lucide-react';
+import type {EditableBook} from '@/lib/books/editable';
+import {acceptedFiles, kindOf, ImportError} from '@/lib/books/import/browser';
+import {ImportDialog} from './import-dialog';
 import {editableBookSchema} from '@/lib/books/editable';
 import type {BookSpec} from '@/lib/books/spec';
 import {newBook} from '@/lib/books/templates';
@@ -20,6 +23,8 @@ export function PdfHome({projects, legacy, onOpenProject, onOpenLegacy}: {projec
   const [composer, setComposer] = useState<{id: string; projectId: string}[]>([]);
   const [creating, setCreating] = useState<{from?: Project} | null>(null);
   const [storageError, setStorageError] = useState(false);
+  const [importing, setImporting] = useState<File | null>(null);
+  const [dragging, setDragging] = useState(false);
 
   useEffect(() => {
     const load = () => {
@@ -32,8 +37,7 @@ export function PdfHome({projects, legacy, onOpenProject, onOpenLegacy}: {projec
     return () => libraryEvents?.removeEventListener('synced', load);
   }, []);
 
-  async function importFile(file?: File) {
-    if (!file) return;
+  async function importEditable(file: File) {
     try {
       if (file.size > 12_000_000) throw Error();
       const project = editableBookSchema.parse(JSON.parse(await file.text()));
@@ -43,17 +47,48 @@ export function PdfHome({projects, legacy, onOpenProject, onOpenLegacy}: {projec
     }
   }
 
+  // The .json editable opens as it is; PDF, Word, HTML and text go through the import dialog.
+  function importFile(file?: File) {
+    if (!file) return;
+    try {
+      if (kindOf(file) === 'json') { void importEditable(file); return; }
+    } catch (e) {
+      toast(e instanceof ImportError ? e.message : 'Ese archivo no se puede importar.');
+      return;
+    }
+    setImporting(file);
+  }
+
+  async function createImported(book: EditableBook) {
+    try {
+      const id = await createLocalBook(book);
+      setImporting(null);
+      toast('Libro importado. Revisá títulos y tablas antes de exportar.');
+      router.push(editorHref({kind: 'local', id}));
+    } catch {
+      toast('No se pudo guardar el libro en este navegador.');
+    }
+  }
+
   return (
-    <section className="rc-studio-page rc-pdf-home">
+    <section
+      className="rc-studio-page rc-pdf-home"
+      data-dragging={dragging ? 'true' : undefined}
+      onDragOver={e => { if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDragging(true); } }}
+      onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false); }}
+      onDrop={e => { if (!e.dataTransfer.files.length) return; e.preventDefault(); setDragging(false); importFile(e.dataTransfer.files[0]); }}
+    >
+      {dragging ? <div className="rc-pdf-drop" aria-hidden="true"><Upload />Soltá el archivo para importarlo</div> : null}
       <h1 className="rc-page-title"><BookOpen className="rc-page-icon" aria-hidden="true" />PDF Studio</h1>
       <p className="rc-page-lead">Libros, documentos y materiales. Se editan por bloques y se exportan a PDF.</p>
       <div className="rc-pdf-home-actions">
         <button type="button" className="rc-btn rc-btn--primary" onClick={() => setCreating({})}><Plus aria-hidden="true" />Nuevo libro</button>
         <label className="rc-btn rc-btn--secondary">
-          <Upload aria-hidden="true" />Importar editable
-          <input type="file" accept="application/json,.json" className="sr-only" onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; void importFile(f); }} />
+          <Upload aria-hidden="true" />Importar archivo
+          <input type="file" accept={acceptedFiles} className="sr-only" aria-describedby="pdf-import-hint" onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; importFile(f); }} />
         </label>
       </div>
+      <p id="pdf-import-hint" className="rc-hint rc-pdf-home-note">PDF, Word (.docx), texto, Markdown, HTML o un editable (.json). También podés arrastrarlo hasta acá. Se convierte en bloques editables y después lo exportás como PDF.</p>
       {storageError ? <p className="rc-form-error" role="alert">Este navegador no permite guardar libros (almacenamiento bloqueado o modo privado).</p> : null}
 
       <section className="rc-page-section">
@@ -75,7 +110,7 @@ export function PdfHome({projects, legacy, onOpenProject, onOpenLegacy}: {projec
         ) : (
           <div className="rc-empty">
             <p className="rc-empty-title">Todavía no hay libros propios.</p>
-            <p className="rc-hint">Creá uno nuevo, importá un editable o duplicá la muestra.</p>
+            <p className="rc-hint">Creá uno nuevo, importá un PDF o un Word, o duplicá la muestra.</p>
           </div>
         )}
         <p className="rc-hint rc-pdf-home-note">Se guardan en tu cuenta y aparecen en tus otras computadoras. También podés descargar el editable (.json) como copia.</p>
@@ -144,6 +179,8 @@ export function PdfHome({projects, legacy, onOpenProject, onOpenLegacy}: {projec
         </section>
       ) : null}
 
+      {/* A new dialog per file, so it never shows the previous file's summary. */}
+      <ImportDialog key={importing ? importing.name + importing.size + importing.lastModified : 'closed'} file={importing} onClose={() => setImporting(null)} onCreate={createImported} />
       <NewBookDialog open={Boolean(creating)} from={creating?.from} onClose={() => setCreating(null)} onCreate={id => router.push(editorHref({kind: 'local', id}))} />
     </section>
   );

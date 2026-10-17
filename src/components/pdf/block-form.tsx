@@ -13,6 +13,7 @@ import {GalleryPicker} from '@/components/cinema/gallery-picker';
 import {Elapsed} from '@/components/cinema/job-card';
 import {Segmented} from '@/components/cinema/controls';
 import {Tip} from '@/components/ui/tooltip';
+import {Switch} from '@/components/ui/switch';
 import {blockNames, type EditorApi} from './editor-api';
 import {InsertMenu} from './insert-menu';
 
@@ -77,13 +78,13 @@ export function BlockForm({api, block}: {api: EditorApi; block: Block}) {
   );
 }
 
-function Text({label, value, onChange, rows = 2, hint, max = 8000}: {label: string; value: string; onChange: (v: string) => void; rows?: number; hint?: string; max?: number}) {
+function Text({label, value, onChange, rows = 2, hint, max = 8000, optional}: {label: string; value: string; onChange: (v: string) => void; rows?: number; hint?: string; max?: number; optional?: boolean}) {
   return (
     <label className="rc-field">
       <span>{label}</span>
       <TextareaAutosize className="rc-textarea rc-pdf-text" minRows={rows} maxRows={16} maxLength={max} value={value} onChange={e => onChange(e.target.value)} />
       {hint ? <small className="rc-hint">{hint}</small> : null}
-      {!value.trim() ? <small className="rc-pdf-warn">Vacío: el PDF del servidor no lo acepta.</small> : null}
+      {!optional && !value.trim() ? <small className="rc-pdf-warn">Vacío: el PDF del servidor no lo acepta.</small> : null}
     </label>
   );
 }
@@ -177,7 +178,14 @@ function ImageForm({api, block}: {api: EditorApi; block: Extract<Block, {type: '
         {src ? <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm" disabled={busy} onClick={() => api.setImage(block.id, null)}>Quitar</button> : null}
       </div>
 
-      <Text label="Descripción (pie de imagen)" value={block.alt} onChange={alt => set({alt}, 'alt')} />
+      <Text label="Descripción (pie de imagen)" value={block.alt} onChange={alt => set({alt}, 'alt')} optional hint="Vacía: la imagen se imprime sin pie." />
+      <label className="rc-setting-row rc-pdf-fit" htmlFor={'fit-' + block.id}>
+        <span>
+          <strong>Ocupar la página</strong>
+          <span className="rc-hint">Para una página escaneada o una lámina: usa todo el alto del texto.</span>
+        </span>
+        <Switch id={'fit-' + block.id} checked={block.fit === 'page'} onCheckedChange={on => set({fit: on ? 'page' : undefined}, 'fit')} />
+      </label>
       <Text label="Prompt para generarla" value={block.prompt} onChange={prompt => set({prompt}, 'prompt')} rows={3} />
 
       <div className="rc-pdf-generate">
