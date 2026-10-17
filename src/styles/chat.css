@@ -504,3 +504,56 @@
 .rc-chat-header .rc-assistant-chip { flex-shrink: 1; margin-left: var(--sp-3); }
 .rc-assistant-instructions { max-height: 40dvh; overflow-y: auto; margin: var(--sp-5) 0 var(--sp-3); padding: var(--sp-4); border: 1px solid var(--line); border-radius: var(--radius-8); background: var(--bg-0); font-size: var(--fs-13); line-height: 1.6; color: var(--fg-2); white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 640px) { .rc-chat-header .rc-assistant-chip-main span { max-width: 110px; } }
+
+/* ---------- Attachments ---------- */
+.rc-chat { position: relative; }
+.rc-drop-overlay {
+  position: absolute;
+  inset: var(--sp-3);
+  z-index: 30;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--sp-2);
+  border: 1.5px dashed var(--accent);
+  border-radius: var(--radius-16);
+  background: rgba(12, 12, 12, 0.78);
+  color: var(--fg-1);
+  font-size: var(--fs-15);
+  pointer-events: none;
+}
+.rc-drop-overlay svg { width: 22px; height: 22px; color: var(--accent); }
+.rc-attach-tray { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.rc-attach {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  max-width: min(100%, 280px);
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-12);
+  background: var(--bg-3);
+}
+.rc-attach[data-state="error"] { border-color: var(--danger-soft); }
+.rc-attach-thumb, .rc-attach-icon { flex-shrink: 0; width: 36px; height: 36px; border-radius: var(--radius-8); object-fit: cover; }
+.rc-attach-icon { display: grid; place-items: center; background: var(--bg-2); color: var(--fg-2); }
+.rc-attach-icon svg { width: 16px; height: 16px; }
+.rc-attach[data-state="reading"] .rc-attach-icon svg { animation: rc-think 1.4s ease-in-out infinite; }
+.rc-attach-text { display: grid; gap: 1px; min-width: 0; flex: 1; }
+.rc-attach-text strong, .rc-attach-text small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.rc-attach-text strong { font-size: var(--fs-13); font-weight: 500; color: var(--fg-1); }
+.rc-attach-text small { font-size: var(--fs-12); color: var(--fg-3); }
+.rc-attach-text .rc-attach-error { color: var(--danger); white-space: normal; }
+.rc-attach-btn svg { width: 17px; height: 17px; }
+.rc-msg-files { display: grid; gap: var(--sp-2); }
+.rc-bubble .rc-msg-files + p { margin-top: var(--sp-2); }
+.rc-msg-images { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--sp-2); justify-content: flex-end; }
+.rc-msg-images a { display: block; border-radius: var(--radius-8); }
+.rc-msg-images img { display: block; width: 112px; height: 112px; object-fit: cover; border: 1px solid var(--line); border-radius: var(--radius-8); background: var(--bg-3); }
+.rc-msg-images li:only-child img { width: auto; height: auto; max-width: min(280px, 100%); max-height: 280px; }
+.rc-msg-doc { display: flex; align-items: center; gap: var(--sp-2); padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius-8); background: var(--bg-3); }
+.rc-msg-doc svg { flex-shrink: 0; width: 16px; height: 16px; color: var(--fg-2); }
+.rc-msg-doc span { display: grid; gap: 1px; min-width: 0; }
+.rc-msg-doc strong { font-size: var(--fs-13); font-weight: 500; color: var(--fg-1); overflow-wrap: anywhere; }
+.rc-msg-doc small { font-size: var(--fs-12); color: var(--fg-3); }
+@media (prefers-reduced-motion: reduce) { .rc-attach[data-state="reading"] .rc-attach-icon svg { animation: none; } }

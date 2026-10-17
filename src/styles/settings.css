@@ -147,3 +147,6 @@
 .rc-catalog-docs:hover { background: var(--bg-3); color: var(--fg-1); }
 .rc-catalog-docs svg { width: 14px; height: 14px; }
 @media (max-width: 640px) { .rc-catalog-table td:nth-child(2) { display: none; } .rc-catalog-table th:nth-child(2) { display: none; } }
+.rc-catalog-filters { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: var(--sp-2); margin-bottom: var(--sp-2); }
+.rc-catalog-filters select.rc-input { height: var(--control-36); }
+@media (max-width: 640px) { .rc-catalog-filters { grid-template-columns: 1fr 1fr; } .rc-catalog-filters .rc-assistants-search { grid-column: 1 / -1; } }

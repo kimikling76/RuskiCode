@@ -4,10 +4,10 @@ import TextareaAutosize from 'react-textarea-autosize';
 import {X, Plus} from 'lucide-react';
 import {useCinema} from '@/store/cinema';
 import {useCinemaUi} from '@/store/cinema-ui';
-import {imageModels} from '@/lib/ai/models';
+import {imageModels, enabledStatus} from '@/lib/ai/models';
 import {startGeneration} from '@/lib/cinema/client';
 import {estimate} from '@/components/studio/chat-model-picker';
-import {AspectPicker, AssistantButton, Field, GenerateBar, MediaModelPicker, Segmented} from './controls';
+import {AspectPicker, AssistantButton, Field, GenerateBar, MediaModelPicker, Segmented, aspectName, optionLabel} from './controls';
 import {JobCard} from './job-card';
 import {GalleryPicker} from './gallery-picker';
 import {PromptAssistant} from './prompt-assistant';
@@ -21,13 +21,20 @@ export function ImageTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
   const [picker, setPicker] = useState(false);
   const [assistant, setAssistant] = useState(false);
   // Options always come from the chosen model's catalog entry.
-  const model = imageModels.find(m => m.id === draft.model && m.status !== 'unverified') || imageModels[0];
+  const model = imageModels.find(m => m.id === draft.model && enabledStatus(m)) || imageModels[0];
   const o = model.options;
   const count = Math.min(draft.count, o.maxVariants);
   const label = count === 1 ? 'Generar' : 'Generar ' + count;
+  // Only what this model offers is sent: a value from another model falls back to this one's first option.
+  const aspect = o.aspectRatios.includes(draft.aspect) ? draft.aspect : o.aspectRatios[0];
+  const resolution = o.resolutions.includes(draft.resolution) ? draft.resolution : o.resolutions[0];
+  const references = draft.references.slice(0, o.maxReferences);
+  const resolutionLabel = o.resolutionLabel || 'Resolución';
+  // A model that only edits needs at least one reference image.
+  const needsImage = !o.modes.includes('create') && !references.length;
 
   function generate() {
-    void startGeneration({mode: 'create', model: model.id, prompt: draft.prompt.trim(), aspect: o.aspectRatios.includes(draft.aspect) ? draft.aspect : o.aspectRatios[0], resolution: o.resolutions.includes(draft.resolution) ? draft.resolution : o.resolutions[0], references: draft.references.slice(0, o.maxReferences), count});
+    void startGeneration({mode: 'create', model: model.id, prompt: draft.prompt.trim(), aspect, resolution, references, count});
   }
 
   return (
@@ -48,10 +55,10 @@ export function ImageTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
             />
           </Field>
           <Field label="Modelo"><MediaModelPicker category="image" value={model.id} onChange={id => patch({model: id})} /></Field>
-          {o.aspectRatios.length ? <Field label="Formato"><AspectPicker value={draft.aspect} onChange={aspect => patch({aspect})} options={o.aspectRatios} /></Field> : null}
+          {o.aspectRatios.length ? <Field label="Formato"><AspectPicker value={aspect} onChange={aspect => patch({aspect})} options={o.aspectRatios} /></Field> : null}
           {o.resolutions.length ? (
-            <Field label="Resolución">
-              <Segmented name="resolution" label="Resolución" value={draft.resolution} onChange={resolution => patch({resolution})} options={o.resolutions.map(r => ({value: r, label: r}))} />
+            <Field label={resolutionLabel}>
+              <Segmented name="resolution" label={resolutionLabel} value={resolution} onChange={resolution => patch({resolution})} options={o.resolutions.map(r => ({value: r, label: optionLabel(r)}))} />
             </Field>
           ) : null}
           {o.maxVariants > 1 ? (
@@ -59,7 +66,7 @@ export function ImageTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
               <Segmented name="variants" label="Variantes" value={count} onChange={v => patch({count: v})} options={Array.from({length: o.maxVariants}, (_, i) => ({value: i + 1, label: String(i + 1)}))} />
             </Field>
           ) : null}
-          {o.maxReferences ? <Field label="Referencias" hint="Imágenes de tu galería. Subir desde el dispositivo llega más adelante.">
+          {o.maxReferences ? <Field label={o.modes.includes('create') ? 'Referencias' : 'Imagen a editar'} hint={(o.modes.includes('create') ? '' : 'Este modelo edita una imagen: elegí al menos una. ') + 'Imágenes de tu galería. Subir desde el dispositivo llega más adelante.'}>
             <div className="rc-refs">
               {draft.references.map(url => (
                 <span key={url} className="rc-ref">
@@ -75,14 +82,14 @@ export function ImageTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
         </div>
         <GenerateBar
           label={label}
-          disabled={!draft.prompt.trim()}
+          disabled={!draft.prompt.trim() || needsImage}
           onGenerate={generate}
           facts={[
             ['Modelo', model.name],
             ['Imágenes', String(count)],
-            ['Formato', draft.aspect === 'auto' ? 'Automático' : draft.aspect],
-            ...(o.resolutions.length ? [['Resolución', draft.resolution] as [string, string]] : []),
-            ...(draft.references.length ? [['Referencias', String(draft.references.length)] as [string, string]] : []),
+            ...(o.aspectRatios.length ? [['Formato', aspectName(aspect)] as [string, string]] : []),
+            ...(o.resolutions.length ? [[resolutionLabel, optionLabel(resolution)] as [string, string]] : []),
+            ...(references.length ? [['Referencias', String(references.length)] as [string, string]] : []),
             ...(model.price ? [['Costo', estimate(model.price) + '; el real lo informa Kie al terminar'] as [string, string]] : []),
           ]}
         />

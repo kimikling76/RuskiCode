@@ -1,5 +1,7 @@
 # Etapa 5 — Catálogo de modelos, sincronización, Asistentes y saldo
 
+> **Desde la Etapa 9:** el catálogo ya no se escribe a mano. Sale de la documentación de Kie con `npm run kie:catalog` y lista los 230 modelos (ver `ETAPA_9_ADJUNTOS_Y_CATALOGO_KIE.md`).
+
 Esta etapa agrega cuatro cosas:
 
 - Un **catálogo de modelos de Kie** en un solo lugar.

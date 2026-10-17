@@ -17,9 +17,10 @@ const endpointFor = (m: TextModel) => process.env.KIE_BASE_URL ? m.endpoint.repl
 
 /** The provider configuration the streaming adapters expect, built from a catalog entry. */
 export function textConfig(m: TextModel): ModelConfig {
-  const provider = m.adapter === 'anthropic-messages' ? 'anthropic' : m.adapter === 'openai-responses' ? 'responses' : 'compatible';
+  const provider = m.adapter === 'anthropic-messages' ? 'anthropic' : m.adapter === 'openai-responses' ? 'responses' : m.adapter === 'gemini-native' ? 'gemini-native' : 'compatible';
   return {
-    id: m.id, name: m.name, provider, keyEnv: 'KIE_API_KEY', model: m.providerModel, endpoint: endpointFor(m),
+    // An empty providerModel means the endpoint names the model and the body carries no `model`.
+    id: m.id, name: m.name, provider, keyEnv: 'KIE_API_KEY', model: m.providerModel || undefined, endpoint: endpointFor(m), stream: m.stream,
     bearer: true, kie: true, taskScore: {book: 0, image: 0, video: 0, general: 0}, supportsTools: false, supportsVision: false,
   };
 }

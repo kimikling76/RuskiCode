@@ -6,7 +6,7 @@ import {addDocMessages, clearDocThread, type DocMessage} from '@/lib/books/doc-c
 import type {BookContext, PdfContext} from '@/lib/assistant/edit-plan';
 import {errorDetail} from '@/lib/cinema/errors';
 import {usePersonal} from '@/store/personal-chat';
-import {ChatModelPicker} from '@/components/studio/chat-model-picker';
+import {ChatModelPicker, usable as canUse} from '@/components/studio/chat-model-picker';
 import {useDocThread, useStoredModel, useTextModels} from './use-doc-chat';
 
 const statusText: Record<NonNullable<DocMessage['status']>, string> = {
@@ -40,7 +40,7 @@ export function EditAssistant({kind, doc, contextLabel, buildContext, describe, 
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => () => abort.current?.abort(), []);
   useEffect(() => { end.current?.scrollIntoView({block: 'nearest'}); }, [messages.length]);
-  const usable = models.filter(m => m.available !== false && m.status !== 'unverified');
+  const usable = models.filter(canUse);
 
   async function send(instruction: string) {
     const clean = instruction.trim();

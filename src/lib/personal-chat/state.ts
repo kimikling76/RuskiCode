@@ -1,8 +1,10 @@
+import type {ChatAttachment} from './attachments';
 export const STORAGE_KEY='estudio-personal-v2';
 export const LEGACY_KEY='estudio-pure-chat-v1';
 export const UNDO_MS=8000;
 export const PERSONAL_SYSTEM='Eres un asistente útil; responde en el idioma del usuario.';
-export type PersonalMessage={id:string;role:'user'|'assistant';content:string;createdAt?:string;model?:string;credits?:number;status?:'streaming'|'done'|'error';error?:string;stopped?:boolean};
+/** `attachments`: files sent with a user message, as references to the studio's stored files (see attachments.ts). */
+export type PersonalMessage={id:string;role:'user'|'assistant';content:string;attachments?:ChatAttachment[];createdAt?:string;model?:string;credits?:number;status?:'streaming'|'done'|'error';error?:string;stopped?:boolean};
 export type ConversionLink={projectId:string;name:string;destination:'pdf'|'cinema'};
 /** The assistant chosen for this conversation, with the instructions last sent (kept even if the assistant is deleted). */
 export type ChatAssistant={id:string;name:string;instructions:string;mediaCatalog?:boolean};
