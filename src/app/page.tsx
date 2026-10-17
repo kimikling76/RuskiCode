@@ -1,2 +1,5 @@
-import { CreativeLanding } from '@/components/creative-landing';
-export default function Home(){return <CreativeLanding/>;}
+import {Landing} from '@/components/site/landing';
+
+export default function Home() {
+  return <Landing />;
+}

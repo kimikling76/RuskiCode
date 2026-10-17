@@ -12,7 +12,7 @@ type DialogState = {
   settings: boolean;
   openRename: (id: string) => void;
   openDelete: (id: string) => void;
-  openSettings: () => void;
+  openClearAll: () => void;
   close: () => void;
 };
 
@@ -22,7 +22,7 @@ export const useChatDialogs = create<DialogState>(set => ({
   settings: false,
   openRename: id => set({renameId: id}),
   openDelete: id => set({deleteId: id}),
-  openSettings: () => set({settings: true}),
+  openClearAll: () => set({settings: true}),
   close: () => set({renameId: null, deleteId: null, settings: false}),
 }));
 
@@ -36,12 +36,12 @@ export function ChatDialogs({onChat}: {onChat: () => void}) {
   const undo = usePersonal(s => s.undo);
   const clear = usePersonal(s => s.clear);
   const [title, setTitle] = useState('');
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(1);
   const [confirmation, setConfirmation] = useState('');
 
   // Only reset the field when a different chat is opened, not on every history change.
   useEffect(() => { setTitle(usePersonal.getState().data.chats.find(c => c.id === d.renameId)?.title || ''); }, [d.renameId]);
-  useEffect(() => { if (!d.settings) { setStep(0); setConfirmation(''); } }, [d.settings]);
+  useEffect(() => { if (!d.settings) { setStep(1); setConfirmation(''); } }, [d.settings]);
 
   function confirmDelete() {
     const id = d.deleteId;
@@ -81,27 +81,15 @@ export function ChatDialogs({onChat}: {onChat: () => void}) {
       <Dialog
         open={d.settings}
         onClose={d.close}
-        title="Ajustes del Chat"
-        description="Los chats se guardan solo en este navegador. Todavía no se sincronizan entre dispositivos ni entre personas."
+        title="¿Borrar todos los chats?"
+        description="Los chats se guardan solo en este navegador. Los proyectos convertidos y el registro de consumo se conservan."
       >
-        {step === 0 ? (
-          <div className="rc-dialog-body">
-            <div className="rc-setting-row">
-              <div>
-                <strong>Borrar todos los chats</strong>
-                <p className="rc-hint">Los proyectos convertidos y el registro de consumo se conservan.</p>
-              </div>
-              <button type="button" className="rc-btn rc-btn--danger rc-btn--sm" disabled={!data.chats.length && !data.pending.length} onClick={() => setStep(1)}>
-                Borrar todo
-              </button>
-            </div>
-          </div>
-        ) : step === 1 ? (
+        {step === 1 ? (
           <div className="rc-dialog-body">
             <p className="rc-hint">Se van a borrar todos los chats y sus mensajes de este navegador. Esta acción no se puede deshacer.</p>
             <div className="rc-dialog-footer rc-dialog-footer--end">
-              <button type="button" className="rc-btn rc-btn--ghost" onClick={() => setStep(0)}>Cancelar</button>
-              <button type="button" className="rc-btn rc-btn--danger" onClick={() => setStep(2)}>Continuar</button>
+              <button type="button" className="rc-btn rc-btn--ghost" onClick={d.close}>Cancelar</button>
+              <button type="button" className="rc-btn rc-btn--danger" disabled={!data.chats.length && !data.pending.length} onClick={() => setStep(2)}>Continuar</button>
             </div>
           </div>
         ) : (
@@ -111,7 +99,7 @@ export function ChatDialogs({onChat}: {onChat: () => void}) {
               <input className="rc-input" autoFocus autoComplete="off" value={confirmation} onChange={e => setConfirmation(e.target.value)} />
             </label>
             <div className="rc-dialog-footer rc-dialog-footer--end">
-              <button type="button" className="rc-btn rc-btn--ghost" onClick={() => setStep(0)}>Cancelar</button>
+              <button type="button" className="rc-btn rc-btn--ghost" onClick={d.close}>Cancelar</button>
               <button type="button" className="rc-btn rc-btn--danger" disabled={confirmation.trim().toUpperCase() !== 'BORRAR'} onClick={() => { if (clear()) d.close(); }}>
                 Borrar todos los chats
               </button>

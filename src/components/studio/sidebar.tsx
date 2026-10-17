@@ -1,7 +1,8 @@
 'use client';
 import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
 import * as RadixDialog from '@radix-ui/react-dialog';
-import {Plus, MessageSquare, BookOpen, Clapperboard, MoreHorizontal, Menu as MenuIcon, X, Settings, Search, PanelLeftClose, ArrowUpRight, LogOut, CircleHelp} from 'lucide-react';
+import {Plus, MessageSquare, BookOpen, Clapperboard, MoreHorizontal, Menu as MenuIcon, X, Settings, Search, PanelLeftClose, ArrowUpRight, LogOut, CircleHelp, ChevronRight, Gauge, Plug} from 'lucide-react';
+import Link from 'next/link';
 import {BrandMark, Wordmark} from './brand';
 import {usePersonal, type PersonalChat} from '@/store/personal-chat';
 import {useShell} from '@/store/shell';
@@ -52,7 +53,7 @@ export function NavTrigger() {
   );
 }
 
-export function StudioSidebar({view, onNavigate, onNew}: {view: StudioView; onNavigate: (v: StudioView) => void; onNew: () => void}) {
+export function StudioSidebar({view, onNavigate, onNew}: {view: StudioView | null; onNavigate: (v: StudioView) => void; onNew: () => void}) {
   const drawer = useShell(s => s.drawer);
   const setDrawer = useShell(s => s.setDrawer);
   const collapsed = useShell(s => s.collapsed);
@@ -91,9 +92,10 @@ export function StudioSidebar({view, onNavigate, onNew}: {view: StudioView; onNa
       <Dialog open={help} onClose={() => setHelp(false)} title="Cómo se organiza el estudio" description="Chat, PDF Studio y Cinema Studio comparten la cuenta del equipo. Cada uno guarda su propio trabajo.">
         <div className="rc-dialog-body rc-help">
           <p><strong>Chat.</strong> Conversaciones personales con los modelos de Kie. No asume que estés trabajando en un libro.</p>
-          <p><strong>PDF Studio.</strong> Proyectos de libros y documentos, y acceso al editor actual.</p>
-          <p><strong>Cinema Studio.</strong> Proyectos de imagen y video. La generación se conecta por etapas.</p>
+          <p><strong>PDF Studio.</strong> Libros y materiales que se editan por bloques, con páginas reales, y se exportan a PDF.</p>
+          <p><strong>Cinema Studio.</strong> Imágenes con Kie: crear, editar, planificar planos y guardar en la galería. El video todavía no está conectado.</p>
           <p>Para llevar una conversación a un estudio, usá «Convertir en proyecto». El chat original se conserva.</p>
+          <p>Lo que hacés se guarda en este navegador. En Ajustes ves qué hay guardado, el consumo y el estado de cada servicio.</p>
         </div>
         <div className="rc-dialog-footer rc-dialog-footer--end">
           <button type="button" className="rc-btn rc-btn--primary" onClick={() => setHelp(false)}>Entendido</button>
@@ -107,7 +109,7 @@ function RailTip({rail, label, children}: {rail: boolean; label: string; childre
   return rail ? <Tip label={label} side="right">{children}</Tip> : <>{children}</>;
 }
 
-function SidebarContent({view, rail, drawer, onGo, onNew, onHelp}: {view: StudioView; rail: boolean; drawer?: boolean; onGo: (v: StudioView) => void; onNew: () => void; onHelp: () => void}) {
+function SidebarContent({view, rail, drawer, onGo, onNew, onHelp}: {view: StudioView | null; rail: boolean; drawer?: boolean; onGo: (v: StudioView) => void; onNew: () => void; onHelp: () => void}) {
   const toggleCollapsed = useShell(s => s.toggleCollapsed);
   const setDrawer = useShell(s => s.setDrawer);
   const data = usePersonal(s => s.data);
@@ -266,10 +268,10 @@ function SidebarContent({view, rail, drawer, onGo, onNew, onHelp}: {view: Studio
       <div className="rc-sidebar-foot">
         {!rail && credits > 0 ? (
           <Tip label={unreported ? 'Suma de lo que Kie informó en este navegador. Algunas respuestas no informan su costo.' : 'Suma de lo que Kie informó en este navegador.'}>
-            <a className="rc-usage" href="https://kie.ai/logs" target="_blank" rel="noreferrer">
+            <Link className="rc-usage" href="/workspace/ajustes?seccion=uso" onClick={() => setDrawer(false)}>
               <span>{credits.toLocaleString('es-AR')} créditos registrados</span>
-              <ArrowUpRight />
-            </a>
+              <ChevronRight />
+            </Link>
           </Tip>
         ) : null}
         <Menu>
@@ -287,9 +289,10 @@ function SidebarContent({view, rail, drawer, onGo, onNew, onHelp}: {view: Studio
           </RailTip>
           <MenuContent align="start" side="top">
             <MenuLabel>Equipo Russian Code</MenuLabel>
-            <MenuItem onSelect={dialogs.openSettings}><Settings />Ajustes del Chat</MenuItem>
+            <MenuLink href="/workspace/ajustes"><Settings />Ajustes y cuenta</MenuLink>
+            <MenuLink href="/workspace/ajustes?seccion=uso"><Gauge />Uso y créditos</MenuLink>
+            <MenuLink href="/workspace/ajustes?seccion=conectores"><Plug />Conectores y estado</MenuLink>
             <MenuItem onSelect={onHelp}><CircleHelp />Cómo se organiza el estudio</MenuItem>
-            <MenuLink href="https://kie.ai/logs" external><ArrowUpRight />Registros de consumo en Kie</MenuLink>
             <MenuLink href="/"><ArrowUpRight />Volver a la portada</MenuLink>
             <MenuSeparator />
             <MenuItem onSelect={signOut}><LogOut />Cerrar sesión</MenuItem>

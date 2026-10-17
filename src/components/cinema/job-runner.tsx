@@ -3,6 +3,8 @@ import {useEffect, useRef} from 'react';
 import {useCinema, isActive, type CinemaJob} from '@/store/cinema';
 import {usePersonal} from '@/store/personal-chat';
 
+const modeLabels: Record<CinemaJob['mode'], string> = {create: 'Imagen', edit: 'Edición de imagen', shot: 'Imagen de un plano'};
+
 // Kie recommends polling with backoff starting at 2–3 s.
 function delayFor(job: CinemaJob, failures: number) {
   const age = Date.now() - job.createdAt;
@@ -48,10 +50,10 @@ export function CinemaJobRunner() {
         failures.current.delete(job.id);
         if (body.state === 'success') {
           updateJob(job.id, {state: 'success', urls: body.urls, credits: body.credits, finishedAt: Date.now()});
-          usePersonal.getState().charge('kie-task:' + job.taskId, body.credits);
+          usePersonal.getState().charge('kie-task:' + job.taskId, body.credits, {studio: 'cinema', label: modeLabels[job.mode]});
         } else if (body.state === 'fail') {
           updateJob(job.id, {state: 'fail', error: 'GENERATION_FAILED', failMessage: body.failMessage, credits: body.credits, finishedAt: Date.now()});
-          if (body.credits !== undefined) usePersonal.getState().charge('kie-task:' + job.taskId, body.credits);
+          if (body.credits !== undefined) usePersonal.getState().charge('kie-task:' + job.taskId, body.credits, {studio: 'cinema', label: modeLabels[job.mode]});
         } else if (body.state !== job.state) {
           updateJob(job.id, {state: body.state});
         }

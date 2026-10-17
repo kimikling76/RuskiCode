@@ -84,7 +84,7 @@ export function ConvertChat({chat, open, onClose, onCreated}: {chat: PersonalCha
       if (!abort.signal.aborted) setError(e instanceof Error && !(e instanceof SyntaxError) ? e.message : 'La propuesta no tenía el formato esperado. Podés escribir el brief vos.');
     } finally {
       if (accepted) {
-        charge(requestId, credits);
+        charge(requestId, credits, {studio: 'chat', label: 'Propuesta de brief'});
         if (credits !== undefined) setUsage('Kie informó ' + credits + (credits === 1 ? ' crédito.' : ' créditos.'));
       }
       setBusy(false);

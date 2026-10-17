@@ -182,10 +182,7 @@ h1, h2, h3 { color: var(--fg-1); margin: 0; font-weight: 600; }
 :focus-visible { outline: none; box-shadow: var(--focus-ring); }
 ::selection { background: rgba(196, 235, 92, 0.28); color: var(--fg-1); }
 
-/* ---------- Landing classes (redesigned in stage 4; kept on the new tokens) ---------- */
-.h-hero    { font-family: var(--font-display); font-size: clamp(32px, 5vw, 64px); line-height: 1.1; letter-spacing: -0.02em; font-weight: 600; }
-.h-section { font-family: var(--font-display); font-size: clamp(28px, 3.4vw, 48px); line-height: 1.15; letter-spacing: -0.02em; font-weight: 600; }
-.h-card    { font-size: 22px; line-height: 1.25; font-weight: 600; }
+/* ---------- Classes used by the tools not yet redesigned (src/components/ui/button.tsx, project-workspace) ---------- */
 .text-sm   { font-size: 14px; line-height: 1.5; }
 .text-xs   { font-size: 12px; line-height: 1.4; color: var(--fg-2); }
 
@@ -204,22 +201,3 @@ h1, h2, h3 { color: var(--fg-1); margin: 0; font-weight: 600; }
 .btn-ghost { background: transparent; color: var(--fg-2); height: var(--control-32); padding: 0 var(--sp-4); }
 .btn-ghost:hover { color: var(--fg-1); background: var(--bg-3); }
 .btn-sm { height: var(--control-32); padding: 0 var(--sp-4); font-size: 13px; }
-.btn-xl { height: 48px; padding: 0 var(--sp-7); border-radius: var(--radius-12); font-size: 16px; }
-.btn-icon { width: var(--control-36); padding: 0; }
-
-.panel { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius-16); box-shadow: var(--shadow-raise); }
-.badge { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: var(--radius-4); font: 500 11px/1 var(--font-ui); }
-.badge-accent { background: var(--accent-soft); color: var(--accent); }
-.badge-pink { background: var(--bg-3); color: var(--fg-1); border-radius: var(--radius-full); }
-.icon-tile { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--radius-8); background: var(--bg-3); border: 1px solid var(--line-strong); }
-
-.tab { display: inline-flex; align-items: center; gap: 6px; height: var(--control-32); padding: 0 var(--sp-4); border-radius: var(--radius-8); color: var(--fg-2); font: 500 13px/1 var(--font-ui); border: 0; background: transparent; cursor: pointer; transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
-.tab:hover { color: var(--fg-1); }
-.tab[aria-selected="true"] { background: var(--bg-3); color: var(--fg-1); }
-
-.media-card { display: grid; gap: var(--sp-4); }
-.media-card__thumb { aspect-ratio: 16 / 9; border-radius: var(--radius-8); overflow: hidden; background: var(--bg-recessed); border: 1px solid var(--line); }
-.media-card__thumb img, .media-card__thumb video { width: 100%; height: 100%; object-fit: cover; transition: transform var(--dur-slow) var(--ease-out); }
-.media-card:hover .media-card__thumb img { transform: scale(1.02); }
-.media-card__meta { display: flex; align-items: center; gap: var(--sp-4); font: 500 14px/1.2 var(--font-ui); color: var(--fg-1); }
-.media-card__meta .type { margin-left: auto; color: var(--fg-2); font-weight: 400; }

@@ -4,6 +4,14 @@ import {sseData} from '@/lib/ai/sse';
 
 export type TextPurpose = 'storyboard' | 'prompt' | 'book-review' | 'book-exercises' | 'book-rewrite';
 
+const usageLabels: Record<TextPurpose, {studio: 'cinema' | 'pdf'; label: string}> = {
+  storyboard: {studio: 'cinema', label: 'Plan de planos'},
+  prompt: {studio: 'cinema', label: 'Ayuda con el prompt'},
+  'book-review': {studio: 'pdf', label: 'Revisión pedagógica'},
+  'book-exercises': {studio: 'pdf', label: 'Ejercicios propuestos'},
+  'book-rewrite': {studio: 'pdf', label: 'Mejora de un bloque'},
+};
+
 /** One text answer from the configured Kie chat model (personal-chat endpoint with a studio purpose). */
 export async function textRequest(purpose: TextPurpose, content: string, signal?: AbortSignal) {
   const requestId = crypto.randomUUID();
@@ -32,6 +40,6 @@ export async function textRequest(purpose: TextPurpose, content: string, signal?
     return text.trim();
   } finally {
     // Keep the sidebar usage line honest: text requests to Kie are recorded too.
-    if (accepted) usePersonal.getState().charge(requestId, credits);
+    if (accepted) usePersonal.getState().charge(requestId, credits, usageLabels[purpose]);
   }
 }

@@ -2,12 +2,13 @@ import type { Metadata, Viewport } from 'next';
 import { Providers } from '@/components/providers';
 import { fontUi, fontDisplay, fontCode } from './fonts';
 import './globals.css';
-import '../styles/landing.css';
 import '../styles/system.css';
 import '../styles/shell.css';
 import '../styles/chat.css';
 import '../styles/cinema.css';
 import '../styles/pdf.css';
+import '../styles/settings.css';
+import '../styles/site.css';
 
 export const metadata: Metadata = {
   title: 'Russian Code · Русский код',

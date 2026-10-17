@@ -10,7 +10,7 @@ import {ConvertChat} from './convert-chat';
 import {ChatModelPicker, modelLabel, type ChatModel} from './chat-model-picker';
 import {NavTrigger} from './sidebar';
 import {ConfirmDialog} from '@/components/ui/dialog';
-import {Menu, MenuTrigger, MenuContent, MenuItem, MenuSeparator, MenuLabel} from '@/components/ui/menu';
+import {Menu, MenuTrigger, MenuContent, MenuItem, MenuLink, MenuSeparator, MenuLabel} from '@/components/ui/menu';
 import {Tip} from '@/components/ui/tooltip';
 import {Switch} from '@/components/ui/switch';
 import {sseData} from '@/lib/ai/sse';
@@ -221,7 +221,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
     stoppedByUser.current = false;
     requestChat.current = chatId;
     abort.current = controller;
-    let done = false, accepted = false, realCredits: number | undefined, content = '';
+    let done = false, accepted = false, realCredits: number | undefined, content = '', modelName = '';
 
     function update(value: Partial<PersonalMessage>) {
       const current = usePersonal.getState().data.chats.find(c => c.id === chatId);
@@ -241,7 +241,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
       for await (const frame of sseData(r.body)) {
         const e = JSON.parse(frame);
         if (e.type === 'delta') { content += e.text; update({content}); }
-        if (e.type === 'model') update({model: e.name});
+        if (e.type === 'model') { modelName = e.name; update({model: e.name}); }
         if (e.type === 'usage' && typeof e.usage?.credits === 'number') { realCredits = e.usage.credits; update({credits: realCredits}); }
         if (e.type === 'error') throw Error(e.error);
         if (e.type === 'done') { done = true; update({status: 'done'}); }
@@ -256,7 +256,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
         update({status: 'error', error: code});
       }
     } finally {
-      if (accepted) charge(requestId, realCredits);
+      if (accepted) charge(requestId, realCredits, {studio: 'chat', label: modelName || 'Respuesta'});
       sending.current = false; setBusy(false);
       abort.current = null; requestChat.current = null;
     }
@@ -336,7 +336,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
             </MenuTrigger>
             <MenuContent>
               {chat ? <MenuItem onSelect={() => { setTitle(chat.title); setEditing(true); }}>Renombrar</MenuItem> : null}
-              <MenuItem onSelect={dialogs.openSettings}>Ajustes del Chat</MenuItem>
+              <MenuLink href="/workspace/ajustes?seccion=preferencias">Ajustes del Chat</MenuLink>
               {chat ? <><MenuSeparator /><MenuItem danger disabled={busy} onSelect={() => dialogs.openDelete(chat.id)}>Borrar chat</MenuItem></> : null}
             </MenuContent>
           </Menu>

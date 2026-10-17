@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import * as RadixMenu from '@radix-ui/react-dropdown-menu';
 import type {ReactNode} from 'react';
 
@@ -26,7 +27,7 @@ export function MenuItem({children, onSelect, danger, disabled}: {children: Reac
 export function MenuLink({children, href, external}: {children: ReactNode; href: string; external?: boolean}) {
   return (
     <RadixMenu.Item asChild className="rc-menu-item">
-      <a href={href} {...(external ? {target: '_blank', rel: 'noreferrer'} : {})}>{children}</a>
+      {external ? <a href={href} target="_blank" rel="noreferrer">{children}</a> : <Link href={href}>{children}</Link>}
     </RadixMenu.Item>
   );
 }

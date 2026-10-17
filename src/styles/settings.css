@@ -1,0 +1,108 @@
+/* Russian Code — Ajustes, Uso y Conectores. No studio material: plain graphite, text first. */
+
+.rc-settings { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.rc-settings-scroll { flex: 1; min-height: 0; }
+.rc-settings-page {
+  width: min(100%, 760px);
+  margin: 0 auto;
+  padding: var(--sp-10) var(--sp-7) calc(var(--sp-11) + env(safe-area-inset-bottom));
+}
+.rc-settings-title { margin-bottom: var(--sp-6); }
+
+.rc-settings-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: 44px;
+  margin: 0 calc(var(--sp-4) * -1);
+  padding: 0 var(--sp-1);
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-0);
+}
+.rc-settings-tabs .rc-tab { padding: 0 var(--sp-4); font-size: var(--fs-14); }
+.rc-settings-tabs .rc-tab[data-state='active']::after { background: var(--fg-1); }
+.rc-settings-panel { outline: none; }
+.rc-settings-panel[hidden] { display: none; }
+
+/* ---------- Groups and rows ---------- */
+.rc-set-group { margin-top: var(--sp-9); }
+.rc-set-group:first-child { margin-top: var(--sp-8); }
+.rc-set-group-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-6); margin-bottom: var(--sp-4); }
+.rc-set-group-head h2 { margin: 0; font-size: var(--fs-15); font-weight: 500; color: var(--fg-1); }
+.rc-set-group-head .rc-hint { max-width: 56ch; margin-top: var(--sp-2); }
+.rc-set-group-head .rc-btn { flex-shrink: 0; }
+.rc-set-group-head .rc-btn svg { width: 14px; height: 14px; }
+.rc-set-rows { border-top: 1px solid var(--line); }
+
+.rc-set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-6);
+  min-height: 56px;
+  padding: var(--sp-4) 0;
+  border-bottom: 1px solid var(--line);
+}
+.rc-set-row-text { min-width: 0; }
+.rc-set-row-label { font-size: var(--fs-14); font-weight: 500; color: var(--fg-1); overflow-wrap: anywhere; }
+.rc-set-row-label label { cursor: pointer; }
+.rc-set-row-detail { max-width: 54ch; margin-top: var(--sp-1); font-size: var(--fs-13); line-height: 1.5; color: var(--fg-3); }
+.rc-set-row-value { display: flex; align-items: center; flex-shrink: 0; }
+.rc-set-row-value .rc-btn svg { width: 14px; height: 14px; }
+.rc-set-value { font-size: var(--fs-14); color: var(--fg-2); text-align: right; overflow-wrap: anywhere; }
+.rc-set-number { font-family: var(--font-code); font-size: var(--fs-13); color: var(--fg-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rc-set-quiet { margin: 0; padding: var(--sp-5) 0; font-size: var(--fs-14); color: var(--fg-3); }
+.rc-set-rows > .rc-set-quiet { border-bottom: 1px solid var(--line); }
+.rc-set-checked { padding-top: var(--sp-3); }
+.rc-set-more { margin-top: var(--sp-5); }
+
+.rc-set-status { display: inline-flex; align-items: center; gap: var(--sp-3); font-size: var(--fs-13); color: var(--fg-2); white-space: nowrap; }
+.rc-set-status[data-health='ok'] { color: var(--fg-1); }
+.rc-set-status[data-health='checking'] .rc-dot { animation: rc-pulse 1.6s ease-in-out infinite; }
+
+/* ---------- Usage ---------- */
+.rc-set-balance { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--sp-3) var(--sp-5); padding: var(--sp-6) 0; border-bottom: 1px solid var(--line); }
+.rc-set-balance strong {
+  font-family: var(--font-display);
+  font-size: var(--fs-28);
+  font-weight: 500;
+  line-height: var(--lh-tight);
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-1);
+}
+.rc-set-balance .rc-set-quiet { padding: 0; }
+.rc-set-balance-skeleton { width: 180px; height: 28px; }
+.rc-set-balance-error { flex-basis: 100%; margin: 0; font-size: var(--fs-13); color: var(--fg-2); }
+
+.rc-set-totals { display: flex; flex-wrap: wrap; gap: var(--sp-5) var(--sp-9); margin: 0; padding: var(--sp-6) 0; border-bottom: 1px solid var(--line); }
+.rc-set-totals dt { font-size: var(--fs-12); color: var(--fg-3); }
+.rc-set-totals dd { margin: var(--sp-1) 0 0; font-family: var(--font-display); font-size: var(--fs-22); font-weight: 500; font-variant-numeric: tabular-nums; color: var(--fg-1); }
+
+.rc-set-day { padding: var(--sp-5) 0 var(--sp-3); border-bottom: 1px solid var(--line); }
+.rc-set-day h3 { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-5); margin: 0 0 var(--sp-2); font-size: var(--fs-14); font-weight: 500; color: var(--fg-1); }
+.rc-set-day h3 > span:first-child::first-letter { text-transform: uppercase; }
+.rc-set-day > .rc-hint { margin-bottom: var(--sp-2); }
+.rc-set-table { width: 100%; border-collapse: collapse; font-size: var(--fs-13); color: var(--fg-2); }
+.rc-set-table td { padding: 6px 0; vertical-align: baseline; }
+.rc-set-table td:first-child { width: 64px; color: var(--fg-3); }
+.rc-set-table td:nth-child(2) { width: 132px; padding-right: var(--sp-4); }
+.rc-set-table td:last-child { text-align: right; }
+.rc-set-table-label { padding-right: var(--sp-4); overflow-wrap: anywhere; }
+.rc-set-table .rc-set-quiet { padding: 0; font-size: var(--fs-13); font-family: var(--font-ui); }
+
+@media (max-width: 767px) {
+  .rc-settings-page { padding-top: var(--sp-8); }
+}
+@media (max-width: 640px) {
+  .rc-settings-page { padding-top: 0; padding-left: var(--sp-5); padding-right: var(--sp-5); }
+  .rc-settings-title { display: none; }
+  .rc-settings-tabs { top: 0; margin: 0 calc(var(--sp-5) * -1); padding: 0 var(--sp-3); }
+  .rc-settings-tabs .rc-tab { padding: 0 var(--sp-3); }
+  .rc-settings-tabs .rc-tab[data-state='active']::after { left: var(--sp-3); right: var(--sp-3); }
+  .rc-set-group-head { flex-direction: column; gap: var(--sp-3); }
+  .rc-set-row { flex-wrap: wrap; gap: var(--sp-3) var(--sp-5); }
+  .rc-set-row-value { margin-left: auto; }
+  .rc-set-table td:nth-child(2) { display: none; }
+  .rc-settings-page .rc-btn--sm { min-height: var(--control-44); }
+}

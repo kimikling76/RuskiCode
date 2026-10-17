@@ -1,8 +1,13 @@
 import {Suspense} from 'react';
-import {EditorShell} from '@/components/pdf/editor-shell';
+import {StudioShell} from '@/components/studio/studio-shell';
+import {BookEditor} from '@/components/pdf/book-editor';
 
 export const metadata = {title: 'Editor · PDF Studio · Russian Code'};
 
 export default function EditorPage() {
-  return <Suspense><EditorShell /></Suspense>;
+  return (
+    <Suspense>
+      <StudioShell view="pdf"><BookEditor /></StudioShell>
+    </Suspense>
+  );
 }

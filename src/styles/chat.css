@@ -302,9 +302,11 @@
   border-radius: var(--radius-16);
   background: var(--bg-2);
   box-shadow: var(--shadow-composer);
-  transition: border-color var(--dur-fast) var(--ease-out);
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 }
 .rc-composer:focus-within { border-color: rgba(196, 235, 92, 0.38); }
+/* Typing focus reads like any other field: lime border plus a soft ring around the whole composer. */
+.rc-composer:has(.rc-composer-input:focus) { border-color: rgba(196, 235, 92, 0.55); box-shadow: var(--shadow-composer), 0 0 0 3px var(--accent-soft); }
 .rc-composer-input {
   display: block;
   width: 100%;
