@@ -1,18 +1,309 @@
 'use client';
-import {useEffect,useRef,useState} from 'react';
-import * as Dialog from '@radix-ui/react-dialog';
-import {Plus,MessageSquare,BookOpen,Clapperboard,MoreHorizontal,Menu,X,Settings,Search,PanelLeftClose,PanelLeftOpen,ChevronsUpDown,FolderPlus,ChevronDown,ArrowUpRight} from 'lucide-react';
-import {StudioMark} from './brand';
-import {SignOut} from '@/components/sign-out';
-import {usePersonal} from '@/store/personal-chat';
-import {useChatDialogs,PersonalModal} from './chat-dialogs';
-export type StudioView='chat'|'pdf'|'cinema';
-export function StudioSidebar({view,onNavigate,onNew}:{view:StudioView;onNavigate:(v:StudioView)=>void;onNew:()=>void}){
- const [mobile,setMobile]=useState(false);const [mode,setMode]=useState<'auto'|'open'|'closed'>('auto');const [searchOpen,setSearchOpen]=useState(false);const [query,setQuery]=useState('');const [help,setHelp]=useState(false);const [historyOpen,setHistoryOpen]=useState(true);const search=useRef<HTMLInputElement>(null);
- const data=usePersonal(s=>s.data);const hydrated=usePersonal(s=>s.hydrated);const select=usePersonal(s=>s.select);const activeId=usePersonal(s=>s.activeId);const dialogs=useChatDialogs();const known=data.usage.reduce((n,e)=>n+(e.credits??0),0);const unknown=data.usage.filter(e=>e.credits===undefined).length;const chats=data.chats.filter(c=>c.title.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
- useEffect(()=>{if(searchOpen)search.current?.focus();},[searchOpen,mobile]);
- function go(v:StudioView){onNavigate(v);setMobile(false);}
- function collapse(){setMode(m=>m==='auto'?(window.matchMedia('(min-width:768px) and (max-width:1199px)').matches?'open':'closed'):m==='closed'?'open':'closed');}
- const content=<><div className="studio-sidebar-brand"><button className="studio-space-button" onClick={()=>go('chat')} title="Estudio · Espacio del equipo"><StudioMark/><span className="workspace-rail-hide">estudio<span>Espacio del equipo</span></span><ChevronsUpDown size={14} className="workspace-rail-hide"/></button><div className="workspace-sidebar-controls"><button className="studio-icon-button" aria-label="Buscar chats" title="Buscar chats" onClick={()=>{setMode('open');setHistoryOpen(true);setSearchOpen(v=>!v);}}><Search size={16}/></button><button className="studio-icon-button workspace-collapse" aria-label={mode==='closed'?'Expandir navegación':'Expandir o plegar navegación'} title="Expandir o plegar navegación" onClick={collapse}>{mode==='closed'?<PanelLeftOpen size={16}/>:<PanelLeftClose size={16}/>}</button><button className="studio-mobile-close studio-icon-button" aria-label="Cerrar navegación" onClick={()=>setMobile(false)}><X size={18}/></button></div></div><button className="studio-new-chat" title="Nuevo chat" aria-label="Nuevo chat" onClick={()=>{onNew();setMobile(false);}}><span className="workspace-nav-icon"><Plus size={17}/></span><span className="workspace-rail-hide">Nuevo chat</span></button><nav className="studio-nav three-studios-nav" aria-label="Estudios">{([{id:'chat',name:'Chat',sub:'Conversación personal',icon:MessageSquare},{id:'pdf',name:'PDF Studio',sub:'Libros y documentos',icon:BookOpen},{id:'cinema',name:'Cinema Studio',sub:'Imagen y video',icon:Clapperboard}] as const).map(({id,name,sub,icon:Icon})=><button key={id} title={name} aria-label={name} aria-current={view===id?'page':undefined} onClick={()=>go(id)}><span className="workspace-nav-icon"><Icon size={17}/></span><span className="workspace-rail-hide"><strong>{name}</strong><small>{sub}</small></span></button>)}</nav><details className="workspace-more workspace-rail-hide"><summary><MoreHorizontal size={16}/>Ver más<ChevronDown size={13}/></summary><div><button onClick={dialogs.openSettings}><Settings size={15}/>Ajustes del Chat</button><button onClick={()=>setHelp(true)}><BookOpen size={15}/>Guía del estudio</button><a href="/">Volver a la portada<ArrowUpRight size={13}/></a></div></details><div className="studio-history workspace-rail-hide"><div className="studio-history-heading"><button className="workspace-history-toggle" aria-expanded={historyOpen} onClick={()=>setHistoryOpen(v=>!v)}>Chats<ChevronDown size={12}/></button><button className="studio-icon-button" aria-label="Ajustes del Chat" onClick={dialogs.openSettings}><Settings size={13}/></button></div>{searchOpen?<label className="workspace-chat-search"><Search size={14}/><input ref={search} aria-label="Buscar en los títulos de chats" placeholder="Buscar conversación…" value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>{if(e.key==='Escape'){setQuery('');setSearchOpen(false);}}}/></label>:null}{!historyOpen?null:!hydrated?<div className="studio-shimmer pure-model-skeleton" role="status" aria-label="Cargando chats"/>:!data.chats.length?<div className="studio-empty-chats"><span className="workspace-empty-folder"><FolderPlus size={30}/></span><strong>Aún no hay chats</strong><p>Creá uno para empezar.</p></div>:!chats.length?<p className="workspace-no-results" role="status">No hay chats con ese título.</p>:chats.map(c=><div key={c.id} className={'personal-history-row '+(activeId===c.id&&view==='chat'?'is-active':'')}><button className="studio-history-item" onClick={()=>{select(c.id);go('chat');}} title={c.title}><MessageSquare size={13}/><span>{c.title}</span></button><details className="personal-chat-menu"><summary aria-label={'Menú de '+c.title}><MoreHorizontal size={16}/></summary><div><button onClick={e=>{e.currentTarget.closest('details')?.removeAttribute('open');dialogs.openRename(c.id);}}>Renombrar</button><button onClick={e=>{e.currentTarget.closest('details')?.removeAttribute('open');dialogs.openDelete(c.id);}}>Borrar</button></div></details></div>)}</div><div className="studio-sidebar-bottom workspace-rail-hide"><div className="studio-session-meter"><span>CONSUMO LOCAL</span><strong>{known} créditos registrados</strong>{unknown?<small>+ {unknown} solicitudes con costo sin confirmar</small>:null}<a href="https://kie.ai/logs" target="_blank" rel="noreferrer">Ver registros de Kie<ArrowUpRight size={12}/></a></div><div className="studio-member"><span className="studio-avatar">E</span><div><strong>Equipo RuskiCode</strong><small>Historial local · sin sincronización</small></div></div><SignOut/></div></>;
- return <><aside className={'studio-sidebar workspace-sidebar workspace-mode-'+mode}>{content}</aside><Dialog.Root open={mobile} onOpenChange={setMobile}><Dialog.Trigger asChild><button className="studio-menu-trigger studio-icon-button" aria-label="Abrir navegación"><Menu size={20}/></button></Dialog.Trigger><Dialog.Portal><Dialog.Overlay className="studio-drawer-overlay"/><Dialog.Content className="studio-sidebar studio-drawer workspace-sidebar"><Dialog.Title className="sr-only">Navegación del estudio</Dialog.Title><Dialog.Description className="sr-only">Chat personal y estudios con proyectos independientes.</Dialog.Description>{content}</Dialog.Content></Dialog.Portal></Dialog.Root><PersonalModal open={help} onClose={()=>setHelp(false)} title="Tu espacio de trabajo" description="Chat, PDF Studio y Cinema Studio comparten el acceso del equipo. Cada uno conserva su función."><div className="workspace-help"><p><strong>Chat:</strong> conversación personal. Las plantillas solo preparan mensajes y no llaman a Kie.</p><p><strong>PDF Studio:</strong> proyectos y acceso al editor de páginas actual.</p><p><strong>Cinema Studio:</strong> briefs de imagen y video. La generación se conectará por etapas.</p><p>Para pasar una conversación a un estudio, usá «Convertir en proyecto» y confirmá el brief.</p></div><button className="studio-primary" onClick={()=>setHelp(false)}>Entendido</button></PersonalModal></>;
+import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
+import * as RadixDialog from '@radix-ui/react-dialog';
+import {Plus, MessageSquare, BookOpen, Clapperboard, MoreHorizontal, Menu as MenuIcon, X, Settings, Search, PanelLeftClose, ArrowUpRight, LogOut, CircleHelp, Gauge, Plug, Bot} from 'lucide-react';
+import {usePathname} from 'next/navigation';
+import Link from 'next/link';
+import {BrandMark, Wordmark} from './brand';
+import {usePersonal, type PersonalChat} from '@/store/personal-chat';
+import {useShell} from '@/store/shell';
+import {useChatDialogs} from './chat-dialogs';
+import {Dialog} from '@/components/ui/dialog';
+import {Menu, MenuTrigger, MenuContent, MenuItem, MenuLink, MenuSeparator, MenuLabel} from '@/components/ui/menu';
+import {Tip} from '@/components/ui/tooltip';
+import {authClient} from '@/lib/auth/client';
+import {startSync} from '@/lib/sync/engine';
+import {SidebarStatus} from './sidebar-status';
+
+export type StudioView = 'chat' | 'pdf' | 'cinema';
+
+export const studios = [
+  {id: 'chat', name: 'Chat', icon: MessageSquare},
+  {id: 'pdf', name: 'PDF Studio', icon: BookOpen},
+  {id: 'cinema', name: 'Cinema Studio', icon: Clapperboard},
+] as const;
+
+function lastActivity(chat: PersonalChat) {
+  const stamp = chat.messages.at(-1)?.createdAt || chat.createdAt;
+  const time = Date.parse(stamp);
+  return Number.isFinite(time) ? time : 0;
+}
+
+function groupChats(chats: PersonalChat[]) {
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const today = startOfToday.getTime();
+  const week = today - 6 * 86400000;
+  const groups: {label: string; items: PersonalChat[]}[] = [
+    {label: 'Hoy', items: []},
+    {label: 'Últimos 7 días', items: []},
+    {label: 'Anteriores', items: []},
+  ];
+  [...chats].sort((a, b) => lastActivity(b) - lastActivity(a)).forEach(chat => {
+    const time = lastActivity(chat);
+    groups[time >= today ? 0 : time >= week ? 1 : 2].items.push(chat);
+  });
+  return groups.filter(g => g.items.length);
+}
+
+/** Opens the mobile drawer. Each view places it at the start of its header; CSS shows it below 768px. */
+export function NavTrigger() {
+  const setDrawer = useShell(s => s.setDrawer);
+  return (
+    <button type="button" className="rc-icon-btn rc-nav-trigger" aria-label="Abrir navegación" onClick={() => setDrawer(true)}>
+      <MenuIcon />
+    </button>
+  );
+}
+
+export function StudioSidebar({view, onNavigate, onNew}: {view: StudioView | null; onNavigate: (v: StudioView) => void; onNew: () => void}) {
+  const drawer = useShell(s => s.drawer);
+  const setDrawer = useShell(s => s.setDrawer);
+  const collapsed = useShell(s => s.collapsed);
+  const restore = useShell(s => s.restore);
+  const [help, setHelp] = useState(false);
+
+  useEffect(() => { restore(); startSync(); }, [restore]);
+
+  // Close the drawer if the window grows past the mobile breakpoint.
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 768px)');
+    const close = () => { if (media.matches) setDrawer(false); };
+    media.addEventListener('change', close);
+    return () => media.removeEventListener('change', close);
+  }, [setDrawer]);
+
+  function go(v: StudioView) { onNavigate(v); setDrawer(false); }
+  function fresh() { onNew(); setDrawer(false); }
+
+  return (
+    <>
+      <aside className="rc-sidebar" data-collapsed={collapsed ? 'true' : 'false'} aria-label="Navegación principal">
+        <SidebarContent view={view} rail={collapsed} onGo={go} onNew={fresh} onHelp={() => setHelp(true)} />
+      </aside>
+
+      <RadixDialog.Root open={drawer} onOpenChange={setDrawer}>
+        <RadixDialog.Portal>
+          <RadixDialog.Overlay className="rc-overlay rc-layer rc-drawer-overlay" />
+          <RadixDialog.Content className="rc-drawer rc-layer" aria-describedby={undefined}>
+            <RadixDialog.Title className="sr-only">Navegación</RadixDialog.Title>
+            <SidebarContent view={view} rail={false} drawer onGo={go} onNew={fresh} onHelp={() => setHelp(true)} />
+          </RadixDialog.Content>
+        </RadixDialog.Portal>
+      </RadixDialog.Root>
+
+      <Dialog open={help} onClose={() => setHelp(false)} title="Cómo se organiza el estudio" description="Chat, PDF Studio y Cinema Studio comparten la cuenta del equipo. Cada uno guarda su propio trabajo.">
+        <div className="rc-dialog-body rc-help">
+          <p><strong>Chat.</strong> Conversaciones personales con los modelos de Kie. No asume que estés trabajando en un libro.</p>
+          <p><strong>PDF Studio.</strong> Libros y materiales que se editan por bloques, con páginas reales, y se exportan a PDF.</p>
+          <p><strong>Cinema Studio.</strong> Imágenes con Kie: crear, editar, planificar planos y guardar en la galería. El video todavía no está conectado.</p>
+          <p>Para llevar una conversación a un estudio, usá «Convertir en proyecto». El chat original se conserva.</p>
+          <p>Lo que hacés se guarda en tu cuenta y aparece en tus otras computadoras. Abajo a la izquierda ves si está guardado y el saldo de Kie.</p>
+        </div>
+        <div className="rc-dialog-footer rc-dialog-footer--end">
+          <button type="button" className="rc-btn rc-btn--primary" onClick={() => setHelp(false)}>Entendido</button>
+        </div>
+      </Dialog>
+    </>
+  );
+}
+
+function RailTip({rail, label, children}: {rail: boolean; label: string; children: ReactNode}) {
+  return rail ? <Tip label={label} side="right">{children}</Tip> : <>{children}</>;
+}
+
+function SidebarContent({view, rail, drawer, onGo, onNew, onHelp}: {view: StudioView | null; rail: boolean; drawer?: boolean; onGo: (v: StudioView) => void; onNew: () => void; onHelp: () => void}) {
+  const toggleCollapsed = useShell(s => s.toggleCollapsed);
+  const setDrawer = useShell(s => s.setDrawer);
+  const data = usePersonal(s => s.data);
+  const hydrated = usePersonal(s => s.hydrated);
+  const select = usePersonal(s => s.select);
+  const activeId = usePersonal(s => s.activeId);
+  const dialogs = useChatDialogs();
+  const [searching, setSearching] = useState(false);
+  const [query, setQuery] = useState('');
+  const [signOutError, setSignOutError] = useState(false);
+  const search = useRef<HTMLInputElement>(null);
+  const pathname = usePathname();
+
+  useEffect(() => { if (searching) search.current?.focus(); }, [searching]);
+
+  const needle = query.trim().toLocaleLowerCase('es');
+  const groups = useMemo(() => groupChats(data.chats.filter(c => c.title.toLocaleLowerCase('es').includes(needle))), [data.chats, needle]);
+
+  async function signOut() {
+    setSignOutError(false);
+    try {
+      const result = await authClient.signOut();
+      if (result.error) throw Error();
+      window.location.assign('/login');
+    } catch {
+      setSignOutError(true);
+    }
+  }
+
+  return (
+    <div className="rc-sidebar-inner">
+      <div className="rc-sidebar-head">
+        {rail ? (
+          <Tip label="Expandir navegación" side="right">
+            <button type="button" className="rc-icon-btn rc-sidebar-brand-rail" aria-label="Expandir navegación" onClick={toggleCollapsed}>
+              <BrandMark />
+            </button>
+          </Tip>
+        ) : (
+          <>
+            <button type="button" className="rc-sidebar-brand" onClick={() => onGo('chat')} aria-label="Russian Code, ir al Chat">
+              <Wordmark />
+            </button>
+            {drawer ? (
+              <button type="button" className="rc-icon-btn" aria-label="Cerrar navegación" onClick={() => setDrawer(false)}><X /></button>
+            ) : (
+              <Tip label="Plegar navegación" side="right">
+                <button type="button" className="rc-icon-btn" aria-label="Plegar navegación" onClick={toggleCollapsed}><PanelLeftClose /></button>
+              </Tip>
+            )}
+          </>
+        )}
+      </div>
+
+      <RailTip rail={rail} label="Nuevo chat">
+        <button type="button" className="rc-new-chat" onClick={onNew} aria-label={rail ? 'Nuevo chat' : undefined}>
+          <Plus />
+          <span className="rc-rail-hide">Nuevo chat</span>
+        </button>
+      </RailTip>
+
+      <nav className="rc-nav" aria-label="Estudios">
+        {studios.map(({id, name, icon: Icon}) => (
+          <RailTip key={id} rail={rail} label={name}>
+            <button
+              type="button"
+              className="rc-nav-item"
+              data-studio={id}
+              aria-current={view === id ? 'page' : undefined}
+              aria-label={rail ? name : undefined}
+              onClick={() => onGo(id)}
+            >
+              <Icon />
+              <span className="rc-rail-hide">{name}</span>
+            </button>
+          </RailTip>
+        ))}
+      </nav>
+
+      <nav className="rc-nav rc-nav--secondary" aria-label="Herramientas">
+        <RailTip rail={rail} label="Asistentes">
+          <Link href="/workspace/asistentes" className="rc-nav-item" aria-current={pathname === '/workspace/asistentes' ? 'page' : undefined} aria-label={rail ? 'Asistentes' : undefined} onClick={() => setDrawer(false)}>
+            <Bot />
+            <span className="rc-rail-hide">Asistentes</span>
+          </Link>
+        </RailTip>
+      </nav>
+
+      {rail ? <div className="rc-sidebar-spacer" /> : (
+        <section className="rc-history" aria-label="Historial de chats">
+          <div className="rc-history-head">
+            <span>Chats</span>
+            <Tip label={searching ? 'Cerrar búsqueda' : 'Buscar chats'}>
+              <button
+                type="button"
+                className="rc-icon-btn rc-icon-btn--sm"
+                aria-label={searching ? 'Cerrar búsqueda' : 'Buscar chats'}
+                aria-expanded={searching}
+                onClick={() => { setSearching(v => !v); setQuery(''); }}
+              >
+                {searching ? <X /> : <Search />}
+              </button>
+            </Tip>
+          </div>
+          {searching ? (
+            <input
+              ref={search}
+              className="rc-input rc-history-search"
+              type="search"
+              aria-label="Buscar en los títulos de los chats"
+              placeholder="Buscar por título"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); setQuery(''); setSearching(false); } }}
+            />
+          ) : null}
+          <div className="rc-history-list">
+            {!hydrated ? (
+              <div className="rc-history-loading" role="status" aria-label="Cargando chats">
+                <span className="rc-skeleton" /><span className="rc-skeleton" /><span className="rc-skeleton" />
+              </div>
+            ) : !data.chats.length ? (
+              <p className="rc-history-empty">Tus conversaciones van a aparecer acá.</p>
+            ) : !groups.length ? (
+              <p className="rc-history-empty" role="status">Ningún chat tiene ese título.</p>
+            ) : groups.map(group => (
+              <div key={group.label} className="rc-history-group">
+                <h3>{group.label}</h3>
+                <ul>
+                  {group.items.map(chat => {
+                    const active = activeId === chat.id && view === 'chat';
+                    return (
+                      <li key={chat.id} className="rc-history-row" data-active={active ? 'true' : undefined}>
+                        <button
+                          type="button"
+                          className="rc-history-item"
+                          aria-current={active ? 'true' : undefined}
+                          title={chat.title}
+                          onClick={() => { select(chat.id); onGo('chat'); }}
+                        >
+                          {chat.title}
+                        </button>
+                        <Menu>
+                          <MenuTrigger asChild>
+                            <button type="button" className="rc-icon-btn rc-icon-btn--sm rc-history-menu" aria-label={'Opciones de ' + chat.title}>
+                              <MoreHorizontal />
+                            </button>
+                          </MenuTrigger>
+                          <MenuContent align="start">
+                            <MenuItem onSelect={() => dialogs.openRename(chat.id)}>Renombrar</MenuItem>
+                            <MenuItem danger onSelect={() => dialogs.openDelete(chat.id)}>Borrar</MenuItem>
+                          </MenuContent>
+                        </Menu>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <div className="rc-sidebar-foot">
+        <SidebarStatus rail={rail} />
+        <Menu>
+          <RailTip rail={rail} label="Cuenta y ajustes">
+            <MenuTrigger asChild>
+              <button type="button" className="rc-account" aria-label="Cuenta y ajustes">
+                <span className="rc-avatar" aria-hidden="true">RC</span>
+                <span className="rc-rail-hide rc-account-text">
+                  <strong>Equipo Russian Code</strong>
+                  <small>Espacio privado</small>
+                </span>
+                {!rail ? <Settings className="rc-account-icon" /> : null}
+              </button>
+            </MenuTrigger>
+          </RailTip>
+          <MenuContent align="start" side="top">
+            <MenuLabel>Equipo Russian Code</MenuLabel>
+            <MenuLink href="/workspace/ajustes"><Settings />Ajustes y cuenta</MenuLink>
+            <MenuLink href="/workspace/ajustes?seccion=uso"><Gauge />Uso y créditos</MenuLink>
+            <MenuLink href="/workspace/ajustes?seccion=conectores"><Plug />Conectores y estado</MenuLink>
+            <MenuItem onSelect={onHelp}><CircleHelp />Cómo se organiza el estudio</MenuItem>
+            <MenuLink href="/"><ArrowUpRight />Volver a la portada</MenuLink>
+            <MenuSeparator />
+            <MenuItem onSelect={signOut}><LogOut />Cerrar sesión</MenuItem>
+          </MenuContent>
+        </Menu>
+        {signOutError ? <p className="rc-history-empty" role="alert">No se pudo cerrar la sesión. Probá de nuevo.</p> : null}
+      </div>
+    </div>
+  );
 }

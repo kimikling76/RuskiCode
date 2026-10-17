@@ -2,12 +2,16 @@ export const STORAGE_KEY='estudio-personal-v2';
 export const LEGACY_KEY='estudio-pure-chat-v1';
 export const UNDO_MS=8000;
 export const PERSONAL_SYSTEM='Eres un asistente útil; responde en el idioma del usuario.';
-export type PersonalMessage={id:string;role:'user'|'assistant';content:string;createdAt?:string;model?:string;credits?:number;status?:'streaming'|'done'|'error'};
+export type PersonalMessage={id:string;role:'user'|'assistant';content:string;createdAt?:string;model?:string;credits?:number;status?:'streaming'|'done'|'error';error?:string;stopped?:boolean};
 export type ConversionLink={projectId:string;name:string;destination:'pdf'|'cinema'};
-export type PersonalChat={id:string;title:string;model:string;createdAt:string;titleEdited?:boolean;messages:PersonalMessage[];conversions:ConversionLink[]};
+/** The assistant chosen for this conversation, with the instructions last sent (kept even if the assistant is deleted). */
+export type ChatAssistant={id:string;name:string;instructions:string;mediaCatalog?:boolean};
+export type PersonalChat={id:string;title:string;model:string;createdAt:string;titleEdited?:boolean;messages:PersonalMessage[];conversions:ConversionLink[];assistant?:ChatAssistant};
 export type ConversionDraft={name:string;destination:'pdf'|'cinema';projectType:string;mode:'all'|'summary'|'selected';selectedIds:string[];brief:string;summary:string};
 export type StudioProject={id:string;name:string;destination:'pdf'|'cinema';projectType:string;brief:string;sourceChatId:string;sourceMode:string;source:{summary?:string;messages?:PersonalMessage[]};createdAt:string};
-export type PersonalData={version:2;chats:PersonalChat[];projects:StudioProject[];pending:{id:string;chat:PersonalChat;index:number;deadline:number}[];usage:{id:string;credits?:number}[]};
+export type PersonalData={version:2;chats:PersonalChat[];projects:StudioProject[];pending:{id:string;chat:PersonalChat;index:number;deadline:number}[];usage:UsageEntry[]};
+/** One request that may have cost Kie credits. `credits` is only what Kie reported; older entries have no date or studio. */
+export type UsageEntry={id:string;credits?:number;at?:number;studio?:'chat'|'cinema'|'pdf';label?:string};
 export function emptyData():PersonalData{return {version:2,chats:[],projects:[],pending:[],usage:[]};}
 export function purgeExpired(data:PersonalData,now:number):PersonalData{return {...data,pending:data.pending.filter(p=>p.deadline>now)};}
 export function scheduleDelete(data:PersonalData,id:string,now:number):PersonalData{const chat=data.chats.find(c=>c.id===id);if(!chat)return data;return {...data,chats:data.chats.filter(c=>c.id!==id),pending:[...data.pending,{id,chat:{...chat,messages:chat.messages.map(m=>({...m,status:m.status==='streaming'?'error':m.status}))},index:data.chats.findIndex(c=>c.id===id),deadline:now+UNDO_MS}]};}

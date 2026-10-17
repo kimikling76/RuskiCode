@@ -1,4 +1,4 @@
-export type ModelConfig={id:string;name:string;provider:'compatible'|'anthropic'|'google';keyEnv:string;modelEnv?:string;model?:string;endpoint:string;taskScore:{book:number;image:number;video:number;general:number};supportsTools:boolean;supportsVision:boolean};
+export type ModelConfig={id:string;name:string;provider:'compatible'|'anthropic'|'google'|'responses';bearer?:boolean;kie?:boolean;keyEnv:string;modelEnv?:string;model?:string;endpoint:string;taskScore:{book:number;image:number;video:number;general:number};supportsTools:boolean;supportsVision:boolean};
 export const modelCatalog:ModelConfig[]=[
 {id:'kie-pro',name:'Gemini 3.1 Pro · KIE',provider:'compatible',keyEnv:'KIE_API_KEY',model:'gemini-3.1-pro',endpoint:'https://api.kie.ai/gemini-3.1-pro/v1/chat/completions',taskScore:{book:100,image:90,video:80,general:80},supportsTools:false,supportsVision:false},
 {id:'kie-flash',name:'Gemini 3.8 Flash · KIE',provider:'compatible',keyEnv:'KIE_API_KEY',model:'gemini-3.8-flash',endpoint:'https://api.kie.ai/gemini-3-8-flash-openai/v1/chat/completions',taskScore:{book:70,image:70,video:70,general:100},supportsTools:false,supportsVision:false},

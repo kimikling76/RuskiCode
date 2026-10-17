@@ -1,116 +1,203 @@
-/* Higgsfield-style tokens. Dark only. Import this first; use ONLY these variables. */
-@font-face { font-family: "Inter"; src: url("/fonts/inter-ui.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+/* Russian Code — design tokens. Direction «Графит».
+   This is the only file that defines colors, type, spacing, radii, shadows and motion.
+   Other stylesheets read these variables; they never redefine them. */
 
 :root {
   color-scheme: dark;
 
-  /* Color */
-  --canvas: #0F1113;          /* page background */
-  --panel: #18191C;           /* prompt box, raised panels, sidebar items hover */
-  --surface: #000000;         /* recessed areas only (video wells, footer) */
-  --tile: #2A2D32;            /* icon tiles */
-  --ink: #FFFFFF;             /* headings, primary text */
-  --body: #F7F7F8;            /* body copy */
-  --muted: #898A8B;           /* secondary text, inactive tabs */
-  --faint: #828282;           /* placeholders */
-  --accent: #D1FE17;          /* lime: primary CTA only */
-  --on-accent: #0B0B0C;       /* text/icons on lime. One value, everywhere. */
-  --accent-soft: rgba(209, 254, 23, 0.20);
-  --pink: #FF005B;            /* promo / discount only */
-  --pink-soft: rgba(255, 0, 91, 0.12);
+  /* ---------- Color: graphite surfaces ---------- */
+  --bg-0: #0B0C0E;              /* app background */
+  --bg-1: #111214;              /* sidebar, dialogs */
+  --bg-2: #17181B;              /* raised: composer, menus, bubbles */
+  --bg-3: #1E2023;              /* hover, inputs, selected rows */
+  --bg-4: #26282C;              /* tooltips, pressed */
+  --bg-recessed: #08090A;       /* media wells, code */
 
-  /* Borders: always translucent white, never solid light gray */
-  --line: rgba(255, 255, 255, 0.06);
+  --fg-1: #ECEDEF;              /* primary text */
+  --fg-2: #A4A7AC;              /* secondary text */
+  --fg-3: #808389;              /* tertiary text, ≥ 4.5:1 on --bg-1 */
+
+  --line: rgba(255, 255, 255, 0.07);
   --line-strong: rgba(255, 255, 255, 0.12);
-  --glass: rgba(255, 255, 255, 0.05);
-  --glass-hover: rgba(255, 255, 255, 0.09);
-  --glass-active: rgba(255, 255, 255, 0.13);
 
-  /* Type */
-  --font: "Inter", "Segoe UI", Roboto, sans-serif;
+  /* One accent: primary action, focus and selection. Nothing else. */
+  --accent: #C4EB5C;
+  --accent-hover: #D2F27A;
+  --accent-press: #ADD44A;
+  --accent-soft: rgba(196, 235, 92, 0.12);
+  --on-accent: #10140A;
 
-  /* Radius */
-  --r-sm: 6px;   /* badges */
-  --r-md: 8px;   /* small buttons, tabs, icon tiles, media thumbnails */
-  --r-lg: 10px;  /* standard buttons */
-  --r-xl: 12px;  /* large buttons, sidebar items */
-  --r-2xl: 20px; /* prompt box, panels */
-  --r-3xl: 24px; /* hero cards */
-  --r-full: 9999px;
+  /* Status: only for state, never decoration. */
+  --danger: #E0715E;
+  --danger-soft: rgba(224, 113, 94, 0.10);
+  --warning: #DDB05A;
+  --success: #79C493;
 
-  /* Spacing (8px base) */
+  /* Studio materials and tones (2px markers and icons only). */
+  --tone-chat: #A4A7AC;
+  --tone-pdf: #E6DCC8;
+  --tone-cinema: #B8C0C8;
+  --paper: #F4F1EA;
+  --stage: #070708;
+
+  /* ---------- Type ---------- */
+  --font-ui: var(--font-onest), system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: var(--font-geologica), var(--font-onest), system-ui, sans-serif;
+  --font-code: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --fs-11: 11px;
+  --fs-12: 12px;
+  --fs-13: 13px;
+  --fs-14: 14px;
+  --fs-15: 15px;
+  --fs-16: 16px;
+  --fs-18: 18px;
+  --fs-22: 22px;
+  --fs-28: 28px;
+  --fs-40: 40px;
+  --fs-56: 56px;
+
+  --lh-tight: 1.2;
+  --lh-ui: 1.45;
+  --lh-read: 1.65;
+  --measure: 68ch;              /* ≈ 70 letters per line in answers */
+
+  /* ---------- Space (4px base) ---------- */
+  --sp-0: 2px;
+  --sp-1: 4px;
+  --sp-2: 6px;
+  --sp-3: 8px;
+  --sp-4: 12px;
+  --sp-5: 16px;
+  --sp-6: 20px;
+  --sp-7: 24px;
+  --sp-8: 32px;
+  --sp-9: 40px;
+  --sp-10: 56px;
+  --sp-11: 80px;
+
+  /* ---------- Radii: inner < container ---------- */
+  --radius-4: 4px;              /* badges, kbd, inline code */
+  --radius-6: 6px;              /* menu items, controls inside the composer */
+  --radius-8: 8px;              /* buttons, inputs */
+  --radius-12: 12px;            /* menus, popovers, code blocks */
+  --radius-16: 16px;            /* composer, dialogs */
+  --radius-20: 20px;            /* mobile sheets */
+  --radius-full: 9999px;
+
+  /* ---------- Control heights ---------- */
+  --control-28: 28px;
+  --control-32: 32px;
+  --control-36: 36px;
+  --control-44: 44px;           /* touch minimum */
+
+  /* ---------- Depth ---------- */
+  --shadow-raise: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --shadow-pop: 0 12px 32px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px var(--line);
+  --shadow-composer: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 -8px 24px -16px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.35);
+  --ambient-light: radial-gradient(1200px 600px at 0% 0%, rgba(255, 255, 255, 0.035), transparent 60%);
+  --focus-ring: 0 0 0 2px var(--bg-0), 0 0 0 4px var(--accent);
+
+  /* ---------- Motion ---------- */
+  --dur-fast: 120ms;            /* hover, press */
+  --dur-base: 180ms;            /* popover, tooltip */
+  --dur-slow: 240ms;            /* dialog, sheet */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+
+  /* ---------- Legacy names (landing, login, editor). Aliases only. ---------- */
+  --canvas: var(--bg-0);
+  --panel: var(--bg-2);
+  --surface: var(--bg-recessed);
+  --tile: var(--bg-3);
+  --ink: var(--fg-1);
+  --body: var(--fg-1);
+  --muted: var(--fg-2);
+  --faint: var(--fg-3);
+  --pink: var(--fg-1);
+  --pink-soft: rgba(255, 255, 255, 0.05);
+  --glass: rgba(255, 255, 255, 0.04);
+  --glass-hover: rgba(255, 255, 255, 0.07);
+  --glass-active: rgba(255, 255, 255, 0.10);
+  --font: var(--font-ui);
+  --r-sm: var(--radius-6);
+  --r-md: var(--radius-8);
+  --r-lg: var(--radius-8);
+  --r-xl: var(--radius-12);
+  --r-2xl: var(--radius-16);
+  --r-3xl: var(--radius-20);
+  --r-full: var(--radius-full);
   --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
   --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px; --s-12: 48px;
-  --section-y: 112px;   /* landing-page section spacing (the app uses 48px; a website needs more) */
+  --section-y: 112px;
   --max: 1280px;
-
-  /* Elevation: inset light + tiny ambient. No big drop shadows. */
-  --inset: inset 0 2px 3px rgba(255, 255, 255, 0.05);
-  --ambient: 0 2px 4px -0.5px rgba(0, 0, 0, 0.12);
-  --glow: 0 0 8px rgba(209, 254, 23, 0.55);
-  --focus: 0 0 0 2px var(--canvas), 0 0 0 4px var(--accent);
-
-  /* Gradients (use these names only) */
-  --grad-fade-bottom: linear-gradient(rgba(15,17,19,0) 0%, rgba(15,17,19,.65) 50%, #131416 78%);
-  --grad-sheen: linear-gradient(rgba(255,255,255,.12) 0%, rgba(255,255,255,.03) 40%, rgba(255,255,255,0) 72%);
-  --grad-floor-glow: radial-gradient(80% 40% at 50% 100%, rgba(255,255,255,.08) 0%, rgba(255,255,255,0) 100%);
-  --grad-hero-pink: linear-gradient(to top, rgba(255,0,91,.10) 0%, rgba(255,0,91,0) 100%);
-
-  --ease: 200ms cubic-bezier(.2, .6, .2, 1);
+  --inset: var(--shadow-raise);
+  --ambient: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --glow: none;
+  --focus: var(--focus-ring);
+  --ease: var(--dur-base) var(--ease-out);
+  --grad-fade-bottom: linear-gradient(rgba(11, 12, 14, 0) 0%, rgba(11, 12, 14, 0.65) 50%, #0B0C0E 78%);
+  --grad-sheen: linear-gradient(rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 40%, rgba(255, 255, 255, 0) 72%);
+  --grad-floor-glow: radial-gradient(80% 40% at 50% 100%, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 100%);
+  --grad-hero-pink: linear-gradient(transparent, transparent);
 }
 
-html { background: var(--canvas); color: var(--body); font-family: var(--font); -webkit-font-smoothing: antialiased; }
+/* Legacy names used inside the workspace by tools not yet redesigned. */
+.rc-app,
+.rc-layer {
+  --bg: var(--bg-0);
+  --bg-sidebar: var(--bg-1);
+  --surface: var(--bg-2);
+  --surface-hover: var(--bg-3);
+  --border: var(--line-strong);
+  --text: var(--fg-1);
+  --text-muted: var(--fg-2);
+  --accent-ink: var(--on-accent);
+  --radius-sm: var(--radius-6);
+  --radius-md: var(--radius-8);
+  --radius-card: var(--radius-12);
+  --radius-lg: var(--radius-16);
+  --chat-font-12: 12px;
+  --chat-font-14: 14px;
+  --chat-font-16: 16px;
+  --chat-control: var(--control-36);
+  --chat-control-radius: var(--radius-8);
+  --chat-border: 1px solid var(--line);
+  --chat-fast: var(--dur-fast);
+  --chat-ease: var(--ease-out);
+  --workspace-focus: rgba(196, 235, 92, 0.4);
+  --workspace-ring: var(--accent-soft);
+}
+
+html {
+  background: var(--bg-0);
+  color: var(--fg-1);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
 body { margin: 0; font-size: 16px; line-height: 1.5; font-weight: 400; }
-h1, h2, h3 { color: var(--ink); margin: 0; font-weight: 600; }
-.h-hero    { font-size: clamp(32px, 5vw, 64px); line-height: 1.13; letter-spacing: -1.2px; font-weight: 700; text-transform: uppercase; }
-.h-section { font-size: clamp(28px, 3.4vw, 48px); line-height: 1.17; letter-spacing: -1.2px; font-weight: 600; }
-.h-card    { font-size: 24px; line-height: 1.25; font-weight: 600; }
+h1, h2, h3 { color: var(--fg-1); margin: 0; font-weight: 600; }
+:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+::selection { background: rgba(196, 235, 92, 0.28); color: var(--fg-1); }
+
+/* ---------- Classes used by the tools not yet redesigned (src/components/ui/button.tsx, project-workspace) ---------- */
 .text-sm   { font-size: 14px; line-height: 1.5; }
-.text-xs   { font-size: 12px; line-height: 1.4; color: var(--muted); }
-:focus-visible { outline: none; box-shadow: var(--focus); }
+.text-xs   { font-size: 12px; line-height: 1.4; color: var(--fg-2); }
 
-/* ---------- Buttons ---------- */
 .btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2);
-  height: 40px; padding: 0 var(--s-4); border-radius: var(--r-lg);
-  font: 600 14px/1 var(--font); cursor: pointer; border: 1px solid transparent;
-  transition: background var(--ease), transform var(--ease), box-shadow var(--ease), opacity var(--ease);
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-3);
+  height: var(--control-36); padding: 0 var(--sp-5); border-radius: var(--radius-8);
+  font: 500 14px/1 var(--font-ui); cursor: pointer; border: 1px solid transparent;
+  transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out);
 }
-.btn:active { transform: translateY(1px) scale(.98); }
-.btn[disabled] { opacity: .5; cursor: not-allowed; }
-
-/* 1) PRIMARY: the ONE lime action per section */
-.btn-primary { background: var(--accent); color: var(--on-accent); padding: 0 18px; }
-.btn-primary:hover { box-shadow: var(--glow); filter: brightness(1.05); }
-
-/* 2) SECONDARY: glass */
-.btn-secondary { background: var(--glass); color: var(--ink); border-color: var(--line-strong); box-shadow: var(--ambient), var(--inset); }
-.btn-secondary:hover { background: var(--glass-hover); }
-
-/* 3) TERTIARY: text/ghost */
-.btn-ghost { background: transparent; color: var(--muted); height: 36px; padding: 0 var(--s-3); border-radius: var(--r-xl); font-weight: 500; }
-.btn-ghost:hover { color: var(--ink); background: var(--glass); }
-
-.btn-sm { height: 32px; padding: 0 var(--s-3); border-radius: var(--r-md); font-size: 13px; font-weight: 500; }
-.btn-xl { height: 52px; padding: 0 var(--s-6); border-radius: var(--r-xl); font-size: 18px; }
-.btn-icon { width: 40px; padding: 0; }
-
-/* ---------- Surfaces ---------- */
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-2xl); box-shadow: var(--inset); }
-.badge { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: var(--r-sm); font: 600 11px/1 var(--font); }
-.badge-accent { background: var(--accent-soft); color: var(--accent); }
-.badge-pink { background: var(--pink); color: var(--ink); border-radius: var(--r-full); }
-.icon-tile { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--r-md); background: var(--tile); border: 1px solid var(--line-strong); }
-
-/* ---------- Tabs / chips ---------- */
-.tab { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 var(--s-3); border-radius: var(--r-md); color: var(--muted); font: 500 13px/1 var(--font); border: 0; background: transparent; cursor: pointer; transition: background var(--ease), color var(--ease); }
-.tab:hover { color: var(--ink); }
-.tab[aria-selected="true"] { background: var(--glass-active); color: var(--ink); }
-
-/* ---------- Media card (grid item) ---------- */
-.media-card { display: grid; gap: var(--s-3); }
-.media-card__thumb { aspect-ratio: 16 / 9; border-radius: var(--r-md); overflow: hidden; background: var(--surface); border: 1px solid var(--line); }
-.media-card__thumb img, .media-card__thumb video { width: 100%; height: 100%; object-fit: cover; transition: transform var(--ease); }
-.media-card:hover .media-card__thumb img { transform: scale(1.03); }
-.media-card__meta { display: flex; align-items: center; gap: var(--s-3); font: 500 14px/1.2 var(--font); color: var(--ink); }
-.media-card__meta .type { margin-left: auto; color: var(--muted); font-weight: 400; }
+.btn[disabled] { opacity: .45; cursor: not-allowed; }
+.btn-primary { background: var(--accent); color: var(--on-accent); }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:active { background: var(--accent-press); }
+.btn-secondary { background: var(--bg-3); color: var(--fg-1); border-color: var(--line-strong); box-shadow: var(--shadow-raise); }
+.btn-secondary:hover { background: var(--bg-4); }
+.btn-ghost { background: transparent; color: var(--fg-2); height: var(--control-32); padding: 0 var(--sp-4); }
+.btn-ghost:hover { color: var(--fg-1); background: var(--bg-3); }
+.btn-sm { height: var(--control-32); padding: 0 var(--sp-4); font-size: 13px; }

@@ -7,7 +7,9 @@ const blockSchema=z.discriminatedUnion('type',[
  z.object({type:z.literal('exercise'),id:z.string().min(1).max(100),instruction:text,items:z.array(text).min(1).max(30),audioId:z.string().max(30).optional()}).strict(),
  z.object({type:z.literal('image'),id:z.string().min(1).max(100),prompt:text,alt:text,assetId:z.string().max(200).optional()}).strict(),
  z.object({type:z.literal('callout'),id:z.string().min(1).max(100),text}).strict(),
- z.object({type:z.literal('table'),id:z.string().min(1).max(100),headers:z.array(text).min(1).max(6),rows:z.array(z.array(text).min(1).max(6)).min(1).max(30)}).strict()
+ z.object({type:z.literal('table'),id:z.string().min(1).max(100),headers:z.array(text).min(1).max(6),rows:z.array(z.array(text).min(1).max(6)).min(1).max(30)}).strict(),
+ // Handwriting practice (прописи): a model line of letters or words and ruled lines to copy it.
+ z.object({type:z.literal('writing'),id:z.string().min(1).max(100),text:z.string().min(1).max(200),lines:z.number().int().min(1).max(10)}).strict()
 ]);
 export const outputSchemas={
  outline:z.object({title:text,chapters:z.array(z.object({id:z.string().min(1).max(100),title:text,objective:text,sections:z.array(text).min(1).max(30),estimatedPages:z.number().int().min(1).max(100)}).strict()).min(1).max(100),questions:z.array(text).max(10)}).strict(),

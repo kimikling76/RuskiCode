@@ -1,15 +1,35 @@
-import {googleConfig} from '@/lib/auth/google';
 import Link from 'next/link';
 import {headers} from 'next/headers';
 import {redirect} from 'next/navigation';
+import {googleConfig} from '@/lib/auth/google';
 import {studioSession} from '@/lib/auth/server';
 import {database} from '@/lib/pipeline/database';
-import {LoginForm} from '@/components/login-form';
-export const dynamic='force-dynamic';
-export default async function LoginPage({searchParams}:{searchParams:Promise<{error?:string}>}){
- const oauthError=Boolean((await searchParams).error);
- if(await studioSession(await headers()))redirect('/workspace');
- let setup=false;let unavailable=!process.env.BETTER_AUTH_SECRET;
- if(!unavailable)try{setup=await database().user.count()===0;}catch{unavailable=true;}
- return <main className="grid min-h-screen place-items-center px-5 py-12 dot-grid"><section className="w-full max-w-md rounded-3xl border border-border bg-surface p-7 shadow-2xl sm:p-9"><Link href="/" className="text-xl font-bold tracking-tight">ruski<span className="text-accent">code</span></Link><p className="mt-9 text-xs tracking-[.22em] text-accent">ESTUDIO PRIVADO</p><h1 className="mt-3 text-3xl font-semibold tracking-tight">{setup?'Su espacio compartido.':'Volvé a crear.'}</h1><p className="mt-3 text-sm leading-6 text-muted">{setup?'Activá la única cuenta del estudio. Tu compañero y vos podrán usarla desde sus computadoras.':'Ingresá con la cuenta del equipo.'}</p><LoginForm oauthError={oauthError} setup={setup} unavailable={unavailable} googleEnabled={Boolean(googleConfig())}/></section></main>;
+import {LoginForm} from '@/components/site/login-form';
+import {BrandMark, Wordmark} from '@/components/studio/brand';
+
+export const dynamic = 'force-dynamic';
+export const metadata = {title: 'Entrar · Russian Code'};
+
+export default async function LoginPage({searchParams}: {searchParams: Promise<{error?: string}>}) {
+  const oauthError = Boolean((await searchParams).error);
+  if (await studioSession(await headers())) redirect('/workspace');
+  let setup = false;
+  let unavailable = !process.env.BETTER_AUTH_SECRET;
+  if (!unavailable) {
+    try { setup = await database().user.count() === 0; } catch { unavailable = true; }
+  }
+  return (
+    <div className="rc-site rc-login">
+      <BrandMark size={560} className="rc-login-glyph" />
+      <main className="rc-login-card">
+        <Link href="/" aria-label="Russian Code, volver a la portada" className="rc-site-brand"><Wordmark /></Link>
+        <h1>{setup ? 'Activá la cuenta del estudio' : 'Entrar al estudio'}</h1>
+        <p className="rc-login-lead">
+          {setup ? 'Es una sola cuenta compartida. Tu compañero y vos van a entrar con estos mismos datos.' : 'Con la cuenta compartida del equipo.'}
+        </p>
+        <LoginForm oauthError={oauthError} setup={setup} unavailable={unavailable} googleEnabled={Boolean(googleConfig())} />
+      </main>
+      <p className="rc-login-foot"><Link href="/">Volver a la portada</Link></p>
+    </div>
+  );
 }

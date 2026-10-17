@@ -1,0 +1,241 @@
+/* Russian Code — public pages: landing, login, not found and errors.
+   Same graphite and lime as the studio. The only extras allowed here (and in the empty chat):
+   the Ж glyph as a very faint texture and a 2% grain. */
+
+.rc-site {
+  position: relative;
+  min-height: 100dvh;
+  background: var(--bg-0);
+  color: var(--fg-1);
+  font-size: var(--fs-15);
+  line-height: var(--lh-ui);
+  overflow-x: clip;
+}
+.rc-site::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: var(--ambient-light);
+}
+/* Grain: an SVG noise tile at 2% so large flat areas don't band. */
+.rc-site::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.02;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.rc-site > :where(:not(.rc-skip-link)) { position: relative; z-index: 1; }
+:where(.rc-site) :where(a) { color: inherit; }
+.rc-site main { outline: none; }
+.rc-site h1,
+.rc-site h2,
+.rc-site h3 { margin: 0; font-family: var(--font-display); font-weight: 500; font-variation-settings: 'SHRP' 40; color: var(--fg-1); }
+
+.rc-site-brand { display: inline-flex; text-decoration: none; border-radius: var(--radius-8); }
+.rc-site .rc-wordmark { gap: 10px; }
+
+/* ---------- Navigation ---------- */
+.rc-site-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-5);
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: calc(var(--sp-6) + env(safe-area-inset-top)) max(var(--sp-8), env(safe-area-inset-right)) var(--sp-6) max(var(--sp-8), env(safe-area-inset-left));
+}
+.rc-site-links { display: flex; align-items: center; gap: var(--sp-2); }
+
+/* ---------- Hero ---------- */
+.rc-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  align-items: center;
+  gap: var(--sp-10);
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--sp-10) max(var(--sp-8), env(safe-area-inset-right)) var(--sp-11) max(var(--sp-8), env(safe-area-inset-left));
+}
+.rc-hero-text { max-width: 600px; }
+.rc-hero h1 {
+  font-size: clamp(36px, 4.6vw, 60px);
+  line-height: 1.06;
+  letter-spacing: -0.025em;
+  font-variation-settings: 'SHRP' 60;
+  text-wrap: balance;
+}
+.rc-hero-lead { max-width: 52ch; margin: var(--sp-6) 0 0; font-size: var(--fs-18); line-height: 1.6; color: var(--fg-2); }
+.rc-hero-lead + .rc-hero-lead { margin-top: var(--sp-4); }
+.rc-hero-actions { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin: var(--sp-9) 0 var(--sp-5); }
+
+.rc-hero-desk { position: relative; display: grid; justify-items: center; gap: var(--sp-5); margin: 0; }
+.rc-hero-glyph {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 150%;
+  height: auto;
+  transform: translate(-50%, -54%);
+  color: var(--fg-1);
+  opacity: 0.035;
+  pointer-events: none;
+}
+/* The glyph's cursor stroke is accent in the brand; as a texture it stays neutral. */
+.rc-hero-glyph path:last-child,
+.rc-login-glyph path:last-child { stroke: currentColor; }
+.rc-hero-page {
+  position: relative;
+  width: min(100%, 420px);
+  aspect-ratio: 786 / 1111;
+  border-radius: 2px;
+  background: var(--paper);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04), 0 30px 60px -24px rgba(0, 0, 0, 0.8), 0 12px 24px -12px rgba(0, 0, 0, 0.5);
+}
+.rc-hero-page img { display: block; width: 100%; height: 100%; border-radius: 2px; }
+/* The selection outline the editor draws, placed on the exercise block of this page. */
+.rc-hero-block {
+  position: absolute;
+  left: 5.6%;
+  top: 22%;
+  width: 88.8%;
+  height: 16.6%;
+  border: 2px solid #6E8F1F;
+  border-radius: 3px;
+}
+.rc-hero-block span {
+  position: absolute;
+  left: -2px;
+  bottom: 100%;
+  padding: 1px 6px 2px;
+  border-radius: 3px 3px 0 0;
+  background: #6E8F1F;
+  color: #FFFFFF;
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.rc-hero-desk figcaption { max-width: 420px; font-size: var(--fs-13); line-height: 1.5; color: var(--fg-3); text-align: center; text-wrap: balance; }
+
+/* ---------- Sections ---------- */
+.rc-site-section {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--sp-10) max(var(--sp-8), env(safe-area-inset-right)) var(--sp-10) max(var(--sp-8), env(safe-area-inset-left));
+}
+.rc-site-section h2 { font-size: var(--fs-28); line-height: var(--lh-tight); letter-spacing: -0.015em; }
+
+.rc-studio-list { list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-8); margin: var(--sp-8) 0 0; padding: 0; }
+.rc-studio-list li { padding-top: var(--sp-5); border-top: 2px solid var(--tone); }
+.rc-studio-list li[data-studio='chat'] { --tone: var(--tone-chat); }
+.rc-studio-list li[data-studio='pdf'] { --tone: var(--tone-pdf); }
+.rc-studio-list li[data-studio='cinema'] { --tone: var(--tone-cinema); }
+.rc-studio-list h3 { font-size: var(--fs-18); line-height: var(--lh-tight); }
+.rc-studio-list p { margin: var(--sp-3) 0 0; font-size: var(--fs-15); line-height: 1.6; color: var(--fg-2); }
+.rc-studio-list .rc-studio-list-next { font-size: var(--fs-14); color: var(--fg-3); }
+.rc-studio-list-next span { color: var(--fg-2); }
+
+.rc-site-costs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: var(--sp-10); border-top: 1px solid var(--line); padding-top: var(--sp-10); }
+.rc-site-prose { max-width: 60ch; }
+.rc-site-prose p { margin: 0 0 var(--sp-4); font-size: var(--fs-16); line-height: var(--lh-read); color: var(--fg-2); }
+.rc-site-link { display: inline-flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-2); font-size: var(--fs-14); font-weight: 500; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; border-radius: var(--radius-4); }
+.rc-site-link:hover { text-decoration-color: var(--fg-2); }
+.rc-site-link svg { width: 14px; height: 14px; }
+
+.rc-site-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sp-5);
+  max-width: 1200px;
+  margin: var(--sp-10) auto 0;
+  padding: var(--sp-8) max(var(--sp-8), env(safe-area-inset-right)) calc(var(--sp-8) + env(safe-area-inset-bottom)) max(var(--sp-8), env(safe-area-inset-left));
+  border-top: 1px solid var(--line);
+}
+.rc-site-foot-links { display: flex; gap: var(--sp-6); font-size: var(--fs-14); }
+.rc-site-foot-links a { color: var(--fg-2); text-decoration: none; border-radius: var(--radius-4); }
+.rc-site-foot-links a:hover { color: var(--fg-1); }
+
+/* ---------- Login ---------- */
+.rc-login {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: var(--sp-6);
+  padding: calc(var(--sp-8) + env(safe-area-inset-top)) var(--sp-5) calc(var(--sp-8) + env(safe-area-inset-bottom));
+}
+.rc-login-glyph {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(120vw, 900px);
+  height: auto;
+  transform: translate(-50%, -50%);
+  color: var(--fg-1);
+  opacity: 0.025;
+  pointer-events: none;
+  z-index: 0;
+}
+.rc-login-card {
+  width: min(100%, 400px);
+  padding: var(--sp-8);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-16);
+  background: var(--bg-1);
+  box-shadow: var(--shadow-raise), 0 24px 48px -24px rgba(0, 0, 0, 0.7);
+}
+.rc-login-card h1 { margin-top: var(--sp-8); font-size: var(--fs-22); line-height: var(--lh-tight); letter-spacing: -0.01em; }
+.rc-login-lead { margin: var(--sp-2) 0 0; font-size: var(--fs-14); line-height: 1.5; color: var(--fg-2); }
+.rc-login-form { display: grid; gap: var(--sp-5); margin-top: var(--sp-7); }
+.rc-login-fields { display: grid; gap: var(--sp-5); }
+.rc-login-submit { width: 100%; }
+.rc-login-center { text-align: center; margin-top: calc(var(--sp-3) * -1); }
+.rc-login-notice { margin: 0; padding: var(--sp-4); border: 1px solid var(--line-strong); border-radius: var(--radius-8); font-size: var(--fs-14); color: var(--fg-2); }
+.rc-login-more { border-top: 1px solid var(--line); padding-top: var(--sp-4); }
+.rc-login-more summary { display: inline-flex; align-items: center; min-height: var(--control-36); font-size: var(--fs-14); color: var(--fg-2); cursor: pointer; border-radius: var(--radius-6); list-style: none; }
+.rc-login-more summary::-webkit-details-marker { display: none; }
+.rc-login-more summary::before { content: ''; width: 6px; height: 6px; margin-right: 10px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); transition: transform var(--dur-fast) var(--ease-out); }
+.rc-login-more[open] summary::before { transform: rotate(45deg); }
+.rc-login-more summary:hover { color: var(--fg-1); }
+.rc-login-more[open] .rc-login-fields { margin-top: var(--sp-4); }
+.rc-login .rc-input { height: var(--control-44); font-size: var(--fs-15); }
+.rc-password { position: relative; }
+.rc-password .rc-input { padding-right: 48px; }
+.rc-password-toggle { position: absolute; top: 50%; right: 4px; width: var(--control-36); height: var(--control-36); transform: translateY(-50%); }
+.rc-login-foot { margin: 0; font-size: var(--fs-14); }
+.rc-login-foot a { color: var(--fg-2); text-decoration: none; border-radius: var(--radius-4); }
+.rc-login-foot a:hover { color: var(--fg-1); }
+
+/* ---------- Not found / error ---------- */
+.rc-status-page { display: grid; place-items: center; align-content: center; gap: var(--sp-6); padding: calc(var(--sp-8) + env(safe-area-inset-top)) var(--sp-5) calc(var(--sp-8) + env(safe-area-inset-bottom)); text-align: center; }
+.rc-status-body { display: grid; justify-items: center; gap: var(--sp-5); }
+.rc-status-page h1 { font-size: var(--fs-28); line-height: var(--lh-tight); letter-spacing: -0.015em; }
+.rc-status-page p { max-width: 46ch; margin: 0; color: var(--fg-2); }
+.rc-status-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-3); }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1023px) {
+  .rc-hero { grid-template-columns: minmax(0, 1fr); gap: var(--sp-10); padding-top: var(--sp-8); }
+  .rc-hero-text { max-width: 640px; }
+  .rc-hero-page { width: min(100%, 380px); }
+  .rc-studio-list { grid-template-columns: minmax(0, 1fr); gap: var(--sp-7); }
+  .rc-site-costs { grid-template-columns: minmax(0, 1fr); gap: var(--sp-6); }
+}
+@media (max-width: 640px) {
+  .rc-site-nav { padding: calc(var(--sp-4) + env(safe-area-inset-top)) var(--sp-5) var(--sp-4); }
+  .rc-hide-xs { display: none; }
+  .rc-hero,
+  .rc-site-section { padding-left: var(--sp-5); padding-right: var(--sp-5); }
+  .rc-hero { padding-top: var(--sp-6); padding-bottom: var(--sp-10); }
+  .rc-hero h1 { font-size: 34px; }
+  .rc-hero-lead { font-size: var(--fs-16); }
+  .rc-hero-actions { flex-direction: column; align-items: stretch; margin-top: var(--sp-8); }
+  .rc-hero-actions .rc-btn { width: 100%; }
+  .rc-hero-page { width: min(86%, 340px); }
+  .rc-site-section h2 { font-size: var(--fs-22); }
+  .rc-site-foot { padding-left: var(--sp-5); padding-right: var(--sp-5); }
+  .rc-login-card { padding: var(--sp-7) var(--sp-6); }
+}
