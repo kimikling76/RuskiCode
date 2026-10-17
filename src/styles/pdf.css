@@ -160,6 +160,33 @@ a.rc-project-row { text-decoration: none; color: inherit; }
 .rc-pdf-fit { margin: var(--sp-2) 0; }
 @media (prefers-reduced-motion: reduce) { .rc-import-bar span { transition: none; } }
 
+/* Choice when importing a PDF: edit as it is, or convert into blocks. */
+.rc-import-choice { display: grid; gap: var(--sp-3); }
+.rc-import-option { display: flex; align-items: flex-start; gap: var(--sp-4); width: 100%; padding: var(--sp-5); border: 1px solid var(--line); border-radius: var(--radius-12); background: var(--bg-1); color: var(--fg-1); text-align: left; cursor: pointer; transition: border-color 0.15s ease, background-color 0.15s ease; }
+.rc-import-option:hover { border-color: var(--line-strong); background: var(--bg-2); }
+.rc-import-option:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.rc-import-option:disabled { opacity: 0.6; cursor: progress; }
+.rc-import-option > svg { flex: none; width: 20px; height: 20px; margin-top: 2px; color: var(--fg-2); }
+.rc-import-option > span { display: grid; gap: var(--sp-2); }
+.rc-import-option strong { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); font-size: var(--fs-14); font-weight: 500; }
+.rc-import-tag { padding: 1px 6px; border: 1px solid var(--line-strong); border-radius: var(--radius-4); font: 400 11px/1.4 var(--font-code); color: var(--fg-2); }
+.rc-project-name > svg { width: 14px; height: 14px; margin-right: var(--sp-2); vertical-align: -2px; color: var(--fg-3); }
+
+/* ---------- PDF original (Nutrient) ---------- */
+.rc-original { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+.rc-original-trial { display: flex; align-items: flex-start; gap: var(--sp-3); margin: 0; padding: var(--sp-3) var(--sp-6); border-bottom: 1px solid var(--line); background: var(--bg-1); font-size: var(--fs-13); line-height: 1.5; color: var(--fg-2); }
+.rc-original-trial svg { flex: none; width: 15px; height: 15px; margin-top: 2px; color: var(--warning); }
+.rc-original-trial strong { color: var(--fg-1); font-weight: 500; }
+.rc-original-error { display: grid; justify-items: start; gap: var(--sp-4); max-width: 560px; margin: var(--sp-8) auto; padding: 0 var(--sp-6); color: var(--fg-2); }
+/* Nutrient needs an explicit size before it loads. */
+.rc-original-viewer { position: relative; flex: 1; min-height: 0; width: 100%; }
+.rc-original-viewer:empty::before { content: ''; position: absolute; inset: 0; background: var(--bg-0); }
+@media (max-width: 767px) {
+  .rc-original-actions .rc-btn span { display: none; }
+  .rc-original-trial { padding: var(--sp-3) var(--sp-5); }
+}
+@media (prefers-reduced-motion: reduce) { .rc-import-option { transition: none; } }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 1279px) {
   .rc-pdf-layout { grid-template-columns: 132px minmax(0, 1fr) 312px; }

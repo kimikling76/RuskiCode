@@ -71,7 +71,7 @@ El archivo se convierte **en tu navegador**: no se sube a ningún servidor para 
   - El pie de imagen ahora puede quedar vacío; entonces no se imprime.
 - **pdf.js en el navegador:**
   - Se usa su versión «legacy», porque la moderna necesita JavaScript que muchos navegadores todavía no tienen (`Map.getOrInsertComputed`).
-  - `scripts/copy-pdfjs-assets.mjs` copia el worker y sus datos a `public/vendor/pdfjs` al instalar y al compilar. La copia no se guarda en git.
+  - `scripts/copy-vendor-assets.mjs` copia el worker y sus datos a `public/vendor/pdfjs` al instalar y al compilar. La copia no se guarda en git.
 - **Dependencia nueva:** `mammoth` 1.13 (licencia BSD-2).
   - Es el convertidor de `.docx` más usado.
   - Corre en el navegador y se carga solo al importar un Word.

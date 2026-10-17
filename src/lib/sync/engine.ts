@@ -120,7 +120,8 @@ async function process(meta: Meta, items: RemoteItem[]) {
       const m = meta.items[ref(kind, item.key)];
       // This computer's own write coming back: nothing to do, never a reason to hold an open record.
       if (m && item.version <= m.v) continue;
-      if (c.busy?.(item.key)) {
+      // A record open here waits, but only when this computer has a copy to protect: a first arrival is applied.
+      if (c.busy?.(item.key) && local.has(item.key)) {
         const here = local.get(item.key);
         const same = here !== undefined && !item.deleted && tokenFor(c, here) === (c.token ? c.token(item.data) : tokenOf(item.data));
         if (!same) { held.set(ref(kind, item.key), item); continue; }

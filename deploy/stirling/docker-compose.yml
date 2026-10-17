@@ -1,0 +1,25 @@
+# Optional: Stirling PDF on your own server, instead of Stirling Cloud. NOT needed to use PDF Studio:
+# with Stirling Cloud only STIRLING_API_KEY is set in Vercel. Nothing here is contracted or started by itself.
+#
+# Needs a machine with Docker and about 4 GB of memory (Vercel cannot run it), and HTTPS in front of it
+# (a reverse proxy), because PDF Studio only talks to Stirling over https.
+# Docs: https://docs.stirlingpdf.com/Server/Install/Docker/
+services:
+  stirling-pdf:
+    # Pinned: upgrade on purpose, after reading the release notes.
+    image: docker.stirlingpdf.com/stirlingtools/stirling-pdf:3.2.0
+    ports: ['8080:8080']
+    environment:
+      SECURITY_ENABLELOGIN: 'true'
+      # The same value as STIRLING_API_KEY in Vercel. Set it in a .env file next to this one, never in git.
+      SECURITY_CUSTOMGLOBALAPIKEY: ${STIRLING_API_KEY:?set STIRLING_API_KEY}
+      SYSTEM_DEFAULTLOCALE: es-ES
+    volumes:
+      - ./stirling-data/configs:/configs
+      - ./stirling-data/logs:/logs
+      - ./stirling-data/storage:/storage
+      # Russian OCR: put rus.traineddata here (from github.com/tesseract-ocr/tessdata_fast). Not in the image by default.
+      - ./tessdata:/usr/share/tessdata
+    mem_limit: 4g
+    restart: unless-stopped
+# First sign-in is admin / stirling: change that password at once.

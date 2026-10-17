@@ -123,7 +123,7 @@ export function push(userId: string, device: string, changes: z.infer<typeof cha
   });
 }
 
-export const assetMimes = ['image/png', 'image/jpeg', 'image/webp'] as const;
+export const assetMimes = ['image/png', 'image/jpeg', 'image/webp', 'application/pdf'] as const;
 export const MAX_ASSET_BYTES = 4_000_000;
 
 export function putAsset(userId: string, hash: string, mime: string, bytes: Uint8Array) {

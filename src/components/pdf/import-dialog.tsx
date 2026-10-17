@@ -1,14 +1,15 @@
 'use client';
 import {useEffect, useMemo, useRef, useState} from 'react';
-import {AlertTriangle, FileText} from 'lucide-react';
+import {AlertTriangle, Blocks, FilePen, FileText} from 'lucide-react';
 import type {BookSpec} from '@/lib/books/spec';
 import type {EditableBook} from '@/lib/books/editable';
 import {buildBook, suggestions, type ImportedDoc} from '@/lib/books/import/model';
-import {readImport, ImportError, type ImportProgress} from '@/lib/books/import/browser';
+import {readImport, kindOf, ImportError, type ImportProgress} from '@/lib/books/import/browser';
 import {Dialog} from '@/components/ui/dialog';
 import {Segmented} from '@/components/cinema/controls';
 
 type State =
+  | {phase: 'choose'}
   | {phase: 'reading'; progress: ImportProgress}
   | {phase: 'ready'; doc: ImportedDoc}
   | {phase: 'error'; message: string};
@@ -20,8 +21,13 @@ const count = (n: number, one: string, many: string) => n + ' ' + (n === 1 ? one
  * Reads a PDF, Word, HTML or text file in this browser and shows what will become of it before
  * creating the book: chapters, tables, images and anything that could not be kept.
  */
-export function ImportDialog({file, onClose, onCreate}: {file: File | null; onClose: () => void; onCreate: (book: EditableBook) => Promise<void>}) {
-  const [state, setState] = useState<State>({phase: 'reading', progress: {stage: 'loading'}});
+const fileKind = (file: File | null) => { try { return file ? kindOf(file) : null; } catch { return null; } };
+
+export function ImportDialog({file, onClose, onCreate, onEditOriginal, onWordToPdf}: {file: File | null; onClose: () => void; onCreate: (book: EditableBook) => Promise<void>; onEditOriginal?: (file: File) => Promise<void>; onWordToPdf?: (file: File) => Promise<void>}) {
+  // A PDF can be edited as it is or converted into blocks; a Word file can become a PDF (Stirling) or blocks.
+  const kind = fileKind(file);
+  const [mode, setMode] = useState<'choose' | 'convert'>(() => (kind === 'pdf' && onEditOriginal) || (kind === 'docx' && onWordToPdf) ? 'choose' : 'convert');
+  const [state, setState] = useState<State>(mode === 'choose' ? {phase: 'choose'} : {phase: 'reading', progress: {stage: 'loading'}});
   const [title, setTitle] = useState('');
   const [language, setLanguage] = useState<BookSpec['language']>('ru');
   const [format, setFormat] = useState<BookSpec['pageFormat']>('A4');
@@ -29,7 +35,7 @@ export function ImportDialog({file, onClose, onCreate}: {file: File | null; onCl
   const abort = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (!file) return;
+    if (!file || mode !== 'convert') return;
     const controller = new AbortController();
     abort.current = controller;
     setState({phase: 'reading', progress: {stage: 'loading'}});
@@ -46,7 +52,7 @@ export function ImportDialog({file, onClose, onCreate}: {file: File | null; onCl
         setState({phase: 'error', message: e instanceof ImportError ? e.message : 'No se pudo leer el archivo. Probá de nuevo o guardalo como PDF o .docx.'});
       });
     return () => controller.abort();
-  }, [file]);
+  }, [file, mode]);
 
   const preview = useMemo(() => {
     if (state.phase !== 'ready') return null;
@@ -56,6 +62,13 @@ export function ImportDialog({file, onClose, onCreate}: {file: File | null; onCl
   function close() {
     abort.current?.abort();
     onClose();
+  }
+
+  async function editOriginal() {
+    const action = kind === 'docx' ? onWordToPdf : onEditOriginal;
+    if (!file || !action || busy) return;
+    setBusy(true);
+    try { await action(file); } finally { setBusy(false); }
   }
 
   async function create() {
@@ -72,11 +85,41 @@ export function ImportDialog({file, onClose, onCreate}: {file: File | null; onCl
       open={Boolean(file)}
       onClose={close}
       title={file ? 'Importar «' + file.name + '»' : 'Importar'}
-      description="Se convierte en un libro editable: después lo exportás otra vez como PDF con «Exportar PDF»."
+      description={mode === 'choose' ? (kind === 'docx' ? 'Elegí cómo trabajarlo.' : 'Elegí cómo trabajarlo. Se abre en este navegador y no lo lee ninguna IA.') : 'Se convierte en un libro editable: después lo exportás otra vez como PDF con «Exportar PDF».'}
       wide
     >
       <div className="rc-dialog-body rc-import">
-        {state.phase === 'reading' ? (
+        {state.phase === 'choose' ? (
+          <div className="rc-import-choice" role="group" aria-label={kind === 'docx' ? 'Cómo querés trabajar este Word' : 'Cómo querés editar este PDF'}>
+            {kind === 'docx' ? (
+              <button type="button" className="rc-import-option" disabled={busy} onClick={() => void editOriginal()}>
+                <FilePen aria-hidden="true" />
+                <span>
+                  <strong>{busy ? 'Convirtiendo con Stirling…' : 'Convertir a PDF y editarlo tal cual'}</strong>
+                  <span className="rc-hint">Stirling PDF lo convierte con LibreOffice en su servidor (puede verse un poco distinto que en Word) y se abre como PDF importado. Usa al menos 1 crédito de Stirling. Máximo 4 MB.</span>
+                </span>
+              </button>
+            ) : (
+              <button type="button" className="rc-import-option" disabled={busy} onClick={() => void editOriginal()}>
+                <FilePen aria-hidden="true" />
+                <span>
+                  <strong>Editar el PDF tal cual <span className="rc-import-tag">Recomendado</span></strong>
+                  <span className="rc-hint">Se abre el PDF original, sin cambiar nada. Ordenás, rotás, insertás o borrás páginas, agregás notas y reemplazás texto con Stirling PDF; cada cambio queda como versión. El texto también se puede editar en su lugar con Nutrient.</span>
+                </span>
+              </button>
+            )}
+            <button type="button" className="rc-import-option" disabled={busy} onClick={() => setMode('convert')}>
+              <Blocks aria-hidden="true" />
+              <span>
+                <strong>Convertir en libro editable</strong>
+                <span className="rc-hint">Pasa el contenido a bloques del estudio (títulos, párrafos, listas y tablas) para reorganizarlo. El diseño original no se conserva.</span>
+              </span>
+            </button>
+            <div className="rc-dialog-footer rc-dialog-footer--end">
+              <button type="button" className="rc-btn rc-btn--ghost" onClick={close}>Cancelar</button>
+            </div>
+          </div>
+        ) : state.phase === 'reading' ? (
           <div className="rc-import-reading" role="status" aria-live="polite">
             <p>{progress?.stage === 'reading' && progress.total ? 'Leyendo la página ' + progress.page + ' de ' + progress.total + '…' : 'Abriendo el archivo…'}</p>
             <div className="rc-import-bar" role="progressbar" aria-label="Avance de la lectura" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent ?? undefined}>

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "nutrient-ai-assistant": {
+      "source": "pspdfkit-labs/nutrient-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/nutrient-sdk-dev/skills/nutrient-ai-assistant/SKILL.md",
+      "computedHash": "ddf3db1361893a9c150a28e01cf99336a8f3233cb9d68082d2c0d79ff3f3225f"
+    },
+    "shadcn": {
+      "source": "shadcn-ui/ui",
+      "sourceType": "github",
+      "skillPath": "skills/shadcn/SKILL.md",
+      "computedHash": "b864a958765563321f485a96f4d59c0bb6539f4286ab6d8b8b66895b7ebd302d"
+    }
+  }
+}

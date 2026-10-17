@@ -11,5 +11,9 @@ export const syncKinds = [
   'composer-book', // books made by the server composer, so the list follows the account
   'assistant',     // assistants with saved instructions
   'favorite',      // favorite models
+  'pdf-original',  // imported PDFs edited in place (the file as an asset, up to 4 MB)
+  'pdf-version',   // every saved version of an imported PDF (the file as an asset, up to 4 MB)
+  'book-version',  // saved versions of a PDF Studio book (images as assets)
+  'doc-chat',      // the «Crear con IA» chat and the assistant's history of one document
 ] as const;
 export type SyncKind = (typeof syncKinds)[number];

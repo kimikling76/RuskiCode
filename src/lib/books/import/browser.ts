@@ -110,7 +110,7 @@ const pdfPixels: PdfPixels = {
 
 async function readPdf(file: File, onProgress?: (page: number, total: number) => void, signal?: AbortSignal) {
   // The legacy build carries polyfills for very new JavaScript (Map.getOrInsertComputed) that many
-  // browsers still lack. The worker is copied from the same build by scripts/copy-pdfjs-assets.mjs.
+  // browsers still lack. The worker is copied from the same build by scripts/copy-vendor-assets.mjs.
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
   pdfjs.GlobalWorkerOptions.workerSrc = '/vendor/pdfjs/pdf.worker.min.mjs';
   const task = pdfjs.getDocument({

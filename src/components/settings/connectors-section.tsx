@@ -8,6 +8,7 @@ import {Group, Row, Status, timeFormat, type Health} from './parts';
 
 type Models = {authenticated: boolean; accessConfigured: boolean; models: {id: string; name: string; enabled: boolean}[]; kie?: PublicModel[]};
 type Composer = {workerOnline: boolean; configured: boolean; visualQAConfigured: boolean; workerRequiresStart: boolean; executor: 'bullmq' | 'inngest'};
+type Stirling = {configured: false} | {configured: true; cloud: boolean; reachable: boolean; version: string | null};
 
 async function getJson<T>(url: string): Promise<T> {
   const r = await fetch(url, {cache: 'no-store'});
@@ -22,8 +23,10 @@ const otherProviders = ['openai', 'anthropic', 'google', 'compatible'];
 export function ConnectorsSection() {
   const models = useQuery({queryKey: ['status-models'], queryFn: () => getJson<Models>('/api/models'), retry: false, staleTime: 0, refetchOnWindowFocus: false});
   const composer = useQuery({queryKey: ['status-composer'], queryFn: () => getJson<Composer>('/api/books'), retry: false, staleTime: 0, refetchOnWindowFocus: false});
-  const busy = models.isFetching || composer.isFetching;
-  const checked = Math.max(models.dataUpdatedAt, composer.dataUpdatedAt, models.errorUpdatedAt, composer.errorUpdatedAt);
+  // Stirling's public health check: no key is sent and no credit is used.
+  const stirling = useQuery({queryKey: ['status-stirling'], queryFn: () => getJson<Stirling>('/api/pdf/stirling'), retry: false, staleTime: 0, refetchOnWindowFocus: false});
+  const busy = models.isFetching || composer.isFetching || stirling.isFetching;
+  const checked = Math.max(models.dataUpdatedAt, composer.dataUpdatedAt, models.errorUpdatedAt, composer.errorUpdatedAt, stirling.dataUpdatedAt, stirling.errorUpdatedAt);
 
   const m = models.data;
   const kie = m?.models.filter(x => x.id.startsWith('kie-')) || [];
@@ -64,11 +67,22 @@ export function ConnectorsSection() {
       : ['error', 'Apagado', 'El worker de PDF no avisó que esté encendido. Hay que iniciarlo para componer en el servidor. El editor y «Exportar PDF» funcionan igual.'];
   }
 
+  function pdfTools(): [Health, string, string] {
+    if (stirling.isPending) return ['checking', 'Verificando…', ''];
+    if (stirling.error) return stirling.error.message === 'AUTH_REQUIRED' ? ['off', 'Sin sesión', 'Iniciá sesión para ver su estado.'] : ['error', 'No responde', 'El servidor del estudio no contestó.'];
+    const st = stirling.data!;
+    if (!st.configured) return ['off', 'Sin configurar', 'Falta la clave de Stirling PDF en el servidor (STIRLING_API_KEY). Sin ella, los PDF importados se ven y se descargan, pero sus herramientas de páginas no funcionan.'];
+    const where = st.cloud ? 'Stirling Cloud' : 'tu servidor de Stirling';
+    if (!st.reachable) return ['error', 'No responde', 'La clave está cargada, pero ' + where + ' no contestó.'];
+    return ['ok', 'Conectado', where + (st.version ? ' · versión ' + st.version : '') + '. Páginas, notas, reemplazo de texto, OCR y conversiones de los PDF importados. Cada archivo procesado usa créditos de Stirling.'];
+  }
+
   const rows: {name: string; state: [Health, string, string]}[] = [
     {name: 'Cuenta y base de datos', state: account()},
     {name: 'Kie.ai · texto', state: kieText()},
     {name: 'Kie.ai · imágenes', state: kieImages()},
     {name: 'Compositor de PDF en el servidor', state: pdf()},
+    {name: 'Stirling PDF · herramientas de PDF', state: pdfTools()},
     {name: 'Video', state: ['off', 'Sin conectar', 'Todavía no hay un modelo de video elegido.']},
   ];
 
