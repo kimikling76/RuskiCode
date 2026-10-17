@@ -9,7 +9,7 @@ import {AssistantMenu, AssistantPreview, AssistantChip, preferredModel} from './
 import {usePersonal, type PersonalMessage, type StudioProject} from '@/store/personal-chat';
 import {useChatDialogs} from './chat-dialogs';
 import {ConvertChat} from './convert-chat';
-import {ChatModelPicker, modelLabel, type ChatModel} from './chat-model-picker';
+import {ChatModelPicker, modelLabel, usable, type ChatModel} from './chat-model-picker';
 import {NavTrigger} from './sidebar';
 import {ConfirmDialog} from '@/components/ui/dialog';
 import {Menu, MenuTrigger, MenuContent, MenuItem, MenuLink, MenuSeparator, MenuLabel} from '@/components/ui/menu';
@@ -105,7 +105,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
   });
   const allModels = modelData?.models || [];
   // Only models that can really answer; unverified ones stay visible (disabled) in the picker.
-  const models = allModels.filter(m => m.available !== false && m.status !== 'unverified');
+  const models = allModels.filter(usable);
   const selectedModel = chat?.model || model;
   const hasMessages = Boolean(chat?.messages.length);
   const last = chat?.messages.at(-1);

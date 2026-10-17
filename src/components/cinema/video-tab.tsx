@@ -5,11 +5,11 @@ import {ArrowUpRight} from 'lucide-react';
 import {videoModels, enabledStatus} from '@/lib/ai/models';
 import {useCinema, type CinemaJob} from '@/store/cinema';
 import {startGeneration} from '@/lib/cinema/client';
-import {AspectPicker, Field, GenerateBar, MediaModelPicker, Segmented} from './controls';
+import {AspectPicker, Field, GenerateBar, MediaModelPicker, Segmented, aspectName, optionLabel} from './controls';
 import {JobCard} from './job-card';
 
 /**
- * Video generation through the catalog. Until a video model is verified, the tab says so and lists
+ * Video generation through the catalog. Without an enabled video model, the tab says so and lists
  * what is missing for each one: no controls, no simulated progress.
  */
 export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
@@ -19,9 +19,15 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
   const [modelId, setModelId] = useState(enabled[0]?.id || '');
   const [prompt, setPrompt] = useState('');
   const model = enabled.find(m => m.id === modelId) || enabled[0];
-  const [aspect, setAspect] = useState(model?.options.aspectRatios[0] || '');
-  const [resolution, setResolution] = useState(model?.options.resolutions[0] || '');
-  const [duration, setDuration] = useState(model?.options.durations[0] || '');
+  const [chosen, setChosen] = useState({aspect: '', resolution: '', duration: ''});
+  // A value chosen for another model falls back to this model's first option.
+  const pick = (value: string, list: readonly string[]) => list.includes(value) ? value : list[0] || '';
+  const aspect = pick(chosen.aspect, model?.options.aspectRatios || []);
+  const resolution = pick(chosen.resolution, model?.options.resolutions || []);
+  const duration = pick(chosen.duration, model?.options.durations || []);
+  const setAspect = (aspect: string) => setChosen(c => ({...c, aspect}));
+  const setResolution = (resolution: string) => setChosen(c => ({...c, resolution}));
+  const setDuration = (duration: string) => setChosen(c => ({...c, duration}));
 
   if (!model) {
     return (
@@ -44,10 +50,11 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
   }
 
   const o = model.options;
+  const resolutionLabel = o.resolutionLabel || 'Resolución';
   const facts: [string, string][] = [
     ['Modelo', model.name],
-    ...(o.aspectRatios.length ? [['Formato', aspect] as [string, string]] : []),
-    ...(o.resolutions.length ? [['Resolución', resolution] as [string, string]] : []),
+    ...(o.aspectRatios.length ? [['Formato', aspectName(aspect)] as [string, string]] : []),
+    ...(o.resolutions.length ? [[resolutionLabel, optionLabel(resolution)] as [string, string]] : []),
     ...(o.durations.length ? [['Duración', duration + ' s'] as [string, string]] : []),
   ];
 
@@ -60,7 +67,7 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
           </Field>
           <Field label="Modelo"><MediaModelPicker category="video" value={model.id} onChange={setModelId} /></Field>
           {o.aspectRatios.length ? <Field label="Formato"><AspectPicker name="video-aspect" value={aspect} onChange={setAspect} options={o.aspectRatios} /></Field> : null}
-          {o.resolutions.length ? <Field label="Resolución"><Segmented name="video-resolution" label="Resolución" value={resolution} onChange={setResolution} options={o.resolutions.map(r => ({value: r, label: r}))} /></Field> : null}
+          {o.resolutions.length ? <Field label={resolutionLabel}><Segmented name="video-resolution" label={resolutionLabel} value={resolution} onChange={setResolution} options={o.resolutions.map(r => ({value: r, label: optionLabel(r)}))} /></Field> : null}
           {o.durations.length ? <Field label="Duración"><Segmented name="video-duration" label="Duración" value={duration} onChange={setDuration} options={o.durations.map(d => ({value: d, label: d + ' s'}))} /></Field> : null}
         </div>
         <GenerateBar

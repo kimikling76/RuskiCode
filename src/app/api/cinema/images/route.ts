@@ -16,21 +16,23 @@ const createInput = z.object({
   /** Catalog id. Older clients do not send it: they mean the default image model. */
   model: z.string().max(60).default('nano-banana-2-1'),
   prompt: z.string().trim().min(1).max(4000),
-  aspect: z.string().max(12).optional(),
-  resolution: z.string().max(12).optional(),
+  aspect: z.string().max(24).optional(),
+  resolution: z.string().max(24).optional(),
   duration: z.string().max(12).optional(),
-  references: z.array(z.string().url().max(2000)).max(10).default([]),
+  references: z.array(z.string().url().max(2000)).max(16).default([]),
   count: z.number().int().min(1).max(8),
 }).strict();
 
 /** Checks every option against what the catalog says this model accepts. */
 function validate(input: z.infer<typeof createInput>) {
   const model = findModel(input.model);
-  if (!model || model.category === 'text' || !enabledStatus(model)) return {error: 'MODEL_NOT_CONFIGURED'} as const;
+  if (!model || model.category === 'text' || model.category === 'audio' || !enabledStatus(model)) return {error: 'MODEL_NOT_CONFIGURED'} as const;
   const o = model.options;
   const wantVideo = input.mode === 'video';
   if (wantVideo !== (model.category === 'video')) return {error: 'INVALID_REQUEST'} as const;
   if (input.mode === 'edit' && (!o.modes.includes('edit') || !input.references.length)) return {error: 'INVALID_REQUEST'} as const;
+  // A model that only edits can be used from «Crear» too, but never without the images it needs.
+  if (!o.modes.includes('create') && !input.references.length) return {error: 'INVALID_REQUEST'} as const;
   const offered = (value: string | undefined, list: readonly string[]) => list.length ? value !== undefined && list.includes(value) : value === undefined;
   if (!offered(input.aspect, o.aspectRatios) || !offered(input.resolution, o.resolutions) || !offered(input.duration, o.durations)) return {error: 'INVALID_PARAMETERS'} as const;
   if (input.references.length > o.maxReferences || input.count > o.maxVariants) return {error: 'INVALID_PARAMETERS'} as const;

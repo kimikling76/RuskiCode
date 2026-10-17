@@ -31,7 +31,7 @@ export const taskStates = ['waiting', 'queuing', 'generating', 'success', 'fail'
 export type TaskState = (typeof taskStates)[number];
 
 export function ratioValue(aspect: AspectRatio) {
-  if (aspect === 'auto') return 1;
+  // 'auto', 'adaptive' and any other word are drawn as a square.
   const [w, h] = aspect.split(':').map(Number);
-  return w / h;
+  return w > 0 && h > 0 ? w / h : 1;
 }

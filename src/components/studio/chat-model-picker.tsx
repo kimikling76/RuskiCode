@@ -6,9 +6,10 @@ import {Command} from 'cmdk';
 import {Check, ChevronDown, Sparkles, Star} from 'lucide-react';
 import {useFavorites, type FavoriteCategory} from '@/store/favorites';
 import type {PublicModel} from '@/lib/ai/models';
+import {usableStatus} from '@/lib/ai/model-status';
 
 /** What a picker row needs. Text models from /api/personal-chat and media models share it. */
-export type ChatModel = Pick<PublicModel, 'id' | 'name' | 'provider'> & Partial<Pick<PublicModel, 'status' | 'available' | 'missing' | 'category' | 'price'>>;
+export type ChatModel = Pick<PublicModel, 'id' | 'name' | 'provider'> & Partial<Pick<PublicModel, 'status' | 'available' | 'missing' | 'category' | 'price' | 'inputs'>>;
 
 /** A configured price is only an estimate; the real cost is what Kie reports afterwards. */
 export const estimate = (price: NonNullable<ChatModel['price']>) => 'estimado ≈ ' + price.credits.toLocaleString('es-AR') + ' créditos ' + price.per;
@@ -28,7 +29,8 @@ function useSmallScreen() {
   return useSyncExternalStore(subscribe, () => window.matchMedia(SMALL).matches, () => false);
 }
 
-const usable = (m: ChatModel) => m.available !== false && m.status !== 'unverified';
+/** A model that can be chosen right now: enabled in the catalog and configured on the server. */
+export const usable = (m: ChatModel) => m.available !== false && (!m.status || usableStatus(m.status));
 
 /**
  * Model picker: search, provider filter, persistent favorites (synced) and keyboard navigation.
@@ -91,8 +93,10 @@ export function ChatModelPicker({models, value, onChange, disabled, category = '
 function Row({m, value, favorite, onChoose, onFavorite}: {m: ChatModel; value: string; favorite: boolean; onChoose: (id: string) => void; onFavorite: (id: string) => void}) {
   const ok = usable(m);
   const detail = m.status === 'unverified' ? 'No verificado' + (m.missing ? ' · ' + m.missing : '')
-    : m.available === false ? 'Sin configurar en el servidor'
-      : (m.provider ? m.provider + ' · vía Kie' : 'Vía Kie') + (m.status === 'docs' ? ' · sin prueba real todavía' : '') + (m.price ? ' · ' + estimate(m.price) : '');
+    : m.status === 'listed' ? 'Sin pantalla en el estudio' + (m.missing ? ' · ' + m.missing : '')
+      : m.available === false ? 'Sin configurar en el servidor'
+        : (m.provider ? m.provider + ' · vía Kie' : 'Vía Kie') + (m.status === 'docs' ? ' · sin prueba real todavía' : '')
+          + (m.inputs?.includes('image') ? ' · lee imágenes' : '') + (m.price ? ' · ' + estimate(m.price) : '');
   return (
     <Command.Item
       value={m.id}
@@ -100,7 +104,7 @@ function Row({m, value, favorite, onChoose, onFavorite}: {m: ChatModel; value: s
       disabled={!ok}
       onSelect={() => onChoose(m.id)}
       className="rc-model-row"
-      data-unverified={m.status === 'unverified' ? 'true' : undefined}
+      data-unverified={m.status && !usableStatus(m.status) ? 'true' : undefined}
       aria-label={modelLabel(m.name) + (favorite ? ', favorito' : '') + '. ' + detail}
     >
       <span className="rc-model-icon" aria-hidden="true">{(m.provider || m.name).slice(0, 1).toUpperCase()}</span>

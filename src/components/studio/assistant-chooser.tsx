@@ -5,7 +5,7 @@ import {Bot, ChevronDown, X} from 'lucide-react';
 import {useAssistants, type Assistant, type AssistantScope} from '@/store/assistants';
 import {Dialog} from '@/components/ui/dialog';
 import {Menu, MenuTrigger, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuLink} from '@/components/ui/menu';
-import {modelLabel, type ChatModel} from './chat-model-picker';
+import {modelLabel, usable, type ChatModel} from './chat-model-picker';
 
 export const scopeNames: Record<AssistantScope, string> = {chat: 'Chat', cinema: 'Cinema Studio', pdf: 'PDF Studio'};
 
@@ -13,7 +13,7 @@ export const scopeNames: Record<AssistantScope, string> = {chat: 'Chat', cinema:
 export function preferredModel(a: Assistant, models: ChatModel[]) {
   if (a.model === 'auto') return {state: 'auto' as const, label: 'Automático'};
   const m = models.find(x => x.id === a.model);
-  if (m && m.available !== false && m.status !== 'unverified') return {state: 'ok' as const, label: modelLabel(m.name)};
+  if (m && usable(m)) return {state: 'ok' as const, label: modelLabel(m.name)};
   return {state: 'missing' as const, label: m ? modelLabel(m.name) : a.model};
 }
 

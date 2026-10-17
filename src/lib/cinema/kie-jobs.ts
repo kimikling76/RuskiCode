@@ -30,11 +30,12 @@ export type JobInput = {prompt: string; aspect?: string; resolution?: string; du
 /** Builds Kie's `input` object from a catalog entry: only the fields that model documents. */
 export function jobInput(model: ImageModel | VideoModel, input: JobInput) {
   const f = model.options.fields;
-  const out: Record<string, unknown> = {[f.prompt]: input.prompt};
-  if (f.images && model.options.maxReferences) out[f.images] = input.references;
+  // Required fields with a documented default go first, so a chosen option always wins.
+  const out: Record<string, unknown> = {...model.options.fixed, [f.prompt]: input.prompt};
+  if (f.images && model.options.maxReferences && input.references.length) out[f.images] = f.imagesSingle ? input.references[0] : input.references;
   if (f.aspect && input.aspect) out[f.aspect] = input.aspect;
   if (f.resolution && input.resolution) out[f.resolution] = input.resolution;
-  if (f.duration && input.duration) out[f.duration] = input.duration;
+  if (f.duration && input.duration) out[f.duration] = f.durationNumber ? Number(input.duration) : input.duration;
   if (f.format && model.options.outputFormat) out[f.format] = model.options.outputFormat;
   return out;
 }

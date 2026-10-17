@@ -23,15 +23,16 @@ async function withKey<T>(fn: () => Promise<T> | T) {
   try { return await fn(); } finally { if (saved === undefined) delete process.env.KIE_API_KEY; else process.env.KIE_API_KEY = saved; }
 }
 
-test('the catalog is consistent: unique ids, Kie endpoints, a reason for every unverified model, no invented options', () => {
+test('the catalog is consistent: unique ids, Kie endpoints, a reason for every disabled model, no invented options', () => {
   assert.equal(new Set(catalog.map(m => m.id)).size, catalog.length);
   for (const m of catalog) {
     assert.ok(m.endpoint.startsWith('https://api.kie.ai/'), m.id + ' endpoint');
     assert.ok(/^https:\/\/(docs\.)?kie\.ai\//.test(m.docs), m.id + ' docs');
     assert.ok(m.checked, m.id + ' checked');
-    if (m.status === 'unverified') assert.ok(m.missing, m.id + ' says what is missing');
-    // An adapter the server does not implement can never be enabled.
-    if (m.adapter === 'kie-dedicated') assert.equal(m.status, 'unverified', m.id);
+    if (!enabledStatus(m)) assert.ok(m.missing, m.id + ' says what is missing');
+    // An adapter the server does not implement, or a kind of model with no screen, can never be enabled.
+    if (m.adapter === 'kie-dedicated' || m.category === 'audio') assert.equal(enabledStatus(m), false, m.id);
+    if (m.category === 'text') assert.ok(['openai-chat', 'anthropic-messages', 'openai-responses', 'gemini-native'].includes(m.adapter), m.id);
     if (m.price) assert.ok(m.price.source, m.id + ' price needs its source');
   }
   for (const m of [...imageModels, ...videoModels].filter(enabledStatus)) {
@@ -41,12 +42,17 @@ test('the catalog is consistent: unique ids, Kie endpoints, a reason for every u
     if (o.resolutions.length) assert.ok(o.fields.resolution, m.id + ' resolution field');
     if (o.durations.length) assert.ok(o.fields.duration, m.id + ' duration field');
     if (o.maxReferences) assert.ok(o.fields.images, m.id + ' references field');
+    if (o.fields.imagesSingle) assert.equal(o.maxReferences, 1, m.id + ' takes one image');
+    if (!o.modes.includes('create')) assert.ok(o.maxReferences, m.id + ' edits, so it takes images');
     assert.ok(o.maxVariants >= 1, m.id);
   }
-  // Today: the two Gemini models and the image model are in real use, video is not enabled.
+  // Today: the two Gemini models and the image model are in real use; the rest comes from Kie's documentation.
   assert.deepEqual(catalog.filter(m => m.status === 'tested').map(m => m.id), ['kie-flash', 'kie-pro', 'nano-banana-2-1']);
-  assert.equal(videoModels.filter(enabledStatus).length, 0);
+  assert.ok(videoModels.some(enabledStatus));
   assert.ok(textModels.some(m => m.adapter === 'anthropic-messages' && m.status === 'docs'));
+  // A tested entry replaces the generated one for the same endpoint, and keeps what the documentation says it reads.
+  assert.equal(textModels.filter(m => m.endpoint.endsWith('/gemini-3-8-flash-openai/v1/chat/completions')).length, 1);
+  assert.deepEqual(findModel('kie-flash')!.category === 'text' && (findModel('kie-flash') as {inputs?: string[]}).inputs, ['image', 'pdf']);
 });
 
 test('the browser only sees what the pickers need: no endpoint or provider id', () => {
@@ -54,14 +60,15 @@ test('the browser only sees what the pickers need: no endpoint or provider id', 
   assert.equal(m.available, true);
   assert.equal('endpoint' in m, false);
   assert.equal('providerModel' in m, false);
-  assert.equal(publicModel(findModel('gpt-5-5')!, true).available, false, 'unverified is never available');
+  assert.equal(publicModel(findModel('ai-music-api-generate')!, true).available, false, 'a model without a screen is never available');
   assert.equal(publicModel(findModel('kie-flash')!, false).available, false, 'no key, nothing available');
 });
 
-test('«Auto» still means the fast Gemini model, and unverified or unknown ids never resolve', () => withKey(() => {
+test('«Auto» still means the fast Gemini model, and disabled, other kinds or unknown ids never resolve', () => withKey(() => {
   assert.equal(resolveText('auto')?.id, 'kie-flash');
   assert.equal(resolveText('claude-haiku-4-5')?.id, 'claude-haiku-4-5');
-  assert.equal(resolveText('gpt-5-5'), undefined);
+  assert.equal(resolveText('ai-music-api-generate'), undefined);
+  assert.equal(resolveText('nano-banana-2-1'), undefined);
   assert.equal(resolveText('no-existe'), undefined);
   assert.ok(availableText().every(enabledStatus));
   const saved = process.env.KIE_API_KEY;
@@ -124,7 +131,7 @@ test('createTask checks both the HTTP status and Kie\'s code, and a lost reply i
   await assert.rejects(createJob(nano, input, reply({}, 500)), (e: CinemaError) => e.message !== 'CREATE_UNCERTAIN');
   const lost = (async () => { throw new TypeError('network'); }) as typeof fetch;
   await assert.rejects(createJob(nano, input, lost), (e: CinemaError) => e.message === 'CREATE_UNCERTAIN');
-  const dedicated = imageModels.find(m => m.adapter === 'kie-dedicated')!;
+  const dedicated = videoModels.find(m => m.adapter === 'kie-dedicated')!;
   await assert.rejects(createJob(dedicated, input, reply({code: 200, data: {taskId: 'x'}})), (e: CinemaError) => e.message === 'MODEL_NOT_CONFIGURED');
 }));
 
@@ -145,11 +152,13 @@ test('the normal Chat stays neutral; a chosen assistant adds its instructions wi
   assert.throws(() => personalInput.parse({...base, assistant: {name: 'X', instructions: 'ok', tools: ['web']}}));
 });
 
-test('the verified media summary lists only enabled models and says video is not connected', () => {
+test('the media summary details the tested models, names the other enabled ones and never a disabled one', () => {
   const s = mediaSummary();
-  assert.ok(s.includes('Nano Banana 2.1'));
-  assert.equal(s.includes('Veo'), false);
-  assert.ok(s.includes('todavía no hay un modelo de video verificado'));
+  assert.ok(s.includes('- Nano Banana 2.1 (imagen): proporciones'));
+  assert.ok(s.includes('Otros modelos de video habilitados') && s.includes('Veo 3.1'));
+  assert.equal(s.includes('Topaz'), false, 'an upscaler has no screen');
+  assert.equal(s.includes('Suno'), false);
+  assert.ok(s.length < 6000, 'short enough for a system prompt');
 });
 
 test('sync change detection ignores key order (jsonb reorders) but not real changes', () => {

@@ -31,6 +31,16 @@ export function Segmented<T extends string | number>({name, label, options, valu
   );
 }
 
+export const aspectName = (a: string) => a === 'auto' ? 'Automático' : a === 'adaptive' ? 'Se adapta a la imagen' : a;
+
+/** Kie's size names («landscape_16_9», «square_hd») read as words; other values stay as Kie writes them. */
+export function optionLabel(value: string) {
+  const m = value.match(/^(square|portrait|landscape)(?:_(hd|\d+)_?(\d+)?)?$/);
+  if (!m) return value;
+  const shape = {square: 'Cuadrado', portrait: 'Vertical', landscape: 'Horizontal'}[m[1] as 'square'];
+  return m[3] ? shape + ' ' + (m[1] === 'portrait' ? m[3] + ':' + m[2] : m[2] + ':' + m[3]) : m[2] === 'hd' ? shape + ' HD' : shape;
+}
+
 /** Each ratio is drawn to scale inside the same 22px box. */
 export function AspectPicker({value, onChange, name = 'aspect', disabled, options = aspectRatios}: {value: AspectRatio; onChange: (v: AspectRatio) => void; name?: string; disabled?: boolean; options?: readonly AspectRatio[]}) {
   return (
@@ -39,11 +49,12 @@ export function AspectPicker({value, onChange, name = 'aspect', disabled, option
         const r = ratioValue(a);
         const w = r >= 1 ? 22 : Math.round(22 * r);
         const h = r >= 1 ? Math.round(22 / r) : 22;
+        const word = !/^\d/.test(a);
         return (
-          <label key={a} className="rc-aspect" title={a === 'auto' ? 'Automático' : a}>
+          <label key={a} className="rc-aspect" title={aspectName(a)}>
             <input type="radio" name={name} checked={value === a} disabled={disabled} onChange={() => onChange(a)} />
-            <span className="rc-aspect-shape" data-auto={a === 'auto' ? 'true' : undefined} style={{width: w, height: h}} aria-hidden="true" />
-            <span className="rc-aspect-label">{a === 'auto' ? 'Auto' : a}</span>
+            <span className="rc-aspect-shape" data-auto={word ? 'true' : undefined} style={{width: w, height: h}} aria-hidden="true" />
+            <span className="rc-aspect-label">{a === 'auto' ? 'Auto' : a === 'adaptive' ? 'Adapt.' : a}</span>
           </label>
         );
       })}

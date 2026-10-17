@@ -1,8 +1,10 @@
 'use client';
+import {useState} from 'react';
 import {useQuery} from '@tanstack/react-query';
-import {RefreshCw} from 'lucide-react';
+import {RefreshCw, Search} from 'lucide-react';
 import {imageModel} from '@/lib/cinema/capabilities';
 import type {PublicModel} from '@/lib/ai/models';
+import {usableStatus} from '@/lib/ai/model-status';
 import {ArrowUpRight} from 'lucide-react';
 import {Group, Row, Status, timeFormat, type Health} from './parts';
 
@@ -122,31 +124,62 @@ export function ConnectorsSection() {
   );
 }
 
-const categoryNames = {text: 'Texto', image: 'Imagen', video: 'Video'} as const;
-const statusNames = {tested: 'Verificado y en uso', docs: 'Verificado · sin prueba real', unverified: 'No verificado'} as const;
+const categoryNames = {text: 'Texto', image: 'Imagen', video: 'Video', audio: 'Audio'} as const;
+const statusNames = {tested: 'Verificado y en uso', docs: 'Habilitado · sin prueba real', listed: 'Sin pantalla en el estudio', unverified: 'No verificado'} as const;
+const statusOrder = ['tested', 'docs', 'listed', 'unverified'] as const;
+const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
 /** The whole Kie catalog with each model's state: what is enabled, what is missing for the rest. */
 function CatalogTable({models}: {models: PublicModel[]}) {
-  const counts = (['tested', 'docs', 'unverified'] as const).map(s => [s, models.filter(m => m.status === s).length] as const);
+  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState<'all' | PublicModel['category']>('all');
+  const [status, setStatus] = useState<'all' | PublicModel['status']>('all');
+  const counts = statusOrder.map(s => [s, models.filter(m => m.status === s).length] as const).filter(([, n]) => n);
+  const q = fold(query.trim());
+  const shown = models.filter(m => (category === 'all' || m.category === category) && (status === 'all' || m.status === status)
+    && (!q || fold(m.name + ' ' + m.provider + ' ' + m.id).includes(q)));
   return (
     <Group
       title="Catálogo de modelos de Kie"
-      description={'Se mantiene a mano en src/lib/ai/models.ts, porque Kie no documenta un listado general de modelos. ' + counts.map(([s, n]) => n + ' ' + statusNames[s].toLowerCase()).join(' · ') + '.'}
+      description={'Sale de la documentación de Kie (docs.kie.ai): scripts/kie-catalog.mjs lee cada página y sus opciones. ' + counts.map(([s, n]) => n + ' ' + statusNames[s].toLowerCase()).join(' · ') + '.'}
     >
+      <div className="rc-catalog-filters">
+        <label className="rc-assistants-search">
+          <Search aria-hidden="true" />
+          <span className="sr-only">Buscar modelos</span>
+          <input className="rc-input" type="search" placeholder="Buscar por nombre o proveedor" value={query} onChange={e => setQuery(e.target.value)} />
+        </label>
+        <label><span className="sr-only">Tipo</span>
+          <select className="rc-input" value={category} onChange={e => setCategory(e.target.value as typeof category)}>
+            <option value="all">Todos los tipos</option>
+            {(Object.keys(categoryNames) as (keyof typeof categoryNames)[]).map(c => <option key={c} value={c}>{categoryNames[c]}</option>)}
+          </select>
+        </label>
+        <label><span className="sr-only">Estado</span>
+          <select className="rc-input" value={status} onChange={e => setStatus(e.target.value as typeof status)}>
+            <option value="all">Todos los estados</option>
+            {counts.map(([s]) => <option key={s} value={s}>{statusNames[s]}</option>)}
+          </select>
+        </label>
+      </div>
+      <p className="rc-hint" role="status">{shown.length === models.length ? models.length + ' modelos' : shown.length + ' de ' + models.length + ' modelos'}</p>
       <table className="rc-set-table rc-catalog-table">
         <thead><tr><th scope="col">Modelo</th><th scope="col">Tipo</th><th scope="col">Estado</th><th scope="col"><span className="sr-only">Documentación</span></th></tr></thead>
         <tbody>
-          {models.map(m => (
-            <tr key={m.id}>
-              <td>
-                <strong>{m.name}</strong> <span className="rc-hint">{m.provider}</span>
-                {m.missing ? <span className="rc-catalog-missing">{m.missing}</span> : null}
-              </td>
-              <td>{categoryNames[m.category]}</td>
-              <td><Status health={m.status === 'unverified' ? 'off' : m.available ? 'ok' : 'off'}>{m.status !== 'unverified' && !m.available ? 'Sin clave en el servidor' : statusNames[m.status]}</Status></td>
-              <td><a className="rc-catalog-docs" href={m.docs} target="_blank" rel="noreferrer" aria-label={'Documentación de ' + m.name}><ArrowUpRight aria-hidden="true" /></a></td>
-            </tr>
-          ))}
+          {shown.map(m => {
+            const usable = usableStatus(m.status);
+            return (
+              <tr key={m.id}>
+                <td>
+                  <strong>{m.name}</strong> <span className="rc-hint">{m.provider}</span>
+                  {m.missing ? <span className="rc-catalog-missing">{m.missing}</span> : null}
+                </td>
+                <td>{categoryNames[m.category]}</td>
+                <td><Status health={usable && m.available ? 'ok' : 'off'}>{usable && !m.available ? 'Sin clave en el servidor' : statusNames[m.status]}</Status></td>
+                <td><a className="rc-catalog-docs" href={m.docs} target="_blank" rel="noreferrer" aria-label={'Documentación de ' + m.name}><ArrowUpRight aria-hidden="true" /></a></td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </Group>
