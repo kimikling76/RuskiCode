@@ -12,7 +12,10 @@ import {
 import {decodeAssets, encodeAssets} from './assets';
 import {
   listOriginals, loadOriginalData, isOriginalOpen, putSyncedOriginal, removeSyncedOriginal, bytesToDataUrl, dataUrlToBytes, SYNC_LIMIT, type OriginalPdf,
+  listAllVersions, loadVersionData, putSyncedVersion, removeSyncedVersion, type PdfVersion,
 } from '@/lib/books/originals';
+import {listAllBookVersions, putSyncedBookVersion, removeSyncedBookVersion, type BookVersion} from '@/lib/books/versions';
+import {listDocChats, putSyncedDocChat, removeSyncedDocChat, mergeDocChats, type DocChat} from '@/lib/books/doc-chat';
 import type {PersonalChat, StudioProject} from '@/store/personal-chat';
 import type {UsageEntry} from '@/lib/personal-chat/state';
 import type {Board} from '@/store/cinema';
@@ -304,8 +307,8 @@ const originals: Collection = {
     return {key: id, data: {...p, id, name: copyLabel(p.name, 200), updatedAt: Date.now(), copyOf: p.id}};
   },
   encode: async data => {
-    const {id, name, size, createdAt, updatedAt} = data as OriginalPdf;
-    const meta = {id, name, size, createdAt, updatedAt};
+    const {id, name, size, createdAt, updatedAt, version} = data as OriginalPdf;
+    const meta = {id, name, size, createdAt, updatedAt, ...(version ? {version} : {})};
     const bytes = await loadOriginalData(id);
     if (!bytes || bytes.byteLength > SYNC_LIMIT) return {...meta, file: null};
     const {pdf} = await encodeAssets({pdf: await bytesToDataUrl(bytes)});
@@ -319,7 +322,75 @@ const originals: Collection = {
   },
 };
 
-export const collections: Collection[] = [chats, projects, usage, jobs, boards, notes, books, drafts, composer, assistants, favorites, originals];
+// Versions never change once saved: the same record on both computers is the same file.
+type SyncedVersion = PdfVersion & {file?: string | null; bytes?: ArrayBuffer | null};
+const versions: Collection = {
+  kind: 'pdf-version',
+  list: async () => (await listAllVersions()).map(v => ({key: v.id, data: v})),
+  apply: async changes => {
+    for (const {key, data} of changes) {
+      if (data === null) { await removeSyncedVersion(key); continue; }
+      const d = data as SyncedVersion;
+      await putSyncedVersion({...d, id: key}, d.bytes ?? null);
+    }
+    libraryEvents?.dispatchEvent(new Event('synced'));
+  },
+  subscribe: onLibrary,
+  label: data => 'Versión: ' + ((data as PdfVersion).label || 'PDF'),
+  token: data => 'v' + (data as PdfVersion).createdAt,
+  merge: (_local, remote) => remote,
+  encode: async data => {
+    const {id, docId, label, createdAt, size, parent} = data as PdfVersion;
+    const meta = {id, docId, label, createdAt, size, ...(parent ? {parent} : {})};
+    const bytes = await loadVersionData(id);
+    if (!bytes || bytes.byteLength > SYNC_LIMIT) return {...meta, file: null};
+    const {pdf} = await encodeAssets({pdf: await bytesToDataUrl(bytes)});
+    return {...meta, file: pdf};
+  },
+  decode: async data => {
+    const d = data as SyncedVersion;
+    if (!d.file) return {...d, bytes: null};
+    const {pdf} = await decodeAssets({pdf: d.file});
+    return {...d, file: undefined, bytes: await dataUrlToBytes(pdf)};
+  },
+};
+
+// A book version is a whole editable book; its images travel as assets, like the book's.
+const bookVersions: Collection = {
+  kind: 'book-version',
+  list: async () => (await listAllBookVersions()).map(v => ({key: v.id, data: v})),
+  apply: async changes => {
+    for (const {key, data} of changes) {
+      if (data === null) await removeSyncedBookVersion(key);
+      else await putSyncedBookVersion({...(data as BookVersion), id: key});
+    }
+    libraryEvents?.dispatchEvent(new Event('synced'));
+  },
+  subscribe: onLibrary,
+  label: data => 'Versión: ' + ((data as BookVersion).label || 'libro'),
+  token: data => 'v' + (data as BookVersion).createdAt,
+  merge: (_local, remote) => remote,
+  encode: data => encodeProject(data as BookVersion),
+  decode: data => decodeProject(data as BookVersion),
+};
+
+// Messages are only added (or a proposal marked applied): two computers' copies always merge.
+const docChats: Collection = {
+  kind: 'doc-chat',
+  list: async () => (await listDocChats()).map(c => ({key: c.doc, data: c})),
+  apply: async changes => {
+    for (const {key, data} of changes) {
+      if (data === null) await removeSyncedDocChat(key);
+      else await putSyncedDocChat({...(data as DocChat), doc: key});
+    }
+  },
+  subscribe: onLibrary,
+  label: () => 'Conversación de un documento',
+  token: data => 'u' + (data as DocChat).updatedAt + ':' + (data as DocChat).messages.length,
+  merge: (local, remote) => mergeDocChats(local as DocChat, remote as DocChat),
+};
+
+export const collections: Collection[] = [chats, projects, usage, jobs, boards, notes, books, drafts, composer, assistants, favorites, originals, versions, bookVersions, docChats];
 
 /** Loads every store from this browser before the first sync. */
 export function hydrateAll() {

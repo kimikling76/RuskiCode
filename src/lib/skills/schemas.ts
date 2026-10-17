@@ -1,7 +1,7 @@
 import {z} from 'zod';
 import {designTokensSchema} from '@/lib/books/spec';
 const text=z.string().min(1).max(8000);
-const blockSchema=z.discriminatedUnion('type',[
+export const blockSchema=z.discriminatedUnion('type',[
  z.object({type:z.literal('heading'),id:z.string().min(1).max(100),text,level:z.number().int().min(1).max(3)}).strict(),
  z.object({type:z.literal('paragraph'),id:z.string().min(1).max(100),text}).strict(),
  z.object({type:z.literal('exercise'),id:z.string().min(1).max(100),instruction:text,items:z.array(text).min(1).max(30),audioId:z.string().max(30).optional()}).strict(),

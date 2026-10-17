@@ -12,11 +12,14 @@ export function resolveText(id: string) {
   return id === 'auto' ? all.find(m => m.id === 'kie-flash') || all[0] : all.find(m => m.id === id);
 }
 
+// KIE_BASE_URL exists only for local tests against a fake Kie; production never sets it.
+const endpointFor = (m: TextModel) => process.env.KIE_BASE_URL ? m.endpoint.replace('https://api.kie.ai', process.env.KIE_BASE_URL) : m.endpoint;
+
 /** The provider configuration the streaming adapters expect, built from a catalog entry. */
 export function textConfig(m: TextModel): ModelConfig {
   const provider = m.adapter === 'anthropic-messages' ? 'anthropic' : m.adapter === 'openai-responses' ? 'responses' : 'compatible';
   return {
-    id: m.id, name: m.name, provider, keyEnv: 'KIE_API_KEY', model: m.providerModel, endpoint: m.endpoint,
+    id: m.id, name: m.name, provider, keyEnv: 'KIE_API_KEY', model: m.providerModel, endpoint: endpointFor(m),
     bearer: true, kie: true, taskScore: {book: 0, image: 0, video: 0, general: 0}, supportsTools: false, supportsVision: false,
   };
 }

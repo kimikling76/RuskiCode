@@ -21,11 +21,12 @@ const count = (n: number, one: string, many: string) => n + ' ' + (n === 1 ? one
  * Reads a PDF, Word, HTML or text file in this browser and shows what will become of it before
  * creating the book: chapters, tables, images and anything that could not be kept.
  */
-const pdfFile = (file: File | null) => { try { return Boolean(file) && kindOf(file!) === 'pdf'; } catch { return false; } };
+const fileKind = (file: File | null) => { try { return file ? kindOf(file) : null; } catch { return null; } };
 
-export function ImportDialog({file, onClose, onCreate, onEditOriginal}: {file: File | null; onClose: () => void; onCreate: (book: EditableBook) => Promise<void>; onEditOriginal?: (file: File) => Promise<void>}) {
-  // A PDF can be edited as it is (Nutrient) or converted into blocks; other files are always converted.
-  const [mode, setMode] = useState<'choose' | 'convert'>(() => pdfFile(file) && onEditOriginal ? 'choose' : 'convert');
+export function ImportDialog({file, onClose, onCreate, onEditOriginal, onWordToPdf}: {file: File | null; onClose: () => void; onCreate: (book: EditableBook) => Promise<void>; onEditOriginal?: (file: File) => Promise<void>; onWordToPdf?: (file: File) => Promise<void>}) {
+  // A PDF can be edited as it is or converted into blocks; a Word file can become a PDF (Stirling) or blocks.
+  const kind = fileKind(file);
+  const [mode, setMode] = useState<'choose' | 'convert'>(() => (kind === 'pdf' && onEditOriginal) || (kind === 'docx' && onWordToPdf) ? 'choose' : 'convert');
   const [state, setState] = useState<State>(mode === 'choose' ? {phase: 'choose'} : {phase: 'reading', progress: {stage: 'loading'}});
   const [title, setTitle] = useState('');
   const [language, setLanguage] = useState<BookSpec['language']>('ru');
@@ -64,9 +65,10 @@ export function ImportDialog({file, onClose, onCreate, onEditOriginal}: {file: F
   }
 
   async function editOriginal() {
-    if (!file || !onEditOriginal || busy) return;
+    const action = kind === 'docx' ? onWordToPdf : onEditOriginal;
+    if (!file || !action || busy) return;
     setBusy(true);
-    try { await onEditOriginal(file); } finally { setBusy(false); }
+    try { await action(file); } finally { setBusy(false); }
   }
 
   async function create() {
@@ -83,19 +85,29 @@ export function ImportDialog({file, onClose, onCreate, onEditOriginal}: {file: F
       open={Boolean(file)}
       onClose={close}
       title={file ? 'Importar «' + file.name + '»' : 'Importar'}
-      description={mode === 'choose' ? 'Elegí cómo trabajarlo. Se abre en este navegador y no lo lee ninguna IA.' : 'Se convierte en un libro editable: después lo exportás otra vez como PDF con «Exportar PDF».'}
+      description={mode === 'choose' ? (kind === 'docx' ? 'Elegí cómo trabajarlo.' : 'Elegí cómo trabajarlo. Se abre en este navegador y no lo lee ninguna IA.') : 'Se convierte en un libro editable: después lo exportás otra vez como PDF con «Exportar PDF».'}
       wide
     >
       <div className="rc-dialog-body rc-import">
         {state.phase === 'choose' ? (
-          <div className="rc-import-choice" role="group" aria-label="Cómo querés editar este PDF">
-            <button type="button" className="rc-import-option" disabled={busy} onClick={() => void editOriginal()}>
-              <FilePen aria-hidden="true" />
-              <span>
-                <strong>Editar el PDF tal cual <span className="rc-import-tag">Recomendado</span></strong>
-                <span className="rc-hint">Se abre el PDF original: cambiás textos e imágenes en su lugar y todo lo demás queda igual (diseño, fuentes, imágenes y páginas). Usa el editor de Nutrient en este navegador.</span>
-              </span>
-            </button>
+          <div className="rc-import-choice" role="group" aria-label={kind === 'docx' ? 'Cómo querés trabajar este Word' : 'Cómo querés editar este PDF'}>
+            {kind === 'docx' ? (
+              <button type="button" className="rc-import-option" disabled={busy} onClick={() => void editOriginal()}>
+                <FilePen aria-hidden="true" />
+                <span>
+                  <strong>{busy ? 'Convirtiendo con Stirling…' : 'Convertir a PDF y editarlo tal cual'}</strong>
+                  <span className="rc-hint">Stirling PDF lo convierte con LibreOffice en su servidor (puede verse un poco distinto que en Word) y se abre como PDF importado. Usa al menos 1 crédito de Stirling. Máximo 4 MB.</span>
+                </span>
+              </button>
+            ) : (
+              <button type="button" className="rc-import-option" disabled={busy} onClick={() => void editOriginal()}>
+                <FilePen aria-hidden="true" />
+                <span>
+                  <strong>Editar el PDF tal cual <span className="rc-import-tag">Recomendado</span></strong>
+                  <span className="rc-hint">Se abre el PDF original, sin cambiar nada. Ordenás, rotás, insertás o borrás páginas, agregás notas y reemplazás texto con Stirling PDF; cada cambio queda como versión. El texto también se puede editar en su lugar con Nutrient.</span>
+                </span>
+              </button>
+            )}
             <button type="button" className="rc-import-option" disabled={busy} onClick={() => setMode('convert')}>
               <Blocks aria-hidden="true" />
               <span>

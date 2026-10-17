@@ -8,6 +8,8 @@ import type {EditableBook} from '@/lib/books/editable';
 import {acceptedFiles, kindOf, ImportError} from '@/lib/books/import/browser';
 import {ImportDialog} from './import-dialog';
 import {createOriginal, deleteOriginal, fileSize, listOriginals, restoreOriginal, type OriginalPdf} from '@/lib/books/originals';
+import {OperationError, runStirling} from '@/lib/stirling/client';
+import {MAX_PDF_BYTES} from '@/lib/stirling/operations';
 import {ConfirmDialog} from '@/components/ui/dialog';
 import {editableBookSchema} from '@/lib/books/editable';
 import type {BookSpec} from '@/lib/books/spec';
@@ -71,6 +73,19 @@ export function PdfHome({projects, legacy, onOpenProject, onOpenLegacy}: {projec
       router.push('/workspace/documento?id=' + id);
     } catch (e) {
       toast(e instanceof Error && e.message === 'NOT_PDF' ? 'Ese archivo no es un PDF válido.' : 'No se pudo guardar el PDF en este navegador.');
+    }
+  }
+
+  // Word → PDF on Stirling's server, then the PDF is kept and edited as it is.
+  async function wordToPdf(file: File) {
+    if (file.size > MAX_PDF_BYTES) { toast('Ese Word pesa más de 4 MB, el máximo que pasa por el servidor hacia Stirling.'); return; }
+    try {
+      const out = await runStirling('from-word', {}, await file.arrayBuffer());
+      const id = await createOriginal(file.name.replace(/\.docx$/i, ''), out.bytes, 'Convertido de Word con Stirling');
+      setImporting(null);
+      router.push('/workspace/documento?id=' + id);
+    } catch (e) {
+      toast(e instanceof OperationError ? e.message : 'No se pudo convertir el Word.', {duration: 9000});
     }
   }
 
@@ -141,7 +156,7 @@ export function PdfHome({projects, legacy, onOpenProject, onOpenLegacy}: {projec
 
       {originals.length ? (
         <section className="rc-page-section">
-          <h2>PDF originales</h2>
+          <h2>PDF importados</h2>
           <ul className="rc-project-list">
             {originals.map(p => (
               <li key={p.id} className="rc-pdf-project-row">
@@ -161,7 +176,7 @@ export function PdfHome({projects, legacy, onOpenProject, onOpenLegacy}: {projec
               </li>
             ))}
           </ul>
-          <p className="rc-hint rc-pdf-home-note">Se editan tal cual, con el editor de Nutrient. Los de hasta 4 MB se guardan en tu cuenta y aparecen en tus otras computadoras.</p>
+          <p className="rc-hint rc-pdf-home-note">Se editan tal cual: páginas, notas y texto con Stirling PDF, y cada cambio queda como versión. Los de hasta 4 MB se guardan en tu cuenta (con sus versiones) y aparecen en tus otras computadoras.</p>
         </section>
       ) : null}
 
@@ -229,7 +244,7 @@ export function PdfHome({projects, legacy, onOpenProject, onOpenLegacy}: {projec
       ) : null}
 
       {/* A new dialog per file, so it never shows the previous file's summary. */}
-      <ImportDialog key={importing ? importing.name + importing.size + importing.lastModified : 'closed'} file={importing} onClose={() => setImporting(null)} onCreate={createImported} onEditOriginal={editOriginal} />
+      <ImportDialog key={importing ? importing.name + importing.size + importing.lastModified : 'closed'} file={importing} onClose={() => setImporting(null)} onCreate={createImported} onEditOriginal={editOriginal} onWordToPdf={wordToPdf} />
       <ConfirmDialog
         open={Boolean(removing)}
         onClose={() => setRemoving(null)}

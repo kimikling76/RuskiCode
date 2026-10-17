@@ -178,8 +178,10 @@ export function OriginalEditor() {
           <BookOpen aria-hidden="true" />
           <Link href="/workspace?studio=pdf" className="rc-crumb">PDF Studio</Link>
           <ChevronRight className="rc-crumb-sep" aria-hidden="true" />
-          <span className="rc-crumb-current" title={meta?.name}>{meta?.name || 'PDF'}</span>
-          <span className="rc-pdf-source">PDF original{sizeLabel ? ' · ' + sizeLabel : ''}</span>
+          <Link href={'/workspace/documento?id=' + encodeURIComponent(id)} className="rc-crumb" title={meta?.name}>{meta?.name || 'PDF'}</Link>
+          <ChevronRight className="rc-crumb-sep" aria-hidden="true" />
+          <span className="rc-crumb-current">Texto en su lugar</span>
+          <span className="rc-pdf-source">Nutrient{sizeLabel ? ' · ' + sizeLabel : ''}</span>
         </div>
         <span className="rc-pdf-save" role="status" aria-live="polite">
           {status === 'loading' ? 'Abriendo…' : status === 'saving' ? 'Guardando…' : status === 'error' || TRIAL ? '' : dirty ? 'Cambios sin guardar' : 'Guardado'}
