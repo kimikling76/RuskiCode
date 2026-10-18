@@ -9,7 +9,8 @@ import {textConfig} from '../src/lib/ai/kie-text';
 import {createProvider, citedSources} from '../src/lib/ai/provider';
 import type {StreamEvent} from '../src/lib/ai/types';
 import {personalInput, systemForPersonal} from '../src/lib/personal-chat/input';
-import {parseDraft, pictureSlots, picturePrompt, nearestAspect, keptPictures, draftComponents, newWords, skillSummary, MAX_PICTURES, type PdfRun} from '../src/lib/skills/chat';
+import {parseDraft, pictureSlots, picturePrompt, portraitPrompt, slotCharacters, nearestAspect, keptPictures, keptCast, draftComponents, newWords, skillSummary, MAX_PICTURES, type PdfRun} from '../src/lib/skills/chat';
+import {allowedAssetHosts} from '../src/lib/pipeline/asset-url';
 import {readPdf} from '../src/lib/manual/pdf-read';
 import {editorFonts} from '../src/lib/manual/fonts';
 import {unitFromPdf} from '../src/lib/manual/segment';
@@ -222,4 +223,46 @@ test('/pdf-generator pictures: a gallery taller than a page goes on in the next 
   assert.deepEqual(out.overflow, []);
   const numbers = out.unit.pages.flatMap(p => p.blocks.flatMap(b => b.elements)).filter(e => e.role === 'picture-number' && e.kind === 'text').map(plainText);
   assert.deepEqual(numbers, Array.from({length: 12}, (_, i) => String(i + 1)));
+});
+
+test('/pdf-generator pictures: characters are described once, and each picture carries the look of the ones it shows', () => {
+  const draft = parseDraft(JSON.stringify({
+    ...pictureDraft,
+    setting: 'A modern family flat in a Russian city, autumn',
+    characters: [{name: 'Дима', look: 'a 12-year-old boy with short dark hair and a red hoodie'}, {name: 'бабушка', look: 'a woman of about 70 with grey hair in a bun and a floral apron'}],
+    blocks: [
+      {type: 'comic', columns: 2, aspect: '4:3', panels: [
+        {prompt: 'Дима waves at the door', bubbles: ['Привет!'], characters: ['Дима']},
+        {prompt: 'The grandmother hugs the boy', bubbles: [], characters: ['Бабушка', 'Дима']},
+        {prompt: 'An empty kitchen at sunset', bubbles: []},
+      ]},
+    ],
+  }))!;
+  assert.ok(draft);
+  const cast = draft.characters;
+  const slots = pictureSlots(draft);
+  assert.deepEqual(slots.map(s => slotCharacters(s, cast).map(c => c.name)), [['Дима'], ['Дима', 'бабушка'], []]);
+  const prompt = picturePrompt(slots[1], draft.imageStyle, {cast, setting: draft.setting, withPortraits: true});
+  assert.match(prompt, /Characters: Дима — a 12-year-old boy with short dark hair and a red hoodie; бабушка — a woman of about 70/);
+  assert.match(prompt, /identical to the reference portraits/);
+  assert.match(prompt, /Setting: A modern family flat in a Russian city, autumn\./);
+  assert.doesNotMatch(picturePrompt(slots[2], draft.imageStyle, {cast, setting: draft.setting}), /Characters:/);
+  const portrait = portraitPrompt(cast[0], draft.imageStyle, draft.setting);
+  assert.match(portrait, /^Character reference portrait of Дима: a 12-year-old boy/);
+  assert.match(portrait, /One person only/);
+  assert.match(portrait, /Do not draw any text/);
+  // A portrait is kept only while the look is the same.
+  const image: ImageData = {asset: 'c'.repeat(64), format: 'png', width: 8, height: 6};
+  assert.deepEqual(Object.keys(keptCast(draft, {'Дима': {prompt: cast[0].look, image}, 'бабушка': {prompt: 'old look', image}})), ['Дима']);
+  // A draft without characters still works as before.
+  assert.deepEqual(parseDraft(JSON.stringify(pictureDraft))!.characters, []);
+});
+
+test('Kie results are downloaded from the hosts its documentation shows, and a setting adds hosts without removing those', () => {
+  const before = process.env.ASSET_ALLOWED_HOSTS;
+  process.env.ASSET_ALLOWED_HOSTS = 'file.aiquickdraw.com';
+  assert.deepEqual(allowedAssetHosts(), ['file.aiquickdraw.com', 'tempfile.aiquickdraw.com']);
+  process.env.ASSET_ALLOWED_HOSTS = 'cdn.example.com';
+  assert.ok(allowedAssetHosts().includes('tempfile.aiquickdraw.com') && allowedAssetHosts().includes('cdn.example.com'));
+  if (before === undefined) delete process.env.ASSET_ALLOWED_HOSTS; else process.env.ASSET_ALLOWED_HOSTS = before;
 });

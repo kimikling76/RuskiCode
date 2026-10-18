@@ -1,4 +1,5 @@
 'use client';
+import {useSyncExternalStore} from 'react';
 import {usePersonal, type PersonalMessage} from '@/store/personal-chat';
 import {startGeneration} from '@/lib/cinema/client';
 import {textAnswer} from '@/lib/ai/text-request';
@@ -10,12 +11,12 @@ import {imageFromFile} from '@/lib/manual/browser';
 import {getAsset} from '@/lib/manual/store';
 import {imageModels} from '@/lib/ai/models';
 import type {Unit} from '@/lib/manual/model';
-import type {CinemaJob} from '@/store/cinema';
+import {useCinema, type CinemaJob} from '@/store/cinema';
 import type {ChatAttachment} from '@/lib/personal-chat/attachments';
 import {
-  autoChecks, draftComponents, keptPictures, nearestAspect, newWords, parseDraft, parseReview, pdfContext, pictureSlots, picturePrompt, refValue,
-  reviewRequest, skillSummary, unitPagesText, unitVocabulary,
-  type ImageRun, type MediaRef, type PdfRun, type PdfTarget, type PictureSlot, type ReviewRun, type SkillRun, type VideoRun,
+  autoChecks, draftComponents, keptCast, keptPictures, nearestAspect, newWords, parseDraft, parseReview, pdfContext, pictureSlots, picturePrompt, portraitPrompt,
+  refValue, reviewRequest, skillSummary, slotCharacters, unitPagesText, unitVocabulary,
+  type Character, type ImageRun, type MediaRef, type PdfRun, type PdfTarget, type PictureSlot, type PictureState, type ReviewRun, type SkillRun, type VideoRun,
 } from './chat';
 
 // What the Chat's skills do. Each change to a skill's record goes through `updateRun`, which also keeps the
@@ -125,8 +126,9 @@ export async function writePdf(chatId: string, messageId: string, model: string)
     // Pictures already made for the same prompt (in this card or the draft it changes) are kept: they are not paid twice.
     const fresh = findMessage(chatId, messageId)?.skill as PdfRun | undefined;
     const pictures = keptPictures(draft, fresh?.pictures, previous?.pictures);
+    const cast = keptCast(draft, fresh?.cast, previous?.cast);
     updateRun<PdfRun>(chatId, messageId, {
-      state: 'ready', draft, target, model: answer.model, credits: answer.credits, sources: answer.sources, pictures, imageStyle: undefined,
+      state: 'ready', draft, target, model: answer.model, credits: answer.credits, sources: answer.sources, pictures, cast, imageStyle: undefined, setting: undefined,
       ...(previous?.pictureModel && !fresh?.pictureModel ? {pictureModel: previous.pictureModel, pictureResolution: previous.pictureResolution} : {}),
     });
   } catch (e) {
@@ -156,59 +158,46 @@ export const draftNewWords = (run: PdfRun, units: Unit[]) => run.draft ? newWord
 
 // ---------- /pdf-generator: pictures made with an image model ----------
 
-/** A short fingerprint of a slot's prompt, in the job's tag: a job made for an older prompt is not used. */
+/** A short fingerprint of a prompt, in the job's tag: a job made for an older prompt is not used. */
 function promptMark(prompt: string) {
   let h = 5381;
   for (let i = 0; i < prompt.length; i++) h = (h * 33 + prompt.charCodeAt(i)) >>> 0;
   return h.toString(36);
 }
 export const pictureTag = (slot: Pick<PictureSlot, 'key' | 'prompt'>) => slot.key + '#' + promptMark(slot.prompt);
+export const portraitTag = (c: Character) => 'cast:' + c.name + '#' + promptMark(c.look);
+
+const hasImage = (p: PictureState | undefined, prompt: string) => Boolean(p?.image && p.prompt === prompt);
+const failed = (j?: CinemaJob) => j?.state === 'error' || j?.state === 'fail';
 
 /** Pictures that still need an image for their current prompt. */
 export function missingPictures(run: PdfRun) {
-  return run.draft ? pictureSlots(run.draft).filter(s => !(run.pictures?.[s.key]?.image && run.pictures[s.key].prompt === s.prompt)) : [];
+  return run.draft ? pictureSlots(run.draft).filter(s => !hasImage(run.pictures?.[s.key], s.prompt)) : [];
+}
+
+/** The draft's characters with the place, style and look the author may have changed in the card. */
+export function pictureContext(run: PdfRun) {
+  const draft = run.draft;
+  return {style: run.imageStyle ?? draft?.imageStyle, setting: run.setting ?? draft?.setting, cast: draft?.characters || []};
 }
 
 const sending = new Map<string, Set<string>>();
-/** Slots of a card waiting in this browser to be sent to Kie (they go a little apart). */
+/** Slots (and portraits, as `cast:<name>`) of a card waiting in this browser to be sent to Kie. */
 export const waitingPictures = (messageId: string) => sending.get(messageId) || new Set<string>();
-
-/**
- * Asks Kie for pictures of the draft, one task per picture, with the prompt the text model wrote, the common style
- * and the author's reference images. Nothing is searched on the web. `slots` defaults to the missing ones.
- */
-export async function generatePictures(chatId: string, messageId: string, opts: {model: string; resolution: string; refs: MediaRef[]; slots?: string[]}) {
-  const run = findMessage(chatId, messageId)?.skill as PdfRun | undefined;
-  const model = imageModels.find(m => m.id === opts.model);
-  if (!run?.draft || !model) return;
-  const all = pictureSlots(run.draft);
-  const slots = opts.slots ? all.filter(s => opts.slots!.includes(s.key)) : missingPictures(run);
-  if (!slots.length) return;
-  const batchId = run.pictureBatch || crypto.randomUUID();
-  updateRun<PdfRun>(chatId, messageId, {pictureBatch: batchId, pictureModel: model.id, pictureResolution: opts.resolution});
-  const queue = sending.get(messageId) || new Set<string>();
-  sending.set(messageId, queue);
-  for (const s of slots) queue.add(s.key);
-  const style = run.imageStyle ?? run.draft.imageStyle;
-  const references = model.options.maxReferences ? opts.refs.slice(0, model.options.maxReferences).map(refValue) : [];
-  for (const [i, slot] of slots.entries()) {
-    // The studio accepts up to 8 new Kie tasks every 10 seconds.
-    if (i) await new Promise(r => setTimeout(r, 1400));
-    queue.delete(slot.key);
-    await startGeneration({
-      mode: 'create', model: model.id, prompt: picturePrompt(slot, style), aspect: nearestAspect(slot.aspect, model.options.aspectRatios),
-      resolution: model.options.resolutions.includes(opts.resolution) ? opts.resolution : model.options.resolutions[0] || '',
-      references, count: 1, batchId, tag: pictureTag(slot),
-    });
-  }
-  if (!queue.size) sending.delete(messageId);
+// The cards follow these waiting lists as they change.
+let sendingVersion = 0;
+const sendingListeners = new Set<() => void>();
+const changedSending = () => { sendingVersion++; for (const l of sendingListeners) l(); };
+export function useWaitingPictures(messageId: string) {
+  useSyncExternalStore(cb => { sendingListeners.add(cb); return () => { sendingListeners.delete(cb); }; }, () => sendingVersion, () => 0);
+  return waitingPictures(messageId);
 }
 
-/** The newest job of each slot for its current prompt. */
+/** The newest job of each slot for its current prompt, and of each character's portrait for its current look. */
 export function pictureJobs(run: PdfRun, jobs: CinemaJob[]) {
   const out = new Map<string, CinemaJob>();
   if (!run.draft || !run.pictureBatch) return out;
-  const tags = new Map(pictureSlots(run.draft).map(s => [pictureTag(s), s.key]));
+  const tags = new Map([...pictureSlots(run.draft).map(s => [pictureTag(s), s.key] as const), ...run.draft.characters.map(c => [portraitTag(c), 'cast:' + c.name] as const)]);
   for (const job of jobs) {
     const key = job.batchId === run.pictureBatch && job.tag ? tags.get(job.tag) : undefined;
     if (key && (!out.has(key) || out.get(key)!.createdAt < job.createdAt)) out.set(key, job);
@@ -216,32 +205,139 @@ export function pictureJobs(run: PdfRun, jobs: CinemaJob[]) {
   return out;
 }
 
+const pause = (ms: number) => new Promise(r => setTimeout(r, ms));
+const currentRun = (chatId: string, messageId: string) => findMessage(chatId, messageId)?.skill as PdfRun | undefined;
+
+/**
+ * Asks Kie for pictures of the draft, one task per picture, with the prompt the text model wrote, each character's
+ * look, the shared place and style, and the author's reference images. Nothing is searched on the web.
+ * With a model that takes reference images, a portrait of each character is made first and goes with every picture
+ * where that character appears, so the same person looks the same.
+ * `slots` defaults to the missing ones that are not already on their way or done in Kie. A second call while one is
+ * sending does nothing: a double click never pays twice.
+ */
+export async function generatePictures(chatId: string, messageId: string, opts: {model: string; resolution: string; refs: MediaRef[]; slots?: string[]}) {
+  if (sending.has(messageId)) return;
+  const run = currentRun(chatId, messageId);
+  const model = imageModels.find(m => m.id === opts.model);
+  if (!run?.draft || !model) return;
+  const jobs = pictureJobs(run, useCinema.getState().data.jobs);
+  const slots = opts.slots
+    ? pictureSlots(run.draft).filter(s => opts.slots!.includes(s.key))
+    : missingPictures(run).filter(s => !jobs.get(s.key) || failed(jobs.get(s.key)));
+  if (!slots.length) return;
+  const queue = new Set(slots.map(s => s.key));
+  sending.set(messageId, queue);
+  changedSending();
+  try {
+    const batchId = run.pictureBatch || crypto.randomUUID();
+    updateRun<PdfRun>(chatId, messageId, {pictureBatch: batchId, pictureModel: model.id, pictureResolution: opts.resolution});
+    const {style, setting, cast} = pictureContext(run);
+    const max = model.options.maxReferences;
+    const resolution = model.options.resolutions.includes(opts.resolution) ? opts.resolution : model.options.resolutions[0] || '';
+    const own = max ? opts.refs.map(refValue) : [];
+    let sent = 0;
+    const send = async (prompt: string, aspect: string, references: string[], tag: string) => {
+      // The studio accepts up to 8 new Kie tasks every 10 seconds.
+      if (sent++) await pause(1400);
+      await startGeneration({mode: 'create', model: model.id, prompt, aspect, resolution, references: references.slice(0, max), count: 1, batchId, tag});
+      changedSending();
+    };
+
+    // 1. Portraits of the characters these pictures show, when the model takes references and there is none yet.
+    const portraits = new Map<string, string>();
+    const needed = max ? cast.filter(c => slots.some(s => slotCharacters(s, cast).includes(c))) : [];
+    for (const c of needed) if (hasImage(run.cast?.[c.name], c.look)) portraits.set(c.name, run.cast![c.name].image!.asset);
+    const missing = needed.filter(c => !portraits.has(c.name));
+    for (const c of missing) {
+      queue.add('cast:' + c.name);
+      const job = pictureJobs({...run, pictureBatch: batchId}, useCinema.getState().data.jobs).get('cast:' + c.name);
+      if (!job || failed(job)) await send(portraitPrompt(c, style, setting), nearestAspect('3:4', model.options.aspectRatios), own, portraitTag(c));
+    }
+    // Wait for them (Kie takes from seconds to minutes); a portrait that fails is left out.
+    const deadline = Date.now() + 10 * 60_000;
+    const doneAt = new Map<string, number>();
+    while (missing.some(c => !portraits.has(c.name)) && Date.now() < deadline) {
+      await pause(2000);
+      const fresh = currentRun(chatId, messageId);
+      if (!fresh?.draft) return;
+      const now = pictureJobs(fresh, useCinema.getState().data.jobs);
+      let open = false;
+      for (const c of missing) {
+        if (portraits.has(c.name)) continue;
+        if (hasImage(fresh.cast?.[c.name], c.look)) { portraits.set(c.name, fresh.cast![c.name].image!.asset); queue.delete('cast:' + c.name); continue; }
+        const job = now.get('cast:' + c.name);
+        if (job?.state === 'success') {
+          await importResult(chatId, messageId, {kind: 'cast', key: c.name, prompt: c.look}, job);
+          // Finished in Kie but its file cannot be brought here: the pictures go without that portrait.
+          if (!doneAt.has(c.name)) doneAt.set(c.name, Date.now());
+          if (Date.now() - doneAt.get(c.name)! > 90_000) { queue.delete('cast:' + c.name); continue; }
+        }
+        if (!job || !failed(job)) open = true; else queue.delete('cast:' + c.name);
+      }
+      if (!open) break;
+    }
+    for (const c of missing) queue.delete('cast:' + c.name);
+
+    // 2. The pictures, each with the portraits of its characters.
+    for (const slot of slots) {
+      const people = slotCharacters(slot, cast);
+      // The portraits go first: with a model that takes few references they are what keeps the characters the same.
+      const refs = [...people.flatMap(c => portraits.has(c.name) ? ['asset:' + portraits.get(c.name)] : []), ...own];
+      await send(picturePrompt(slot, style, {cast, setting, withPortraits: people.some(c => portraits.has(c.name))}), nearestAspect(slot.aspect, model.options.aspectRatios), refs, pictureTag(slot));
+      queue.delete(slot.key);
+    }
+  } finally {
+    sending.delete(messageId);
+    changedSending();
+  }
+}
+
 const importing = new Set<string>();
 /**
- * Brings a finished picture into the draft: the studio's saved copy (see cinema/keep.ts) becomes an image of the
- * manual, stored in this browser and in the account, so the preview and the other computers have it.
+ * Brings a finished picture (or portrait) into the draft as an image of the manual, stored in this browser and in
+ * the account, so the preview and the other computers have it. It comes from the studio's saved copy (see
+ * cinema/keep.ts) or, while that copy is not there, straight from Kie's link through the studio.
  */
-export async function importPicture(chatId: string, messageId: string, slot: PictureSlot, job: CinemaJob) {
+export async function importResult(chatId: string, messageId: string, target: {kind: 'pictures' | 'cast'; key: string; prompt: string}, job: CinemaJob) {
   const saved = job.saved?.[0];
-  if (!saved || importing.has(job.id)) return;
-  importing.add(job.id);
+  const source = saved ? '/api/sync/assets?hash=' + saved.hash : job.urls[0] ? '/api/cinema/download?url=' + encodeURIComponent(job.urls[0]) + '&name=' + encodeURIComponent(job.taskId || job.id) : '';
+  // Each source is tried once per visit: a broken link is not asked for again on every change.
+  const attempt = job.id + (saved ? ':saved' : ':kie');
+  if (!source || importing.has(attempt)) return;
+  importing.add(attempt);
   try {
-    const r = await fetch('/api/sync/assets?hash=' + saved.hash);
+    const r = await fetch(source);
     if (!r.ok) throw Error();
-    const image = await imageFromFile(new File([await r.blob()], 'imagen', {type: saved.mime}));
-    if (image.asset !== saved.hash) {
+    const blob = await r.blob();
+    const image = await imageFromFile(new File([blob], 'imagen', {type: blob.type || saved?.mime || 'image/png'}));
+    if (image.asset !== saved?.hash) {
       const bytes = await getAsset(image.asset);
       if (!bytes) throw Error();
       const up = await fetch('/api/sync/assets', {method: 'POST', headers: {'Content-Type': image.format === 'png' ? 'image/png' : 'image/jpeg'}, body: bytes as BodyInit});
       if (!up.ok) throw Error();
     }
-    const run = findMessage(chatId, messageId)?.skill as PdfRun | undefined;
-    if (!run?.draft || !pictureSlots(run.draft).some(s => s.key === slot.key && s.prompt === slot.prompt)) return;
-    updateRun<PdfRun>(chatId, messageId, {pictures: {...run.pictures, [slot.key]: {prompt: slot.prompt, image, job: job.id}}});
+    const run = currentRun(chatId, messageId);
+    if (!run?.draft) return;
+    const entry = {prompt: target.prompt, image, job: job.id};
+    if (target.kind === 'cast') {
+      if (!run.draft.characters.some(c => c.name === target.key && c.look === target.prompt)) return;
+      updateRun<PdfRun>(chatId, messageId, {cast: {...run.cast, [target.key]: entry}});
+    } else {
+      if (!pictureSlots(run.draft).some(s => s.key === target.key && s.prompt === target.prompt)) return;
+      updateRun<PdfRun>(chatId, messageId, {pictures: {...run.pictures, [target.key]: entry}});
+    }
   } catch {
-    // Tried again the next time the card is shown.
-    importing.delete(job.id);
+    // Kept in Kie and in Cinema; another source (the saved copy) is tried when it appears.
   }
+}
+
+export const importPicture = (chatId: string, messageId: string, slot: PictureSlot, job: CinemaJob) =>
+  importResult(chatId, messageId, {kind: 'pictures', key: slot.key, prompt: slot.prompt}, job);
+
+/** The draft with another look for one character (their portrait is made again when asked). */
+export function withCharacterLook(run: PdfRun, name: string, look: string): PdfRun['draft'] {
+  return run.draft && {...run.draft, characters: run.draft.characters.map(c => c.name === name ? {...c, look} : c)};
 }
 
 /** The draft with another prompt for one picture (its image is made again when asked). */

@@ -164,6 +164,51 @@ Pasaron los 46 controles, con axe (WCAG 2.1 AA) sin problemas y sin errores de c
   - Nano Banana 2.1 ya se usaba de verdad en Cinema.
   - **Las páginas citadas:** Kie no documenta cómo devuelve las citas. El estudio las lee en los formatos de OpenAI y de Gemini; si Kie usa otro, la lista no aparece, pero el modelo igual cita sus fuentes en el texto. Conviene probar una pregunta con tu clave.
   - **Los borradores con imágenes** dependen de cada modelo de texto. El estudio valida el formato y rechaza lo que no cumple.
-- **Personajes iguales en todas las imágenes:** ayudan la descripción repetida y las fotos de referencia, pero el modelo de imagen puede variar algo. Para eso está «Otra versión».
+- **Personajes iguales en todas las imágenes:** ayudan los retratos (ver la sección 6), pero el modelo de imagen puede variar algo. Para eso está «Otra versión». Con un modelo que no recibe referencias, como GPT Image 2.5 Flare · Text to Image, solo queda la descripción y los personajes cambian más.
 - **Las imágenes pendientes en el editor** se ponen desde un archivo: todavía no hay un botón «Generar» dentro del editor. Mientras tanto, «Copiar prompt» y `/image-generation`.
 - **Videos:** sigue pendiente dónde guardarlos.
+
+## 6. Correcciones después de publicar (18 de octubre de 2026)
+
+Con el primer uso real aparecieron tres problemas.
+
+### Kie cobró dos veces las mismas imágenes
+
+**Qué pasó:**
+1. Kie entrega los resultados de la mayoría de sus modelos desde `tempfile.aiquickdraw.com` (así figura en su documentación). El estudio solo aceptaba descargar de `file.aiquickdraw.com`.
+2. Por eso, las imágenes terminadas en Kie no se podían guardar en el estudio: la tarjeta las mostraba como «Pendiente».
+3. Además, el botón «Generar las N imágenes que faltan» seguía activo mientras se enviaban. Así se volvieron a pedir, y a pagar.
+
+**Qué cambió:**
+- **Direcciones de Kie:** el estudio acepta las dos que figuran en la documentación. `ASSET_ALLOWED_HOSTS` ahora agrega direcciones, sin reemplazar esas.
+- **Imágenes terminadas:** una imagen terminada en Kie que todavía no se guardó muestra «Guardando», con la imagen de Kie, y **no se vuelve a ofrecer ni a cobrar**. Se trae sola desde la copia del estudio o desde el enlace de Kie.
+- **Doble toque:** mientras se envía, el botón queda trabado («Enviando a Kie…»). Un segundo toque no pide nada.
+- **Tus imágenes ya pagadas:** las imágenes ya hechas en Kie entran en la tarjeta al abrir el chat de nuevo, sin pedirlas otra vez, mientras Kie guarde los archivos (14 días).
+
+### Los personajes no se parecían entre imágenes
+
+**Qué cambió:**
+- **Cada personaje se describe una sola vez.** El modelo de texto escribe la lista de personajes con su descripción (edad, cara, pelo, ropa) y el lugar y la época comunes («Lugar y época de todas las imágenes»). En cada imagen indica quién aparece.
+- **El estudio agrega esas descripciones en cada imagen** donde aparece el personaje.
+- **Retratos primero:** con un modelo que recibe imágenes de referencia, como Nano Banana 2.1:
+  - el estudio hace primero un retrato de cada personaje;
+  - después lo manda como referencia en cada imagen donde aparece;
+  - la confirmación dice cuántos retratos y cuántas tareas en total.
+- **Prioridad:** los retratos van antes que tus fotos adjuntas, porque el estudio usa como máximo 4 referencias por imagen con Nano Banana 2.1.
+- **La sección «Personajes»** de la tarjeta muestra cada retrato y su descripción, que se puede cambiar. Si la cambiás, el retrato se hace de nuevo.
+- **Modelos sin referencias:** si el modelo elegido no recibe referencias (GPT Image 2.5 Flare · Text to Image), la tarjeta avisa que los personajes pueden salir distintos.
+
+### «Con el diseño de» aparecía vacío
+
+Pasaba si la unidad de destino ya no estaba, por ejemplo porque se borró o se importó de nuevo. Ahora la tarjeta usa la primera unidad que sirve.
+
+### Verificación
+
+- `npm test`: 146 de 146. Se suman pruebas de personajes, retratos y direcciones de Kie.
+- `npm run build`: correcto.
+- **Prueba en el navegador: 54 de 54.** Kie simulado, con la mitad de los resultados en `tempfile.aiquickdraw.com`. Comprobé:
+  - el botón se traba al enviar y un segundo toque no pide nada;
+  - Kie recibió 13 tareas: 5 retratos primero y 8 imágenes, ni una de más;
+  - cada imagen lleva los retratos de sus personajes, con sus descripciones, el lugar y el estilo;
+  - una imagen que no se pudo traer queda «Guardando», no se ofrece de nuevo y entra sola al volver a abrir el chat;
+  - «Otra versión» y un prompt cambiado usan los retratos ya hechos.

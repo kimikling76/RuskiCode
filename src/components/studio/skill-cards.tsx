@@ -19,10 +19,10 @@ import {drawPage, openPdf} from '@/lib/pdf/viewer';
 import type {Unit} from '@/lib/manual/model';
 import type {PersonalMessage} from '@/store/personal-chat';
 import type {ChatAttachment} from '@/lib/personal-chat/attachments';
-import {pictureSlots, refSrc, skillById, type ImageRun, type MediaRef, type PdfRun, type PictureSlot, type ReviewRun, type SkillRun, type VideoRun} from '@/lib/skills/chat';
+import {pictureSlots, refSrc, skillById, slotCharacters, type Character, type ImageRun, type MediaRef, type PdfRun, type PictureSlot, type ReviewRun, type SkillRun, type VideoRun} from '@/lib/skills/chat';
 import {
-  addSkillCard, buildPdf, type RunPatch, designUnits, draftNewWords, generatePictures, importPicture, isRunning, missingPictures, pictureJobs, reviewText, savePdf,
-  sendMedia, updateRun, waitingPictures, withPicturePrompt, writePdf,
+  addSkillCard, buildPdf, type RunPatch, designUnits, draftNewWords, generatePictures, importPicture, importResult, isRunning, missingPictures, pictureContext, pictureJobs,
+  reviewText, savePdf, sendMedia, updateRun, useWaitingPictures, withCharacterLook, withPicturePrompt, writePdf,
 } from '@/lib/skills/run';
 import {ChatModelPicker} from './chat-model-picker';
 import {AspectPicker, Segmented, aspectName, optionLabel} from '@/components/cinema/controls';
@@ -314,24 +314,38 @@ function PdfPictures({chatId, id, run, refs}: {chatId: string; id: string; run: 
   const model = chosen || firstEnabled(false, false);
   const lastCost = useLastCost(model?.id || '');
   const [confirm, setConfirm] = useState<PictureSlot[] | null>(null);
-  const [style, setStyle] = useState(run.imageStyle ?? run.draft?.imageStyle ?? '');
-  const waiting = waitingPictures(id);
-  // Finished pictures come into the draft (and its preview) as soon as the studio has its copy.
+  const context = pictureContext(run);
+  const [style, setStyle] = useState(context.style ?? '');
+  const [setting, setSetting] = useState(context.setting ?? '');
+  const waiting = useWaitingPictures(id);
+  const cast = context.cast;
+  // Finished pictures and portraits come into the draft (and its preview): from the studio's copy, or from Kie's link.
   useEffect(() => {
     for (const slot of slots) {
       const job = jobs.get(slot.key);
-      if (job?.state === 'success' && job.saved?.length && run.pictures?.[slot.key]?.job !== job.id) void importPicture(chatId, id, slot, job);
+      if (job?.state === 'success' && run.pictures?.[slot.key]?.job !== job.id) void importPicture(chatId, id, slot, job);
     }
-  }, [jobs, slots, run.pictures, chatId, id]);
+    for (const c of cast) {
+      const job = jobs.get('cast:' + c.name);
+      if (job?.state === 'success' && run.cast?.[c.name]?.job !== job.id) void importResult(chatId, id, {kind: 'cast', key: c.name, prompt: c.look}, job);
+    }
+  }, [jobs, slots, cast, run.pictures, run.cast, chatId, id]);
   if (!slots.length) return null;
   if (!model) return <p className="rc-pdf-warn">El borrador pide {slots.length} imágenes, pero no hay un modelo de imagen habilitado en el estudio.</p>;
 
   const o = model.options;
   const resolution = o.resolutions.includes(run.pictureResolution || '') ? run.pictureResolution! : o.resolutions.find(r => r === '2K') || o.resolutions[0] || '';
+  const sending = waiting.size > 0;
   const busy = (key: string) => waiting.has(key) || Boolean(jobs.get(key) && isActive(jobs.get(key)!));
-  const done = slots.filter(s => run.pictures?.[s.key]?.image && run.pictures[s.key].prompt === s.prompt).length;
-  const toSend = missingPictures(run).filter(s => !busy(s.key));
+  // Done in Kie but not brought in yet: it is on its way, never offered (or paid) again.
+  const arriving = (key: string) => jobs.get(key)?.state === 'success';
+  const imageOf = (slot: PictureSlot) => { const p = run.pictures?.[slot.key]; return p?.image && p.prompt === slot.prompt ? p.image : undefined; };
+  const done = slots.filter(imageOf).length;
+  const toSend = missingPictures(run).filter(s => !busy(s.key) && !arriving(s.key));
   const usedRefs = o.maxReferences ? refs.slice(0, o.maxReferences) : [];
+  const portraitOf = (c: Character) => { const p = run.cast?.[c.name]; return p?.image && p.prompt === c.look ? p.image : undefined; };
+  const shown = cast.filter(c => slots.some(s => slotCharacters(s, cast).includes(c)));
+  const portraitsToMake = o.maxReferences ? shown.filter(c => !portraitOf(c) && (confirm || []).some(s => slotCharacters(s, cast).includes(c))) : [];
   const pickerModels = imageModels.map(m => {
     const p = publicModel(m, true);
     return m.options.modes.includes('create') ? p : {...p, available: false, missing: 'Solo edita una imagen: para las imágenes del borrador hace falta un modelo que las cree desde texto.'};
@@ -340,7 +354,7 @@ function PdfPictures({chatId, id, run, refs}: {chatId: string; id: string; run: 
   function send() {
     const list = confirm || [];
     setConfirm(null);
-    if (style !== (run.imageStyle ?? run.draft?.imageStyle ?? '')) updateRun<PdfRun>(chatId, id, {imageStyle: style});
+    if (sending || !list.length) return;
     void generatePictures(chatId, id, {model: model!.id, resolution, refs: usedRefs, slots: list.map(s => s.key)});
   }
 
@@ -348,22 +362,50 @@ function PdfPictures({chatId, id, run, refs}: {chatId: string; id: string; run: 
     <section className="rc-skill-pictures" aria-label="Imágenes del borrador">
       <p className="rc-skill-subtitle">Imágenes · {done} de {slots.length}</p>
       <p className="rc-hint">Las crea un modelo de imagen de Kie a partir de lo que pediste; no se buscan en internet. Los textos de las etiquetas y los globos los pone el estudio, así se pueden corregir.</p>
+      {shown.length ? (
+        <div className="rc-field"><span>Personajes</span>
+          <ul className="rc-skill-cast">
+            {shown.map(c => {
+              const portrait = portraitOf(c);
+              const job = jobs.get('cast:' + c.name);
+              return (
+                <li key={c.name}>
+                  <div className="rc-skill-picture" data-shape="3:4">
+                    {portrait ? <img src={'/api/sync/assets?hash=' + portrait.asset} alt={'Retrato de ' + c.name} loading="lazy" />
+                      : job?.state === 'success' && job.urls[0] ? <KieImage src={job.urls[0]} alt={'Retrato de ' + c.name} fallback={savedUrl(job)} /> : null}
+                    {!portrait && (waiting.has('cast:' + c.name) || (job && isActive(job))) ? <span className="rc-skill-picture-state" role="status"><span className="rc-job-pulse" aria-hidden="true" />Retrato</span>
+                      : !portrait && !job ? <span className="rc-skill-picture-state">{o.maxReferences ? 'Sin retrato' : 'Sin referencia'}</span> : null}
+                  </div>
+                  <strong lang="ru">{c.name}</strong>
+                  <TextareaAutosize className="rc-textarea" minRows={2} maxRows={6} maxLength={600} defaultValue={c.look} aria-label={'Cómo es ' + c.name}
+                    onBlur={e => { const v = e.target.value.trim(); if (v && v !== c.look) updateRun<PdfRun>(chatId, id, {draft: withCharacterLook(run, c.name, v)}); }} />
+                </li>
+              );
+            })}
+          </ul>
+          {o.maxReferences
+            ? <p className="rc-hint">Primero se hace un retrato de cada personaje; después ese retrato va como referencia en cada imagen donde aparece, para que sea la misma persona. Si cambiás cómo es, el retrato se hace de nuevo.</p>
+            : <p className="rc-pdf-warn">{model.name} no recibe imágenes de referencia: cada imagen sale solo de su descripción y los personajes pueden verse distintos. Para que sean siempre los mismos, elegí un modelo que acepte referencias, como Nano Banana 2.1.</p>}
+        </div>
+      ) : null}
       <ul className="rc-skill-picture-grid">
         {slots.map(slot => {
-          const have = run.pictures?.[slot.key];
-          const image = have?.image && have.prompt === slot.prompt ? have.image : undefined;
+          const image = imageOf(slot);
           const job = jobs.get(slot.key);
           const failed = !busy(slot.key) && job && (job.state === 'error' || job.state === 'fail');
+          const coming = !image && arriving(slot.key) && job;
           return (
             <li key={slot.key}>
               <div className="rc-skill-picture" data-shape={slot.aspect}>
-                {image ? <img src={'/api/sync/assets?hash=' + image.asset} alt={slot.label + ': ' + slot.prompt.slice(0, 100)} loading="lazy" /> : null}
-                {busy(slot.key) ? <span className="rc-skill-picture-state" role="status"><span className="rc-job-pulse" aria-hidden="true" />{waiting.has(slot.key) || job?.state === 'sending' ? 'Enviando' : 'Generando'}</span>
+                {image ? <img src={'/api/sync/assets?hash=' + image.asset} alt={slot.label + ': ' + slot.prompt.slice(0, 100)} loading="lazy" />
+                  : coming && job.urls[0] ? <KieImage src={job.urls[0]} alt={slot.label + ': ' + slot.prompt.slice(0, 100)} fallback={savedUrl(job)} /> : null}
+                {busy(slot.key) ? <span className="rc-skill-picture-state" role="status"><span className="rc-job-pulse" aria-hidden="true" />{waiting.has(slot.key) ? 'En espera' : job?.state === 'sending' ? 'Enviando' : 'Generando'}</span>
                   : failed ? <span className="rc-skill-picture-state" title={errorDetail(job!.error) + (job!.failMessage ? ' Kie: «' + job!.failMessage + '»' : '')}><span className="rc-dot rc-dot--danger" aria-hidden="true" />No se pudo</span>
-                    : !image ? <span className="rc-skill-picture-state">Pendiente</span> : null}
+                    : coming ? <span className="rc-skill-picture-state" role="status"><span className="rc-job-pulse" aria-hidden="true" />Guardando</span>
+                      : !image ? <span className="rc-skill-picture-state">Pendiente</span> : null}
               </div>
               <span className="rc-skill-picture-label" lang="ru">{slot.label}</span>
-              {(image || failed) && !busy(slot.key) ? (
+              {(image || failed) && !busy(slot.key) && !sending ? (
                 <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm" onClick={() => setConfirm([slot])}><RotateCcw aria-hidden="true" />{failed ? 'Reintentar' : 'Otra versión'}</button>
               ) : null}
               <details className="rc-skill-picture-prompt">
@@ -379,27 +421,32 @@ function PdfPictures({chatId, id, run, refs}: {chatId: string; id: string; run: 
         <div className="rc-cine-model-picker"><ChatModelPicker models={pickerModels} value={model.id} onChange={m => updateRun<PdfRun>(chatId, id, {pictureModel: m})} category="image" allowAuto={false} title="Modelo de imagen" /></div>
       </div>
       {o.resolutions.length ? <div className="rc-field"><span>{o.resolutionLabel || 'Resolución'}</span><Segmented name={'pic-res-' + id} label={o.resolutionLabel || 'Resolución'} value={resolution} onChange={v => updateRun<PdfRun>(chatId, id, {pictureResolution: v})} options={o.resolutions.map(r => ({value: r, label: optionLabel(r)}))} /></div> : null}
+      <label className="rc-field"><span>Lugar y época de todas las imágenes</span>
+        <TextareaAutosize className="rc-textarea" minRows={1} maxRows={4} maxLength={400} value={setting} onChange={e => setSetting(e.target.value)} onBlur={() => updateRun<PdfRun>(chatId, id, {setting})} placeholder="Por ejemplo: un departamento moderno y una escuela en una ciudad rusa, en otoño" />
+      </label>
       <label className="rc-field"><span>Estilo de todas las imágenes</span>
         <TextareaAutosize className="rc-textarea" minRows={1} maxRows={4} maxLength={400} value={style} onChange={e => setStyle(e.target.value)} onBlur={() => updateRun<PdfRun>(chatId, id, {imageStyle: style})} placeholder="Por ejemplo: fotos realistas y luminosas, luz natural, gente amable en una escuela" />
       </label>
       {refs.length ? <p className="rc-hint">{usedRefs.length ? usedRefs.length + (usedRefs.length === 1 ? ' imagen adjunta va' : ' imágenes adjuntas van') + ' como referencia con cada imagen (personajes, lugares).' : 'Este modelo no usa imágenes de referencia: las adjuntas no se envían.'}</p> : null}
       <div className="rc-skill-row">
-        <button type="button" className="rc-btn rc-btn--primary rc-btn--sm" disabled={!toSend.length} onClick={() => setConfirm(toSend)}>
-          <ImagePlus aria-hidden="true" />{toSend.length ? (toSend.length === 1 ? 'Generar la imagen que falta…' : 'Generar las ' + toSend.length + ' imágenes que faltan…') : done === slots.length ? 'Todas las imágenes están listas' : 'Generando…'}
+        <button type="button" className="rc-btn rc-btn--primary rc-btn--sm" disabled={!toSend.length || sending} onClick={() => setConfirm(toSend)}>
+          <ImagePlus aria-hidden="true" />{sending ? 'Enviando a Kie…' : toSend.length ? (toSend.length === 1 ? 'Generar la imagen que falta…' : 'Generar las ' + toSend.length + ' imágenes que faltan…') : done === slots.length ? 'Todas las imágenes están listas' : 'Generando…'}
         </button>
-        <span className="rc-hint">Nada se pide a Kie hasta que confirmes.</span>
+        <span className="rc-hint">Nada se pide a Kie hasta que confirmes. Lo que ya se está haciendo no se vuelve a pedir.</span>
       </div>
       <ConfirmDialog
         open={Boolean(confirm)} onClose={() => setConfirm(null)} onConfirm={send} confirmLabel="Generar"
         title={confirm?.length === 1 ? '¿Generar esta imagen en Kie?' : '¿Generar ' + (confirm?.length || 0) + ' imágenes en Kie?'}
-        description="Cada imagen es una tarea en Kie y consume créditos. El costo real aparece al terminar. Quedan guardadas en el estudio y en la galería de Cinema, y entran solas en la vista previa."
+        description={'Cada imagen es una tarea en Kie y consume créditos. El costo real aparece al terminar. Quedan guardadas en el estudio y en la galería de Cinema, y entran solas en la vista previa.' + (portraitsToMake.length ? ' Antes se hace ' + (portraitsToMake.length === 1 ? 'el retrato de ' : 'un retrato de cada personaje (') + portraitsToMake.map(c => c.name).join(', ') + (portraitsToMake.length === 1 ? '' : ')') + ', que va como referencia.' : '')}
       >
         <Facts rows={[
           ['Modelo', model.name + (model.status === 'tested' ? '' : ' (sin prueba real desde el estudio)')],
           ['Imágenes', String(confirm?.length || 0)],
+          ...(portraitsToMake.length ? [['Retratos de personajes', String(portraitsToMake.length)] as [string, string]] : []),
+          ['Tareas en Kie', String((confirm?.length || 0) + portraitsToMake.length)],
           ...(o.aspectRatios.length ? [['Formato', 'el de cada imagen del borrador'] as [string, string]] : []),
           ...(o.resolutions.length ? [[o.resolutionLabel || 'Resolución', optionLabel(resolution)] as [string, string]] : []),
-          ['Referencias', usedRefs.length ? String(usedRefs.length) : 'Ninguna'],
+          ['Referencias', usedRefs.length ? String(usedRefs.length) + (portraitsToMake.length || shown.some(portraitOf) ? ' + retratos' : '') : portraitsToMake.length || shown.some(portraitOf) ? 'Retratos de los personajes' : 'Ninguna'],
           ['Último costo', lastCost],
         ]} />
       </ConfirmDialog>
@@ -429,6 +476,9 @@ function PdfCard({chatId, id, run, model, attachments}: {chatId: string; id: str
   const [confirm, setConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
   const writing = run.state === 'writing' && isRunning(id);
+  // A destination unit that is no longer in this account (deleted, imported again): the first one that can be used.
+  const lost = Boolean(state && run.target && run.state !== 'saved' && state.models.length && !state.models.some(u => u.id === run.target!.unitId));
+  useEffect(() => { if (lost && state) updateRun<PdfRun>(chatId, id, {target: {...run.target!, unitId: state.models[0].id}}); }, [lost]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (run.state === 'writing') {
     return writing

@@ -71,6 +71,10 @@ export type PdfRun = {
   pictures?: Record<string, PictureState>;
   /** Image model and options for the pictures, the batch of their jobs in Cinema, and the style for all of them. */
   pictureModel?: string; pictureResolution?: string; pictureBatch?: string; imageStyle?: string;
+  /** The place and time shared by the pictures, when the author changed the draft's. */
+  setting?: string;
+  /** A reference portrait of each character, by name (`prompt` is the look it was made from). */
+  cast?: Record<string, PictureState>;
 };
 export type PictureState = {prompt: string; image?: ImageData; job?: string};
 export type ReviewRun = {
@@ -86,6 +90,8 @@ export type SkillRun = ImageRun | VideoRun | PdfRun | ReviewRun;
 const line = z.string().trim().min(1).max(300);
 const picturePromptSchema = z.string().trim().min(1).max(1200);
 const aspectSchema = z.enum(pictureAspects).catch('4:3');
+/** Names of the characters a picture shows (see `characters` in the draft). */
+const inPicture = z.array(z.string().trim().min(1).max(60)).max(6).catch([]);
 /** Most pictures one draft may ask for: each one is a paid task in Kie. */
 export const MAX_PICTURES = 24;
 export const draftBlockSchema = z.discriminatedUnion('type', [
@@ -101,17 +107,18 @@ export const draftBlockSchema = z.discriminatedUnion('type', [
   }),
   z.object({
     type: z.literal('image'), prompt: picturePromptSchema, caption: z.string().trim().max(200).optional(),
-    size: z.enum(['small', 'medium', 'large', 'full']).catch('medium'), aspect: aspectSchema,
+    size: z.enum(['small', 'medium', 'large', 'full']).catch('medium'), aspect: aspectSchema, characters: inPicture,
   }),
   z.object({
     type: z.literal('gallery'), columns: z.number().int().min(2).max(6).catch(3), aspect: z.enum(pictureAspects).catch('1:1'), numbered: z.boolean().catch(false),
-    items: z.array(z.object({prompt: picturePromptSchema, label: z.string().trim().max(80).catch('')})).min(1).max(18),
+    items: z.array(z.object({prompt: picturePromptSchema, label: z.string().trim().max(80).catch(''), characters: inPicture})).min(1).max(18),
   }),
   z.object({
     type: z.literal('comic'), columns: z.union([z.literal(2), z.literal(3)]).catch(2), aspect: aspectSchema,
     panels: z.array(z.object({
       prompt: picturePromptSchema,
       bubbles: z.array(z.union([z.string(), z.object({text: z.string()})]).transform(b => (typeof b === 'string' ? b : b.text).trim().slice(0, 160))).max(3).catch([]),
+      characters: inPicture,
     })).min(1).max(9),
   }),
 ]);
@@ -119,6 +126,10 @@ export const draftSchema = z.object({
   title: z.string().trim().min(1).max(200),
   summary: z.string().trim().max(400).optional(),
   imageStyle: z.string().trim().max(400).optional(),
+  /** Where and when the pictures happen, shared by all of them. */
+  setting: z.string().trim().max(400).optional(),
+  /** The people who appear in more than one picture, described once so they look the same everywhere. */
+  characters: z.array(z.object({name: z.string().trim().min(1).max(60), look: z.string().trim().min(1).max(600)})).max(6).catch([]),
   blocks: z.array(draftBlockSchema).min(1).max(30),
 }).refine(d => pictureSlots(d).length <= MAX_PICTURES);
 export type PdfDraft = z.infer<typeof draftSchema>;
@@ -142,26 +153,52 @@ export function parseDraft(text: string): PdfDraft | null {
 // ---------- /pdf-generator: pictures ----------
 
 type DraftBlock = z.infer<typeof draftBlockSchema>;
-export type PictureSlot = {key: string; prompt: string; aspect: PictureAspect; kind: 'image' | 'gallery' | 'comic'; label: string};
+export type PictureSlot = {key: string; prompt: string; aspect: PictureAspect; kind: 'image' | 'gallery' | 'comic'; label: string; characters: string[]};
+export type Character = {name: string; look: string};
 
 /** Every picture of a draft, in reading order: `3` is the image block 3, `5.2` the third picture of block 5. */
 export function pictureSlots(draft: {blocks: DraftBlock[]}): PictureSlot[] {
   const out: PictureSlot[] = [];
   draft.blocks.forEach((b, i) => {
-    if (b.type === 'image') out.push({key: String(i), prompt: b.prompt, aspect: b.aspect, kind: 'image', label: b.caption?.replace(/\*\*|==/g, '') || 'Imagen'});
-    if (b.type === 'gallery') b.items.forEach((it, k) => out.push({key: i + '.' + k, prompt: it.prompt, aspect: b.aspect, kind: 'gallery', label: it.label.replace(/\*\*|==/g, '') || (b.numbered ? String(k + 1) : 'Galería ' + (k + 1))}));
-    if (b.type === 'comic') b.panels.forEach((p, k) => out.push({key: i + '.' + k, prompt: p.prompt, aspect: b.aspect, kind: 'comic', label: 'Viñeta ' + (k + 1)}));
+    if (b.type === 'image') out.push({key: String(i), prompt: b.prompt, aspect: b.aspect, kind: 'image', label: b.caption?.replace(/\*\*|==/g, '') || 'Imagen', characters: b.characters ?? []});
+    if (b.type === 'gallery') b.items.forEach((it, k) => out.push({key: i + '.' + k, prompt: it.prompt, aspect: b.aspect, kind: 'gallery', label: it.label.replace(/\*\*|==/g, '') || (b.numbered ? String(k + 1) : 'Galería ' + (k + 1)), characters: it.characters ?? []}));
+    if (b.type === 'comic') b.panels.forEach((p, k) => out.push({key: i + '.' + k, prompt: p.prompt, aspect: b.aspect, kind: 'comic', label: 'Viñeta ' + (k + 1), characters: p.characters ?? []}));
   });
   return out;
 }
 
-/** What the image model gets for one slot: its prompt, the common style, and no text inside the picture. */
-export function picturePrompt(slot: PictureSlot, style?: string) {
+const sentence = (t: string) => t.trim().replace(/\.?$/, '.');
+const same = (a: string, b: string) => a.trim().toLocaleLowerCase('ru') === b.trim().toLocaleLowerCase('ru');
+
+/** The characters a picture shows: the ones it lists, or the ones its prompt names. */
+export function slotCharacters(slot: Pick<PictureSlot, 'prompt' | 'characters'>, cast: Character[]) {
+  return cast.filter(c => slot.characters.some(n => same(n, c.name)) || slot.prompt.toLocaleLowerCase('ru').includes(c.name.trim().toLocaleLowerCase('ru')));
+}
+
+/**
+ * What the image model gets for one slot: its prompt, how its characters look, the shared place and style, and
+ * no text inside the picture. `withPortraits`: their reference portraits go with it.
+ */
+export function picturePrompt(slot: PictureSlot, style?: string, more: {cast?: Character[]; setting?: string; withPortraits?: boolean} = {}) {
+  const people = slotCharacters(slot, more.cast || []);
   return [
-    slot.prompt.trim().replace(/\.?$/, '.'),
-    style?.trim() ? 'Style: ' + style.trim().replace(/\.?$/, '.') : '',
+    sentence(slot.prompt),
+    people.length ? 'Characters: ' + people.map(c => c.name + ' — ' + c.look.trim().replace(/\.$/, '')).join('; ') + '. Keep each character exactly as described' + (more.withPortraits ? ' and identical to the reference portraits (same face, hair and clothes)' : '') + '.' : '',
+    more.setting?.trim() ? 'Setting: ' + sentence(more.setting) : '',
+    style?.trim() ? 'Style: ' + sentence(style) : '',
     slot.kind === 'comic' ? 'Comic panel: keep the upper part of the frame calm and uncluttered, because speech bubbles are added on top later.' : '',
     'Do not draw any text, letters, numbers, captions, speech bubbles, logos or watermarks.',
+  ].filter(Boolean).join(' ');
+}
+
+/** The reference portrait of a character: made first, then sent with every picture where they appear. */
+export function portraitPrompt(c: Character, style?: string, setting?: string) {
+  return [
+    'Character reference portrait of ' + c.name + ': ' + sentence(c.look),
+    'One person only, full figure from head to knees, facing the camera, friendly expression, plain light grey background, soft even light.',
+    setting?.trim() ? 'The character belongs to this setting: ' + sentence(setting) : '',
+    style?.trim() ? 'Style: ' + sentence(style) : '',
+    'Do not draw any text, letters, numbers, captions, logos or watermarks.',
   ].filter(Boolean).join(' ');
 }
 
@@ -176,6 +213,16 @@ export function nearestAspect(aspect: PictureAspect, offered: readonly string[])
     if (d < diff) { diff = d; best = o; }
   }
   return best;
+}
+
+/** Portraits still valid for a draft's characters: the same name and the same look. */
+export function keptCast(draft: PdfDraft, cast: PdfRun['cast'], previous?: PdfRun['cast']) {
+  const out: Record<string, PictureState> = {};
+  for (const c of draft.characters) {
+    const found = [cast?.[c.name], previous?.[c.name]].find(p => p?.image && p.prompt === c.look);
+    if (found) out[c.name] = found;
+  }
+  return out;
 }
 
 /** Pictures still valid for a draft: the same prompt in the same slot. Images made for another prompt are dropped. */
