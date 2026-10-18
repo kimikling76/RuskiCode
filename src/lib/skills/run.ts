@@ -4,13 +4,18 @@ import {startGeneration} from '@/lib/cinema/client';
 import {textAnswer} from '@/lib/ai/text-request';
 import {fetchEditorFonts, type EditorFonts} from '@/lib/manual/fonts';
 import {listUnits, saveUnit, saveVersion} from '@/lib/manual/store';
-import {nextExercise} from '@/lib/manual/compose';
+import {contentWidth, nextExercise} from '@/lib/manual/compose';
 import {blankUnitFrom, layOut} from '@/lib/manual/units';
+import {imageFromFile} from '@/lib/manual/browser';
+import {getAsset} from '@/lib/manual/store';
+import {imageModels} from '@/lib/ai/models';
 import type {Unit} from '@/lib/manual/model';
+import type {CinemaJob} from '@/store/cinema';
 import type {ChatAttachment} from '@/lib/personal-chat/attachments';
 import {
-  autoChecks, draftComponents, newWords, parseDraft, parseReview, pdfContext, refValue, reviewRequest, skillSummary, unitPagesText, unitVocabulary,
-  type ImageRun, type PdfRun, type PdfTarget, type ReviewRun, type SkillRun, type VideoRun,
+  autoChecks, draftComponents, keptPictures, nearestAspect, newWords, parseDraft, parseReview, pdfContext, pictureSlots, picturePrompt, refValue,
+  reviewRequest, skillSummary, unitPagesText, unitVocabulary,
+  type ImageRun, type MediaRef, type PdfRun, type PdfTarget, type PictureSlot, type ReviewRun, type SkillRun, type VideoRun,
 } from './chat';
 
 // What the Chat's skills do. Each change to a skill's record goes through `updateRun`, which also keeps the
@@ -77,24 +82,27 @@ export function buildPdf(fonts: EditorFonts, units: Unit[], run: PdfRun) {
   const target = run.target;
   const unit = units.find(u => u.id === target?.unitId);
   if (!run.draft || !target || !unit) return null;
+  const draft = {...run.draft, imageStyle: run.imageStyle ?? run.draft.imageStyle};
+  const page = unit.pages[unit.pages.length - 1];
+  const area = {width: contentWidth(unit.template, page), height: page.height - unit.template.margins.top - unit.template.margins.bottom};
   if (target.mode === 'new') {
     const number = String(Math.max(0, ...units.map(unitNumberOf)) + 1);
     const base = blankUnitFrom(fonts, unit, {id: crypto.randomUUID(), title: run.draft.title, number, now: Date.now()});
-    const components = draftComponents(run.draft, {number: 1, unit: number, audio: 1});
+    const components = draftComponents(draft, {number: 1, unit: number, audio: 1}, area, run.pictures);
     return {...layOut(fonts, base, components, false), isNew: true, from: unit};
   }
   const next = nextExercise(unit);
   const [unitNo, audio] = next.audio.split('.');
-  const components = draftComponents(run.draft, {number: Number(next.number), unit: unitNo, audio: Number(audio)});
+  const components = draftComponents(draft, {number: Number(next.number), unit: unitNo, audio: Number(audio)}, area, run.pictures);
   return {...layOut(fonts, unit, components, true), isNew: false, from: unit};
 }
 
-function previousDraft(chatId: string, messageId: string) {
+function previousRun(chatId: string, messageId: string) {
   const messages = usePersonal.getState().data.chats.find(c => c.id === chatId)?.messages || [];
   const before = messages.slice(0, messages.findIndex(m => m.id === messageId));
   for (let i = before.length - 1; i >= 0; i--) {
     const s = before[i].skill;
-    if (s?.skill === 'pdf-generator' && s.draft) return s.draft;
+    if (s?.skill === 'pdf-generator' && s.draft) return s;
   }
   return undefined;
 }
@@ -110,10 +118,17 @@ export async function writePdf(chatId: string, messageId: string, model: string)
     if (!models.length) { updateRun<PdfRun>(chatId, messageId, {state: 'error', error: 'NO_MANUAL'}); return; }
     const target: PdfTarget = run.target && models.some(u => u.id === run.target!.unitId) ? run.target : {mode: 'new', unitId: models[0].id};
     const unit = models.find(u => u.id === target.unitId)!;
-    const answer = await textAnswer('pdf-generator', pdfContext(unit, target, run.request, unitVocabulary(units), previousDraft(chatId, messageId)), {model});
+    const previous = previousRun(chatId, messageId);
+    const answer = await textAnswer('pdf-generator', pdfContext(unit, target, run.request, unitVocabulary(units), previous?.draft), {model, webSearch: run.webSearch});
     const draft = parseDraft(answer.text);
     if (!draft) { updateRun<PdfRun>(chatId, messageId, {state: 'error', error: 'INVALID_DRAFT', model: answer.model, credits: answer.credits}); return; }
-    updateRun<PdfRun>(chatId, messageId, {state: 'ready', draft, target, model: answer.model, credits: answer.credits});
+    // Pictures already made for the same prompt (in this card or the draft it changes) are kept: they are not paid twice.
+    const fresh = findMessage(chatId, messageId)?.skill as PdfRun | undefined;
+    const pictures = keptPictures(draft, fresh?.pictures, previous?.pictures);
+    updateRun<PdfRun>(chatId, messageId, {
+      state: 'ready', draft, target, model: answer.model, credits: answer.credits, sources: answer.sources, pictures, imageStyle: undefined,
+      ...(previous?.pictureModel && !fresh?.pictureModel ? {pictureModel: previous.pictureModel, pictureResolution: previous.pictureResolution} : {}),
+    });
   } catch (e) {
     updateRun<PdfRun>(chatId, messageId, {state: 'error', error: e instanceof Error ? e.message : 'PROVIDER_UNAVAILABLE'});
   } finally {
@@ -138,6 +153,109 @@ export async function savePdf(chatId: string, messageId: string) {
 }
 
 export const draftNewWords = (run: PdfRun, units: Unit[]) => run.draft ? newWords(run.draft, unitVocabulary(units)) : [];
+
+// ---------- /pdf-generator: pictures made with an image model ----------
+
+/** A short fingerprint of a slot's prompt, in the job's tag: a job made for an older prompt is not used. */
+function promptMark(prompt: string) {
+  let h = 5381;
+  for (let i = 0; i < prompt.length; i++) h = (h * 33 + prompt.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+export const pictureTag = (slot: Pick<PictureSlot, 'key' | 'prompt'>) => slot.key + '#' + promptMark(slot.prompt);
+
+/** Pictures that still need an image for their current prompt. */
+export function missingPictures(run: PdfRun) {
+  return run.draft ? pictureSlots(run.draft).filter(s => !(run.pictures?.[s.key]?.image && run.pictures[s.key].prompt === s.prompt)) : [];
+}
+
+const sending = new Map<string, Set<string>>();
+/** Slots of a card waiting in this browser to be sent to Kie (they go a little apart). */
+export const waitingPictures = (messageId: string) => sending.get(messageId) || new Set<string>();
+
+/**
+ * Asks Kie for pictures of the draft, one task per picture, with the prompt the text model wrote, the common style
+ * and the author's reference images. Nothing is searched on the web. `slots` defaults to the missing ones.
+ */
+export async function generatePictures(chatId: string, messageId: string, opts: {model: string; resolution: string; refs: MediaRef[]; slots?: string[]}) {
+  const run = findMessage(chatId, messageId)?.skill as PdfRun | undefined;
+  const model = imageModels.find(m => m.id === opts.model);
+  if (!run?.draft || !model) return;
+  const all = pictureSlots(run.draft);
+  const slots = opts.slots ? all.filter(s => opts.slots!.includes(s.key)) : missingPictures(run);
+  if (!slots.length) return;
+  const batchId = run.pictureBatch || crypto.randomUUID();
+  updateRun<PdfRun>(chatId, messageId, {pictureBatch: batchId, pictureModel: model.id, pictureResolution: opts.resolution});
+  const queue = sending.get(messageId) || new Set<string>();
+  sending.set(messageId, queue);
+  for (const s of slots) queue.add(s.key);
+  const style = run.imageStyle ?? run.draft.imageStyle;
+  const references = model.options.maxReferences ? opts.refs.slice(0, model.options.maxReferences).map(refValue) : [];
+  for (const [i, slot] of slots.entries()) {
+    // The studio accepts up to 8 new Kie tasks every 10 seconds.
+    if (i) await new Promise(r => setTimeout(r, 1400));
+    queue.delete(slot.key);
+    await startGeneration({
+      mode: 'create', model: model.id, prompt: picturePrompt(slot, style), aspect: nearestAspect(slot.aspect, model.options.aspectRatios),
+      resolution: model.options.resolutions.includes(opts.resolution) ? opts.resolution : model.options.resolutions[0] || '',
+      references, count: 1, batchId, tag: pictureTag(slot),
+    });
+  }
+  if (!queue.size) sending.delete(messageId);
+}
+
+/** The newest job of each slot for its current prompt. */
+export function pictureJobs(run: PdfRun, jobs: CinemaJob[]) {
+  const out = new Map<string, CinemaJob>();
+  if (!run.draft || !run.pictureBatch) return out;
+  const tags = new Map(pictureSlots(run.draft).map(s => [pictureTag(s), s.key]));
+  for (const job of jobs) {
+    const key = job.batchId === run.pictureBatch && job.tag ? tags.get(job.tag) : undefined;
+    if (key && (!out.has(key) || out.get(key)!.createdAt < job.createdAt)) out.set(key, job);
+  }
+  return out;
+}
+
+const importing = new Set<string>();
+/**
+ * Brings a finished picture into the draft: the studio's saved copy (see cinema/keep.ts) becomes an image of the
+ * manual, stored in this browser and in the account, so the preview and the other computers have it.
+ */
+export async function importPicture(chatId: string, messageId: string, slot: PictureSlot, job: CinemaJob) {
+  const saved = job.saved?.[0];
+  if (!saved || importing.has(job.id)) return;
+  importing.add(job.id);
+  try {
+    const r = await fetch('/api/sync/assets?hash=' + saved.hash);
+    if (!r.ok) throw Error();
+    const image = await imageFromFile(new File([await r.blob()], 'imagen', {type: saved.mime}));
+    if (image.asset !== saved.hash) {
+      const bytes = await getAsset(image.asset);
+      if (!bytes) throw Error();
+      const up = await fetch('/api/sync/assets', {method: 'POST', headers: {'Content-Type': image.format === 'png' ? 'image/png' : 'image/jpeg'}, body: bytes as BodyInit});
+      if (!up.ok) throw Error();
+    }
+    const run = findMessage(chatId, messageId)?.skill as PdfRun | undefined;
+    if (!run?.draft || !pictureSlots(run.draft).some(s => s.key === slot.key && s.prompt === slot.prompt)) return;
+    updateRun<PdfRun>(chatId, messageId, {pictures: {...run.pictures, [slot.key]: {prompt: slot.prompt, image, job: job.id}}});
+  } catch {
+    // Tried again the next time the card is shown.
+    importing.delete(job.id);
+  }
+}
+
+/** The draft with another prompt for one picture (its image is made again when asked). */
+export function withPicturePrompt(run: PdfRun, key: string, prompt: string): PdfRun['draft'] {
+  if (!run.draft) return run.draft;
+  const [block, cell] = key.split('.').map(Number);
+  return {...run.draft, blocks: run.draft.blocks.map((b, i) => {
+    if (i !== block) return b;
+    if (b.type === 'image') return {...b, prompt};
+    if (b.type === 'gallery') return {...b, items: b.items.map((it, k) => k === cell ? {...it, prompt} : it)};
+    if (b.type === 'comic') return {...b, panels: b.panels.map((p, k) => k === cell ? {...p, prompt} : p)};
+    return b;
+  })};
+}
 
 // ---------- /revisar-ruso ----------
 
@@ -164,10 +282,10 @@ export async function reviewText(chatId: string, messageId: string, model: strin
     const docTexts = await Promise.all(docs.map(d => fetch('/api/sync/assets?hash=' + d.hash).then(r => r.ok ? r.text() : '').catch(() => '')));
     const auto = autoChecks([...pages, ...docTexts.map(text => ({page: null, text}))]);
     updateRun<ReviewRun>(chatId, messageId, {auto});
-    const answer = await textAnswer('russian-review', reviewRequest(pages.filter(p => p.text.trim()), note), {model, attachments: docs});
+    const answer = await textAnswer('russian-review', reviewRequest(pages.filter(p => p.text.trim()), note), {model, attachments: docs, webSearch: run.webSearch});
     const result = parseReview(answer.text);
     if (!result) { updateRun<ReviewRun>(chatId, messageId, {state: 'error', error: 'INVALID_REVIEW', model: answer.model, credits: answer.credits}); return; }
-    updateRun<ReviewRun>(chatId, messageId, {state: 'ready', result, model: answer.model, credits: answer.credits});
+    updateRun<ReviewRun>(chatId, messageId, {state: 'ready', result, model: answer.model, credits: answer.credits, sources: answer.sources});
   } catch (e) {
     updateRun<ReviewRun>(chatId, messageId, {state: 'error', error: e instanceof Error ? e.message : 'PROVIDER_UNAVAILABLE'});
   } finally {

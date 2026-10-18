@@ -22,6 +22,8 @@ export type CinemaJob = {
   source?: string;
   boardId?: string;
   shotId?: string;
+  /** What the job is for, given by the caller (a picture slot of /pdf-generator). */
+  tag?: string;
   taskId?: string;
   state: JobState;
   urls: string[];

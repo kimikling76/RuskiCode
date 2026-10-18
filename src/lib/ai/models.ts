@@ -56,7 +56,9 @@ type Base = {
 
 /** What a chat message can carry besides text, as the model's documentation states it. */
 export type TextInput = 'image' | 'pdf';
-export type TextModel = Base & {category: 'text'; inputs?: readonly TextInput[]; stream?: boolean};
+/** Web search as Kie documents it for the model: Gemini's Google Search grounding or OpenAI's web_search tool. */
+export type WebSearchTool = 'googleSearch' | 'web_search';
+export type TextModel = Base & {category: 'text'; inputs?: readonly TextInput[]; stream?: boolean; webSearch?: WebSearchTool};
 
 /** Options a generation model really accepts. Empty or absent means the interface does not offer it. */
 export type MediaOptions = {
@@ -122,7 +124,7 @@ function merge<T extends CatalogModel>(category: Category, generated: T[]): T[] 
   const own = tested.filter(m => m.category === category) as T[];
   const merged = own.map(h => {
     const d = generated.find(g => twin(h, g));
-    return h.category === 'text' && d?.category === 'text' ? {...h, inputs: d.inputs, stream: d.stream} as T : h;
+    return h.category === 'text' && d?.category === 'text' ? {...h, inputs: d.inputs, stream: d.stream, ...(d.webSearch ? {webSearch: d.webSearch} : {})} as T : h;
   });
   return [...merged, ...generated.filter(g => !own.some(h => twin(h, g)))];
 }
@@ -142,13 +144,15 @@ export const enabledStatus = (m: CatalogModel) => usableStatus(m.status);
 export type PublicModel = {
   id: string; name: string; provider: string; category: Category; status: ModelStatus; available: boolean;
   docs: string; missing?: string; options?: MediaOptions; price?: CatalogModel['price']; inputs?: readonly TextInput[];
+  /** The model can search the web through Kie. */
+  webSearch?: boolean;
 };
 
 export function publicModel(m: CatalogModel, keyConfigured: boolean): PublicModel {
   return {
     id: m.id, name: m.name, provider: m.provider, category: m.category, status: m.status,
     available: keyConfigured && enabledStatus(m), docs: m.docs, missing: m.missing,
-    ...(m.category === 'text' ? {inputs: m.inputs || []} : {options: m.options}), price: m.price,
+    ...(m.category === 'text' ? {inputs: m.inputs || [], ...(m.webSearch ? {webSearch: true} : {})} : {options: m.options}), price: m.price,
   };
 }
 

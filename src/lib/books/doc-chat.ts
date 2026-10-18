@@ -26,6 +26,9 @@ export type DocMessage = {
   plan?: {actions: unknown[]; warnings: string[][]; rejected: string[]; unsupported: string | null};
   /** Why an answer failed, as a code (see cinemaErrorDetails). */
   error?: string;
+  /** «Crear con IA» answers asked with web search, and the pages the API reported. */
+  webSearch?: boolean;
+  sources?: {url: string; title?: string}[];
 };
 
 export type DocChat = {doc: string; messages: DocMessage[]; updatedAt: number};

@@ -57,3 +57,10 @@
 .rc-man .rc-pdf-form { grid-template-columns: minmax(0, 1fr); }
 .rc-man .rc-pdf-form-head > .rc-pdf-kind { min-width: 0; flex: 1; }
 .rc-man .rc-pdf-two > * { min-width: 0; }
+
+/* Photos, galleries and comics: their texts and pictures in the inspector. */
+.rc-man-pictures { display: grid; gap: var(--sp-3); min-width: 0; }
+.rc-man-picture-list { display: grid; gap: var(--sp-3); margin: 0; padding: 0; list-style: none; }
+.rc-man-picture-list > li { display: grid; gap: var(--sp-2); padding: var(--sp-3); border: 1px solid var(--line); border-radius: var(--radius-8); min-width: 0; }
+.rc-man-picture-head { font-size: var(--fs-13); font-weight: 600; color: var(--fg-1); }
+.rc-man-picture-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }

@@ -481,8 +481,10 @@
   .rc-step-row { grid-template-columns: 1fr; }
   .rc-chat-title-edit { display: none; }
 }
-@media (max-width: 380px) {
+/* On a phone the composer keeps its buttons on one line: «Preguntar antes» stays as the switch alone (it keeps its name). */
+@media (max-width: 460px) {
   .rc-ask-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .rc-composer-bar { gap: var(--sp-2); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -557,3 +559,14 @@
 .rc-msg-doc strong { font-size: var(--fs-13); font-weight: 500; color: var(--fg-1); overflow-wrap: anywhere; }
 .rc-msg-doc small { font-size: var(--fs-12); color: var(--fg-3); }
 @media (prefers-reduced-motion: reduce) { .rc-attach[data-state="reading"] .rc-attach-icon svg { animation: none; } }
+
+/* Web search: the composer toggle and the pages an answer used. */
+.rc-search-btn svg { width: 17px; height: 17px; }
+.rc-search-btn.is-on { color: var(--accent); background: var(--accent-soft); }
+.rc-msg-sources { margin-top: var(--sp-3); font-size: var(--fs-13); color: var(--fg-3); }
+.rc-msg-sources summary { cursor: pointer; width: fit-content; border-radius: var(--radius-4); }
+.rc-msg-sources ul { list-style: none; margin: var(--sp-2) 0 0; padding: 0; display: grid; gap: var(--sp-2); }
+.rc-msg-sources li { display: grid; gap: 1px; min-width: 0; }
+.rc-msg-sources a { display: inline-flex; align-items: center; gap: 4px; color: var(--fg-1); overflow-wrap: anywhere; }
+.rc-msg-sources a svg { flex-shrink: 0; width: 13px; height: 13px; }
+.rc-msg-sources span { font-size: var(--fs-12); overflow-wrap: anywhere; }

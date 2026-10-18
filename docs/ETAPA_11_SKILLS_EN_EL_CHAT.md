@@ -154,6 +154,6 @@ Pasaron los 30 controles. Se usaron el servidor real, la cuenta real, Postgres c
   - **Veo 3.1** y los demás modelos de video figuran como «sin prueba real».
   - **Las respuestas de los modelos de texto** con la plantilla y con la revisión dependen de cada modelo. El estudio valida el formato y rechaza lo que no cumple, pero conviene probar uno o dos modelos con tu clave.
 - **Videos:** no se guardan en el estudio por su tamaño. Sigue pendiente la decisión: contratar un almacenamiento de archivos, o descargarlos antes de los 14 días.
-- **Imágenes en las páginas:** `/pdf-generator` todavía no pone imágenes. Para eso hay que generarlas con `/image-generation` y ponerlas en el editor del manual.
+- **Imágenes en las páginas:** `/pdf-generator` todavía no pone imágenes. Para eso hay que generarlas con `/image-generation` y ponerlas en el editor del manual. *(Resuelto en la etapa 12: ver `docs/ETAPA_12_IMAGENES_Y_BUSQUEDA_WEB.md`.)*
 - **Las palabras nuevas son una comparación de formas:** «учителя» aparece como nueva aunque el manual tenga «учитель». Es una lista para revisar, no un error.
 - **Pendientes:** `/audio` y las skills creadas por ustedes, como estaba en el plan.

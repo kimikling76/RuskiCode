@@ -1,9 +1,10 @@
 import {spanWidth, type EditorFonts} from './fonts';
 import {blockBox, elementBox, plainText, roundedRect, translate} from './elements';
-import type {Block, Component, Element, Page, Span, Template, Unit} from './model';
+import {aspectValue, type Block, type Color, type Component, type Element, type ImageData, type Page, type PathOp, type Span, type Template, type Unit} from './model';
 
 // Builds the elements of new content from the unit's template: an exercise with its header as it is drawn in the
-// manual, a paragraph, a heading or a photo. Written text may mark **bold** and ==highlighted== words.
+// manual, a paragraph, a heading, a photo, a gallery of pictures or a comic strip with speech bubbles.
+// Written text may mark **bold** and ==highlighted== words. A picture that does not exist yet is a pending frame.
 
 type Run = {text: string; bold: boolean; highlight: boolean};
 
@@ -79,6 +80,48 @@ function merge(spans: Span[]): Span[] {
 }
 
 const fallbackText: Span = {text: '', font: 'regular', size: 10.5, color: {space: 'rgb', c: [0.086, 0.149, 0.149]}};
+const white: Color = {space: 'gray', c: [1]};
+const ink: Color = {space: 'gray', c: [0.13]};
+const frame: Color = {space: 'gray', c: [0.25]};
+const pendingFill: Color = {space: 'gray', c: [0.94]};
+const pendingLine: Color = {space: 'gray', c: [0.62]};
+const r2 = (n: number) => Math.round(n * 100) / 100;
+const lineWidth = (fonts: EditorFonts, spans: Span[]) => spans.reduce((n, sp) => n + spanWidth(fonts, sp), 0);
+
+type Box = {x: number; y: number; w: number; h: number};
+/**
+ * A picture that fills its box, cut to it (as photos are cropped in the manual), with rounded corners.
+ * Without an image yet: a light frame that says so, replaced when the image arrives.
+ */
+function picture(fonts: EditorFonts, push: (el: Element) => void, b: Box, image: ImageData | undefined, radius: number, style: Span) {
+  if (image) {
+    const scale = Math.max(b.w / image.width, b.h / image.height);
+    const iw = image.width * scale, ih = image.height * scale;
+    // The same shape needs no cut unless the corners are rounded.
+    const exact = Math.abs(iw - b.w) < 0.01 * b.w && Math.abs(ih - b.h) < 0.01 * b.h;
+    push({
+      id: '', z: 0, kind: 'image', image, matrix: [r2(iw), 0, 0, r2(ih), r2(b.x + (b.w - iw) / 2), r2(b.y + (b.h - ih) / 2)],
+      ...(radius > 0 || !exact ? {clips: [{path: roundedRect(b.x, b.y, b.w, b.h, radius), evenOdd: false}]} : {}),
+    });
+    return;
+  }
+  push({id: '', z: 0, kind: 'path', ops: roundedRect(b.x, b.y, b.w, b.h, radius), fill: {color: pendingFill, evenOdd: false}, stroke: {color: pendingLine, width: 0.6, dash: [[3, 2], 0]}, role: 'picture-pending'});
+  const span: Span = {...style, text: 'Imagen pendiente', font: 'regular', size: Math.min(8, style.size), color: pendingLine};
+  const w = spanWidth(fonts, span);
+  if (w < b.w - 6) push({id: '', z: 0, kind: 'text', x: r2(b.x + (b.w - w) / 2), y: r2(b.y + b.h / 2 - span.size * 0.35), spans: [span], role: 'picture-pending'});
+}
+
+/** A speech bubble with its tail at the bottom, pointing a little to one side (`lean`), as one closed shape. */
+function bubble(x: number, y: number, w: number, h: number, r: number, tailX: number, lean: number): PathOp[] {
+  const k = 0.5523 * r, t = Math.max(x + r + 4, Math.min(x + w - r - 4, tailX));
+  return [
+    ['M', r2(x + r), r2(y + h)], ['L', r2(x + w - r), r2(y + h)], ['C', r2(x + w - r + k), r2(y + h), r2(x + w), r2(y + h - r + k), r2(x + w), r2(y + h - r)],
+    ['L', r2(x + w), r2(y + r)], ['C', r2(x + w), r2(y + r - k), r2(x + w - r + k), r2(y), r2(x + w - r), r2(y)],
+    ['L', r2(t + 4), r2(y)], ['L', r2(t + lean), r2(y - 7)], ['L', r2(t - 4), r2(y)],
+    ['L', r2(x + r), r2(y)], ['C', r2(x + r - k), r2(y), r2(x), r2(y + r - k), r2(x), r2(y + r)],
+    ['L', r2(x), r2(y + h - r)], ['C', r2(x), r2(y + h - r + k), r2(x + r - k), r2(y + h), r2(x + r), r2(y + h)], ['Z'],
+  ];
+}
 const ascentOf = (size: number) => size * 0.93;
 const descentOf = (size: number) => size * 0.24;
 
@@ -125,12 +168,80 @@ export function composeComponent(ctx: ComposeContext, c: Component, at: [number,
   }
 
   if (c.type === 'image') {
-    const m: [number, number, number, number, number, number] = [c.width, 0, 0, c.height, x, top - c.height];
-    push({
-      id: '', z: 0, kind: 'image', matrix: m, image: c.image,
-      ...(c.rounded ? {clips: [{path: roundedRect(x, top - c.height, c.width, c.height, t.photoRadius ?? 4), evenOdd: false}]} : {}),
+    const radius = c.rounded ? t.photoRadius ?? 4 : 0;
+    picture(fonts, push, {x, y: top - c.height, w: c.width, h: c.height}, c.image, radius, textStyle);
+    let height = c.height;
+    if (c.caption?.trim()) {
+      const style = {...textStyle, size: Math.round(textStyle.size * 0.9 * 10) / 10};
+      const lines = wrapSpans(fonts, runsToSpans(parseMarkup(c.caption), {base: style, highlight}), c.width);
+      lines.forEach((spans, i) => {
+        const w = lineWidth(fonts, spans);
+        push({id: '', z: 0, kind: 'text', x: r2(x + Math.max(0, (c.width - w) / 2)), y: r2(top - c.height - 4 - ascentOf(style.size) - i * style.size * 1.3), spans, maxWidth: c.width, role: 'picture-caption'});
+      });
+      height += 4 + ascentOf(style.size) + (lines.length - 1) * style.size * 1.3 + descentOf(style.size);
+    }
+    return {elements: els, height, width: c.width};
+  }
+
+  if (c.type === 'gallery') {
+    const gap = 8, cols = c.columns;
+    const cw = (width - gap * (cols - 1)) / cols, ch = cw / aspectValue(c.aspect);
+    const labelStyle = t.item ?? textStyle;
+    const labelled = c.cells.some(cell => cell.label.trim());
+    const labelH = labelled ? labelStyle.size * 1.7 : 0;
+    const rows = Math.ceil(c.cells.length / cols);
+    c.cells.forEach((cell, i) => {
+      const cx = x + (i % cols) * (cw + gap), cy = top - Math.floor(i / cols) * (ch + labelH + gap) - ch;
+      picture(fonts, push, {x: cx, y: cy, w: cw, h: ch}, cell.image, t.photoRadius ?? 4, textStyle);
+      if (c.numbered) {
+        const span: Span = {...labelStyle, text: String((c.first ?? 1) + i), font: 'bold', size: Math.min(8, labelStyle.size)};
+        const bw = Math.max(13, spanWidth(fonts, span) + 6), bh = 13;
+        push({id: '', z: 0, kind: 'path', ops: roundedRect(cx + 3, cy + ch - 3 - bh, bw, bh, 2.5), fill: {color: white, evenOdd: false}, role: 'picture-number'});
+        push({id: '', z: 0, kind: 'text', x: r2(cx + 3 + (bw - spanWidth(fonts, span)) / 2), y: r2(cy + ch - 3 - bh + 3.8), spans: [span], role: 'picture-number'});
+      }
+      if (cell.label.trim()) {
+        let spans = runsToSpans(parseMarkup(cell.label), {base: labelStyle, highlight: highlight ? {...highlight, size: labelStyle.size} : undefined});
+        const w = lineWidth(fonts, spans);
+        // A label wider than its picture gets smaller, down to 70 %.
+        if (w > cw) { const k = Math.max(0.7, cw / w); spans = spans.map(sp => ({...sp, size: Math.round(sp.size * k * 10) / 10})); }
+        const lw = lineWidth(fonts, spans);
+        push({id: '', z: 0, kind: 'text', x: r2(cx + Math.max(0, (cw - lw) / 2)), y: r2(cy - labelStyle.size * 1.25), spans, maxWidth: cw, role: 'picture-label'});
+      }
     });
-    return {elements: els, height: c.height, width: c.width};
+    return {elements: els, height: rows * (ch + labelH) + (rows - 1) * gap, width};
+  }
+
+  if (c.type === 'comic') {
+    const gap = 6, cols = c.columns;
+    const pw = (width - gap * (cols - 1)) / cols, ph = pw / aspectValue(c.aspect);
+    const rows = Math.ceil(c.panels.length / cols);
+    const size = Math.max(6.5, Math.min(9, pw / 24));
+    const style: Span = {...textStyle, font: 'regular', size, color: ink};
+    c.panels.forEach((panel, i) => {
+      const px = x + (i % cols) * (pw + gap), py = top - Math.floor(i / cols) * (ph + gap) - ph;
+      picture(fonts, push, {x: px, y: py, w: pw, h: ph}, panel.image, 2, textStyle);
+      push({id: '', z: 0, kind: 'path', ops: roundedRect(px, py, pw, ph, 2), stroke: {color: frame, width: 0.8}, role: 'comic-frame'});
+      // Bubbles go along the top, left and right in turn; each side stacks downwards.
+      const stack = [py + ph - 5, py + ph - 5];
+      panel.bubbles.forEach((text, k) => {
+        if (!text.trim()) return;
+        const side = k % 2;
+        const pad = 3.5, leading = size * 1.2;
+        const lines = wrapSpans(fonts, runsToSpans(parseMarkup(text), {base: style, highlight}), pw * 0.56 - pad * 2);
+        const tw = Math.max(...lines.map(l => lineWidth(fonts, l)));
+        const bw = tw + pad * 2, bh = pad * 2 + ascentOf(size) + (lines.length - 1) * leading + descentOf(size);
+        const bx = side ? px + pw - 5 - bw : px + 5;
+        const btop = stack[side];
+        stack[side] = btop - bh - 10;
+        const tail = side ? bx + bw * 0.68 : bx + bw * 0.32;
+        push({id: '', z: 0, kind: 'path', ops: bubble(bx, btop - bh, bw, bh, Math.min(6, bh / 2), tail, side ? 3 : -3), fill: {color: white, evenOdd: false}, stroke: {color: frame, width: 0.6}, role: 'comic-bubble'});
+        lines.forEach((spans, j) => {
+          const lw = lineWidth(fonts, spans);
+          push({id: '', z: 0, kind: 'text', x: r2(bx + (bw - lw) / 2), y: r2(btop - pad - ascentOf(size) - j * leading), spans, maxWidth: bw, role: 'comic-text'});
+        });
+      });
+    });
+    return {elements: els, height: rows * ph + (rows - 1) * gap, width};
   }
 
   // Exercise: the header exactly as the template draws it, then example lines and items.
@@ -284,6 +395,8 @@ export function componentLabel(c: Component) {
   if (c.type === 'exercise') return ['Ejercicio ' + c.number, c.audio, cut(c.instruction)].filter(Boolean).join(' · ');
   if (c.type === 'heading') return 'Título · ' + cut(c.text);
   if (c.type === 'text') return 'Texto · ' + cut(c.text.split('\n')[0]);
-  return 'Imagen';
+  if (c.type === 'gallery') return 'Galería · ' + c.cells.length + ' imágenes';
+  if (c.type === 'comic') return 'Historieta · ' + c.panels.length + (c.panels.length === 1 ? ' viñeta' : ' viñetas');
+  return 'Imagen' + (c.caption ? ' · ' + cut(c.caption) : '');
 }
 

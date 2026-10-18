@@ -76,3 +76,22 @@
 .rc-skill-page-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .rc-skill-page-large { display: grid; place-items: center; max-height: 70vh; overflow: auto; }
 .rc-skill-page-large canvas { max-width: 100%; height: auto !important; }
+
+/* /pdf-generator · the draft's pictures */
+.rc-skill-pictures { display: grid; gap: var(--sp-3); padding-top: var(--sp-3); border-top: 1px solid var(--line); }
+.rc-skill-subtitle { margin: 0; font-size: var(--fs-14); font-weight: 600; color: var(--fg-1); }
+.rc-skill-picture-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: var(--sp-3); margin: 0; padding: 0; list-style: none; }
+.rc-skill-picture-grid li { display: grid; gap: var(--sp-1); align-content: start; min-width: 0; }
+.rc-skill-picture { position: relative; display: grid; place-items: center; aspect-ratio: 4 / 3; border-radius: var(--radius-8); overflow: hidden; background: var(--bg-recessed); border: 1px dashed var(--line); }
+.rc-skill-picture[data-shape='1:1'] { aspect-ratio: 1; }
+.rc-skill-picture[data-shape='3:4'] { aspect-ratio: 3 / 4; }
+.rc-skill-picture[data-shape='3:2'] { aspect-ratio: 3 / 2; }
+.rc-skill-picture[data-shape='2:3'] { aspect-ratio: 2 / 3; }
+.rc-skill-picture[data-shape='16:9'] { aspect-ratio: 16 / 9; }
+.rc-skill-picture[data-shape='9:16'] { aspect-ratio: 9 / 16; }
+.rc-skill-picture:has(img) { border-style: solid; }
+.rc-skill-picture img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.rc-skill-picture-state { position: relative; display: inline-flex; align-items: center; gap: var(--sp-2); padding: 2px 8px; border-radius: 999px; font-size: var(--fs-12); color: var(--fg-2); background: rgba(0, 0, 0, 0.55); }
+.rc-skill-picture-label { font-size: var(--fs-12); color: var(--fg-2); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.rc-skill-picture-prompt summary { cursor: pointer; width: fit-content; font-size: var(--fs-12); color: var(--fg-3); border-radius: var(--radius-4); }
+.rc-skill-picture-prompt .rc-textarea { margin-top: var(--sp-1); font-size: var(--fs-12); }

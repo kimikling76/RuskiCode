@@ -225,7 +225,7 @@ function SelectionPanel({api}: {api: ManualApi}) {
             <Switch id="man-lock" checked={Boolean(block.locked)} onCheckedChange={v => api.change(setLocked(unit, page.id, block.id, v))} disabled={Boolean(page.conserved)} />
             <label htmlFor="man-lock">Aprobado (bloqueado)<small>Ni el editor ni el asistente lo cambian.</small></label>
           </div>
-          {block.component && canEdit ? <ComponentForm api={api} block={block} /> : null}
+          {block.component && canEdit ? <ComponentForm key={block.id} api={api} block={block} /> : null}
           {block.elements.some(e => e.role === 'ex-band') ? (
             <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm rc-pdf-add" onClick={() => { api.change(useAsExerciseModel(unit, page.id, block.id)); toast('Los ejercicios nuevos van a usar este encabezado.'); }}>Usar este encabezado para los ejercicios nuevos</button>
           ) : null}
@@ -315,7 +315,74 @@ function ComponentForm({api, block}: {api: ManualApi; block: Block}) {
       </label>
     );
   }
+  if (c.type === 'image' || c.type === 'gallery' || c.type === 'comic') return <PictureForm c={c} apply={apply} />;
   return null;
+}
+
+type PictureComponent = Extract<Component, {type: 'image' | 'gallery' | 'comic'}>;
+
+/** A photo, a gallery or a comic: its texts (caption, labels, bubbles) and each of its pictures. */
+function PictureForm({c, apply}: {c: PictureComponent; apply: (c: Component) => void}) {
+  const [draft, setDraft] = useState<PictureComponent>(c);
+  const [busy, setBusy] = useState<number | null>(null);
+  const change = (next: PictureComponent) => { setDraft(next); apply(next); };
+  const slots = draft.type === 'image' ? [{image: draft.image, prompt: draft.prompt}] : draft.type === 'gallery' ? draft.cells : draft.panels;
+  async function pick(i: number, file?: File) {
+    if (!file) return;
+    setBusy(i);
+    try {
+      const image = await imageFromFile(file);
+      change(draft.type === 'image' ? {...draft, image} : draft.type === 'gallery' ? {...draft, cells: draft.cells.map((x, k) => k === i ? {...x, image} : x)} : {...draft, panels: draft.panels.map((x, k) => k === i ? {...x, image} : x)});
+    } catch (e) {
+      toast(imageErrors[(e as Error).message] || 'No se pudo usar esa imagen.');
+    } finally { setBusy(null); }
+  }
+  async function copy(prompt: string) {
+    try { await navigator.clipboard.writeText(prompt); toast('Prompt copiado.'); } catch { toast('No se pudo copiar: seleccionalo a mano.'); }
+  }
+  const setBubble = (i: number, k: number, text: string) => {
+    if (draft.type !== 'comic') return;
+    const bubbles = [...draft.panels[i].bubbles];
+    bubbles[k] = text;
+    while (bubbles.length && !bubbles[bubbles.length - 1].trim()) bubbles.pop();
+    change({...draft, panels: draft.panels.map((p, n) => n === i ? {...p, bubbles} : p)});
+  };
+  const name = (i: number) => draft.type === 'gallery' ? 'Imagen ' + (i + 1) : draft.type === 'comic' ? 'Viñeta ' + (i + 1) : 'Imagen';
+  return (
+    <div className="rc-man-pictures">
+      {draft.type === 'image' ? (
+        <label className="rc-field"><span>Epígrafe</span>
+          <input className="rc-input" lang="ru" maxLength={300} value={draft.caption || ''} onChange={e => change({...draft, caption: e.target.value || undefined})} />
+        </label>
+      ) : null}
+      <ol className="rc-man-picture-list">
+        {slots.map((slot, i) => (
+          <li key={i}>
+            <span className="rc-man-picture-head">{name(i)} · {slot.image ? slot.image.width + ' × ' + slot.image.height + ' px' : 'pendiente'}</span>
+            {draft.type === 'gallery' ? (
+              <label className="rc-field"><span>Etiqueta</span>
+                <input className="rc-input" lang="ru" maxLength={120} value={draft.cells[i].label} onChange={e => change({...draft, cells: draft.cells.map((x, k) => k === i ? {...x, label: e.target.value} : x)})} />
+              </label>
+            ) : null}
+            {draft.type === 'comic' ? [...draft.panels[i].bubbles, ''].slice(0, 4).map((b, k) => (
+              <label key={k} className="rc-field"><span>{k < draft.panels[i].bubbles.length ? 'Globo ' + (k + 1) : 'Globo nuevo'}</span>
+                <input className="rc-input" lang="ru" maxLength={200} value={b} onChange={e => setBubble(i, k, e.target.value)} />
+              </label>
+            )) : null}
+            <div className="rc-man-picture-actions">
+              <label className="rc-btn rc-btn--secondary rc-btn--sm rc-pdf-add" aria-disabled={busy !== null}>
+                <ImagePlus aria-hidden="true" />{busy === i ? 'Preparando…' : slot.image ? 'Cambiar imagen…' : 'Elegir imagen…'}
+                <input type="file" accept="image/*" className="sr-only" disabled={busy !== null} aria-label={(slot.image ? 'Cambiar ' : 'Elegir ') + name(i).toLowerCase()} onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; void pick(i, f); }} />
+              </label>
+              {slot.prompt ? <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm" onClick={() => void copy(slot.prompt!)}><Copy aria-hidden="true" />Copiar prompt</button> : null}
+            </div>
+          </li>
+        ))}
+      </ol>
+      {slots.some(x => !x.image && x.prompt) ? <p className="rc-hint">Para crear con IA una imagen pendiente, copiá su prompt y usalo con /image-generation en el Chat o en Cinema; después elegila acá.</p> : null}
+      <p className="rc-hint">Las imágenes llenan su lugar y se recortan como las fotos del manual; los textos los dibuja el estudio.</p>
+    </div>
+  );
 }
 
 function AddPanel({api}: {api: ManualApi}) {
@@ -337,7 +404,8 @@ function AddPanel({api}: {api: ManualApi}) {
     if (type === 'heading') return text.trim() ? {type: 'heading', text: text.replace(/\n/g, ' ')} : null;
     if (!image) return null;
     const w = fromMm(width);
-    return {...image.data, width: w, height: w * image.data.image.height / image.data.image.width, rounded};
+    const img = image.data.image!;
+    return {...image.data, width: w, height: w * img.height / img.width, rounded};
   }
 
   function add(onNewPage = false) {

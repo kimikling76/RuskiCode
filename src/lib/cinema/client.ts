@@ -17,6 +17,8 @@ export type GenerationRequest = {
   shotId?: string;
   /** Given by the caller to find these jobs later (a chat skill card); a new one otherwise. */
   batchId?: string;
+  /** The caller's name for what these jobs are for (a picture slot of /pdf-generator). */
+  tag?: string;
 };
 
 /**
@@ -40,6 +42,7 @@ export async function startGeneration(request: GenerationRequest) {
     source: request.source,
     boardId: request.boardId,
     shotId: request.shotId,
+    ...(request.tag ? {tag: request.tag} : {}),
     state: 'sending',
     urls: [],
     createdAt: now,
@@ -80,6 +83,8 @@ export function retryJob(job: CinemaJob) {
   return startGeneration({
     mode: job.mode, model: job.model, duration: job.duration, prompt: job.prompt, aspect: job.aspect, resolution: job.resolution,
     references: job.references, count: 1, source: job.source, boardId: job.boardId, shotId: job.shotId,
+    // A picture of /pdf-generator stays in its card's batch, in the same slot.
+    ...(job.tag ? {tag: job.tag, batchId: job.batchId} : {}),
   });
 }
 

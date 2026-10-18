@@ -21,6 +21,7 @@ export const cinemaErrorDetails: Record<string, string> = {
   NETWORK: 'Se perdió la conexión. Revisá internet y reintentá.',
   STREAM_INTERRUPTED: 'La respuesta del modelo de chat se cortó. Puede haber consumo: revisá los registros de Kie.',
   INVALID_PLAN: 'El modelo devolvió un plan con un formato inesperado. Probá de nuevo o reformulá la idea.',
+  SEARCH_NOT_SUPPORTED: 'Este modelo no busca en la web en Kie. Elegí uno que diga «busca en la web» o apagá la búsqueda.',
 };
 
 export function errorDetail(code?: string) {

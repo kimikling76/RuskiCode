@@ -19,13 +19,17 @@ import {drawPage, openPdf} from '@/lib/pdf/viewer';
 import type {Unit} from '@/lib/manual/model';
 import type {PersonalMessage} from '@/store/personal-chat';
 import type {ChatAttachment} from '@/lib/personal-chat/attachments';
-import {refSrc, skillById, type ImageRun, type MediaRef, type PdfRun, type ReviewRun, type SkillRun, type VideoRun} from '@/lib/skills/chat';
-import {addSkillCard, buildPdf, type RunPatch, designUnits, draftNewWords, isRunning, reviewText, savePdf, sendMedia, updateRun, writePdf} from '@/lib/skills/run';
+import {pictureSlots, refSrc, skillById, type ImageRun, type MediaRef, type PdfRun, type PictureSlot, type ReviewRun, type SkillRun, type VideoRun} from '@/lib/skills/chat';
+import {
+  addSkillCard, buildPdf, type RunPatch, designUnits, draftNewWords, generatePictures, importPicture, isRunning, missingPictures, pictureJobs, reviewText, savePdf,
+  sendMedia, updateRun, waitingPictures, withPicturePrompt, writePdf,
+} from '@/lib/skills/run';
 import {ChatModelPicker} from './chat-model-picker';
 import {AspectPicker, Segmented, aspectName, optionLabel} from '@/components/cinema/controls';
 import {Elapsed, KieImage, credits as creditText} from '@/components/cinema/job-card';
 import {ConfirmDialog, Dialog} from '@/components/ui/dialog';
 import {Tip} from '@/components/ui/tooltip';
+import {MessageSources} from './chat-sources';
 
 // What each Chat skill shows in the conversation. Nothing is sent to Kie, and nothing in the manual changes,
 // until the author confirms in a dialog that says what is going to happen.
@@ -41,6 +45,7 @@ const skillErrors: Record<string, string> = {
   STREAM_INTERRUPTED: 'La respuesta se cortó. Puede haber consumo: revisá los registros de Kie.',
   PROVIDER_AUTH_ERROR: 'Kie rechazó la clave del servidor (KIE_API_KEY en Vercel).',
   MODEL_NOT_CONFIGURED: 'No hay un modelo de Kie configurado para esta selección.',
+  SEARCH_NOT_SUPPORTED: 'El modelo elegido no busca en la web en Kie. Elegí uno que diga «busca en la web» o apagá la búsqueda del chat.',
 };
 const skillError = (code?: string) => (code && skillErrors[code]) || 'El modelo no respondió. Probá más tarde o elegí otro.';
 const dateFormat = new Intl.DateTimeFormat('es-AR', {day: 'numeric', month: 'long'});
@@ -76,7 +81,7 @@ export function SkillCard({chatId, message, model, attachments}: {chatId: string
     <div className="rc-skill" data-skill={run.skill}>
       <Head run={run} />
       {run.skill === 'image-generation' || run.skill === 'video-generation' ? <MediaCard chatId={chatId} id={message.id} run={run} />
-        : run.skill === 'pdf-generator' ? <PdfCard chatId={chatId} id={message.id} run={run} model={model} />
+        : run.skill === 'pdf-generator' ? <PdfCard chatId={chatId} id={message.id} run={run} model={model} attachments={attachments} />
           : <ReviewCard chatId={chatId} id={message.id} run={run} model={model} attachments={attachments} />}
     </div>
   );
@@ -255,7 +260,7 @@ function usePreview(run: PdfRun) {
     void Promise.all([fetchEditorFonts(), designUnits()]).then(([fonts, d]) => { if (alive) setState({fonts, ...d}); }).catch(() => setFailed(true));
     return () => { alive = false; };
   }, []);
-  const key = JSON.stringify([run.draft, run.target]);
+  const key = JSON.stringify([run.draft, run.target, run.pictures, run.imageStyle]);
   useEffect(() => {
     if (!state || !run.draft || !run.target || run.state === 'saved') return;
     let alive = true;
@@ -299,7 +304,126 @@ function PageThumb({doc, index, page}: {doc: PDFDocumentProxy; index: number; pa
   );
 }
 
-function PdfCard({chatId, id, run, model}: {chatId: string; id: string; run: PdfRun; model: string}) {
+/** Picture slots of a draft and their state; the images an author attached go with every picture as references. */
+function PdfPictures({chatId, id, run, refs}: {chatId: string; id: string; run: PdfRun; refs: MediaRef[]}) {
+  const allJobs = useCinema(s => s.data.jobs);
+  const slots = useMemo(() => run.draft ? pictureSlots(run.draft) : [], [run.draft]);
+  const jobs = useMemo(() => pictureJobs(run, allJobs), [run, allJobs]);
+  const chosen = imageModels.find(m => m.id === run.pictureModel && enabledStatus(m) && m.options.modes.includes('create'));
+  const model = chosen || firstEnabled(false, false);
+  const lastCost = useLastCost(model?.id || '');
+  const [confirm, setConfirm] = useState<PictureSlot[] | null>(null);
+  const [style, setStyle] = useState(run.imageStyle ?? run.draft?.imageStyle ?? '');
+  const waiting = waitingPictures(id);
+  // Finished pictures come into the draft (and its preview) as soon as the studio has its copy.
+  useEffect(() => {
+    for (const slot of slots) {
+      const job = jobs.get(slot.key);
+      if (job?.state === 'success' && job.saved?.length && run.pictures?.[slot.key]?.job !== job.id) void importPicture(chatId, id, slot, job);
+    }
+  }, [jobs, slots, run.pictures, chatId, id]);
+  if (!slots.length) return null;
+  if (!model) return <p className="rc-pdf-warn">El borrador pide {slots.length} imágenes, pero no hay un modelo de imagen habilitado en el estudio.</p>;
+
+  const o = model.options;
+  const resolution = o.resolutions.includes(run.pictureResolution || '') ? run.pictureResolution! : o.resolutions.find(r => r === '2K') || o.resolutions[0] || '';
+  const busy = (key: string) => waiting.has(key) || Boolean(jobs.get(key) && isActive(jobs.get(key)!));
+  const done = slots.filter(s => run.pictures?.[s.key]?.image && run.pictures[s.key].prompt === s.prompt).length;
+  const toSend = missingPictures(run).filter(s => !busy(s.key));
+  const usedRefs = o.maxReferences ? refs.slice(0, o.maxReferences) : [];
+  const pickerModels = imageModels.map(m => {
+    const p = publicModel(m, true);
+    return m.options.modes.includes('create') ? p : {...p, available: false, missing: 'Solo edita una imagen: para las imágenes del borrador hace falta un modelo que las cree desde texto.'};
+  });
+
+  function send() {
+    const list = confirm || [];
+    setConfirm(null);
+    if (style !== (run.imageStyle ?? run.draft?.imageStyle ?? '')) updateRun<PdfRun>(chatId, id, {imageStyle: style});
+    void generatePictures(chatId, id, {model: model!.id, resolution, refs: usedRefs, slots: list.map(s => s.key)});
+  }
+
+  return (
+    <section className="rc-skill-pictures" aria-label="Imágenes del borrador">
+      <p className="rc-skill-subtitle">Imágenes · {done} de {slots.length}</p>
+      <p className="rc-hint">Las crea un modelo de imagen de Kie a partir de lo que pediste; no se buscan en internet. Los textos de las etiquetas y los globos los pone el estudio, así se pueden corregir.</p>
+      <ul className="rc-skill-picture-grid">
+        {slots.map(slot => {
+          const have = run.pictures?.[slot.key];
+          const image = have?.image && have.prompt === slot.prompt ? have.image : undefined;
+          const job = jobs.get(slot.key);
+          const failed = !busy(slot.key) && job && (job.state === 'error' || job.state === 'fail');
+          return (
+            <li key={slot.key}>
+              <div className="rc-skill-picture" data-shape={slot.aspect}>
+                {image ? <img src={'/api/sync/assets?hash=' + image.asset} alt={slot.label + ': ' + slot.prompt.slice(0, 100)} loading="lazy" /> : null}
+                {busy(slot.key) ? <span className="rc-skill-picture-state" role="status"><span className="rc-job-pulse" aria-hidden="true" />{waiting.has(slot.key) || job?.state === 'sending' ? 'Enviando' : 'Generando'}</span>
+                  : failed ? <span className="rc-skill-picture-state" title={errorDetail(job!.error) + (job!.failMessage ? ' Kie: «' + job!.failMessage + '»' : '')}><span className="rc-dot rc-dot--danger" aria-hidden="true" />No se pudo</span>
+                    : !image ? <span className="rc-skill-picture-state">Pendiente</span> : null}
+              </div>
+              <span className="rc-skill-picture-label" lang="ru">{slot.label}</span>
+              {(image || failed) && !busy(slot.key) ? (
+                <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm" onClick={() => setConfirm([slot])}><RotateCcw aria-hidden="true" />{failed ? 'Reintentar' : 'Otra versión'}</button>
+              ) : null}
+              <details className="rc-skill-picture-prompt">
+                <summary>Prompt</summary>
+                <TextareaAutosize className="rc-textarea" minRows={2} maxRows={8} maxLength={1200} defaultValue={slot.prompt} aria-label={'Prompt de ' + slot.label}
+                  onBlur={e => { const v = e.target.value.trim(); if (v && v !== slot.prompt) updateRun<PdfRun>(chatId, id, {draft: withPicturePrompt(run, slot.key, v)}); }} />
+              </details>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="rc-field"><span>Modelo de imagen</span>
+        <div className="rc-cine-model-picker"><ChatModelPicker models={pickerModels} value={model.id} onChange={m => updateRun<PdfRun>(chatId, id, {pictureModel: m})} category="image" allowAuto={false} title="Modelo de imagen" /></div>
+      </div>
+      {o.resolutions.length ? <div className="rc-field"><span>{o.resolutionLabel || 'Resolución'}</span><Segmented name={'pic-res-' + id} label={o.resolutionLabel || 'Resolución'} value={resolution} onChange={v => updateRun<PdfRun>(chatId, id, {pictureResolution: v})} options={o.resolutions.map(r => ({value: r, label: optionLabel(r)}))} /></div> : null}
+      <label className="rc-field"><span>Estilo de todas las imágenes</span>
+        <TextareaAutosize className="rc-textarea" minRows={1} maxRows={4} maxLength={400} value={style} onChange={e => setStyle(e.target.value)} onBlur={() => updateRun<PdfRun>(chatId, id, {imageStyle: style})} placeholder="Por ejemplo: fotos realistas y luminosas, luz natural, gente amable en una escuela" />
+      </label>
+      {refs.length ? <p className="rc-hint">{usedRefs.length ? usedRefs.length + (usedRefs.length === 1 ? ' imagen adjunta va' : ' imágenes adjuntas van') + ' como referencia con cada imagen (personajes, lugares).' : 'Este modelo no usa imágenes de referencia: las adjuntas no se envían.'}</p> : null}
+      <div className="rc-skill-row">
+        <button type="button" className="rc-btn rc-btn--primary rc-btn--sm" disabled={!toSend.length} onClick={() => setConfirm(toSend)}>
+          <ImagePlus aria-hidden="true" />{toSend.length ? (toSend.length === 1 ? 'Generar la imagen que falta…' : 'Generar las ' + toSend.length + ' imágenes que faltan…') : done === slots.length ? 'Todas las imágenes están listas' : 'Generando…'}
+        </button>
+        <span className="rc-hint">Nada se pide a Kie hasta que confirmes.</span>
+      </div>
+      <ConfirmDialog
+        open={Boolean(confirm)} onClose={() => setConfirm(null)} onConfirm={send} confirmLabel="Generar"
+        title={confirm?.length === 1 ? '¿Generar esta imagen en Kie?' : '¿Generar ' + (confirm?.length || 0) + ' imágenes en Kie?'}
+        description="Cada imagen es una tarea en Kie y consume créditos. El costo real aparece al terminar. Quedan guardadas en el estudio y en la galería de Cinema, y entran solas en la vista previa."
+      >
+        <Facts rows={[
+          ['Modelo', model.name + (model.status === 'tested' ? '' : ' (sin prueba real desde el estudio)')],
+          ['Imágenes', String(confirm?.length || 0)],
+          ...(o.aspectRatios.length ? [['Formato', 'el de cada imagen del borrador'] as [string, string]] : []),
+          ...(o.resolutions.length ? [[o.resolutionLabel || 'Resolución', optionLabel(resolution)] as [string, string]] : []),
+          ['Referencias', usedRefs.length ? String(usedRefs.length) : 'Ninguna'],
+          ['Último costo', lastCost],
+        ]} />
+      </ConfirmDialog>
+    </section>
+  );
+}
+
+/** After saving: the pictures that went into the unit, to see them (they are changed in the editor). */
+function SavedPictures({run}: {run: PdfRun}) {
+  const slots = run.draft ? pictureSlots(run.draft) : [];
+  const shown = slots.filter(s => run.pictures?.[s.key]?.image && run.pictures[s.key].prompt === s.prompt);
+  if (!shown.length) return null;
+  return (
+    <ul className="rc-skill-picture-grid" aria-label="Imágenes guardadas en la unidad">
+      {shown.map(s => (
+        <li key={s.key}>
+          <div className="rc-skill-picture" data-shape={s.aspect}><img src={'/api/sync/assets?hash=' + run.pictures![s.key].image!.asset} alt={s.label + ': ' + s.prompt.slice(0, 100)} loading="lazy" /></div>
+          <span className="rc-skill-picture-label" lang="ru">{s.label}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function PdfCard({chatId, id, run, model, attachments}: {chatId: string; id: string; run: PdfRun; model: string; attachments?: ChatAttachment[]}) {
   const {state, doc, built, failed} = usePreview(run);
   const [confirm, setConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -324,6 +448,9 @@ function PdfCard({chatId, id, run, model}: {chatId: string; id: string; run: Pdf
   const exercises = draft.blocks.filter(b => b.type === 'exercise').length;
   const words = state ? draftNewWords(run, state.units) : [];
   const targetUnit = state?.models.find(u => u.id === target.unitId);
+  const pictures = pictureSlots(draft).length;
+  const pending = missingPictures(run).length;
+  const refs: MediaRef[] = (attachments || []).filter(a => a.kind === 'image').map(a => ({kind: 'asset', hash: a.hash, mime: a.mime, name: a.name}));
 
   async function save() {
     setConfirm(false);
@@ -340,12 +467,16 @@ function PdfCard({chatId, id, run, model}: {chatId: string; id: string; run: Pdf
     <div className="rc-skill-body">
       <p className="rc-skill-title">{draft.title}</p>
       {draft.summary ? <p className="rc-hint">{draft.summary}</p> : null}
-      <p className="rc-hint">{draft.blocks.length} bloques · {exercises} {exercises === 1 ? 'ejercicio' : 'ejercicios'}{run.model ? ' · escrito con ' + run.model : ''}{run.credits !== undefined ? ' · ' + creditText(run.credits) : ''}</p>
+      <p className="rc-hint">{draft.blocks.length} bloques · {exercises} {exercises === 1 ? 'ejercicio' : 'ejercicios'}{pictures ? ' · ' + pictures + (pictures === 1 ? ' imagen' : ' imágenes') : ''}{run.model ? ' · escrito con ' + run.model : ''}{run.webSearch ? ' · con búsqueda web' : ''}{run.credits !== undefined ? ' · ' + creditText(run.credits) : ''}</p>
+      {run.sources?.length ? <MessageSources sources={run.sources} /> : null}
       {run.state === 'saved' && run.saved ? (
-        <div className="rc-notice" role="status">
-          <span>Guardado en «{run.saved.title}».</span>
-          <Link href={'/workspace/manual?id=' + run.saved.unitId + '&page=' + run.saved.page} className="rc-btn rc-btn--secondary rc-btn--sm">Abrir en PDF Studio<ArrowUpRight aria-hidden="true" /></Link>
-        </div>
+        <>
+          <div className="rc-notice" role="status">
+            <span>Guardado en «{run.saved.title}».</span>
+            <Link href={'/workspace/manual?id=' + run.saved.unitId + '&page=' + run.saved.page} className="rc-btn rc-btn--secondary rc-btn--sm">Abrir en PDF Studio<ArrowUpRight aria-hidden="true" /></Link>
+          </div>
+          <SavedPictures run={run} />
+        </>
       ) : (
         <>
           {state ? (
@@ -373,6 +504,7 @@ function PdfCard({chatId, id, run, model}: {chatId: string; id: string; run: Pdf
               <p className="rc-hint">Pueden ser vocabulario nuevo o una forma nueva de una palabra conocida. Revisalas antes de guardar.</p>
             </details>
           ) : null}
+          <PdfPictures chatId={chatId} id={id} run={run} refs={refs} />
           <div className="rc-skill-row">
             <button type="button" className="rc-btn rc-btn--primary rc-btn--sm" disabled={!built || saving} onClick={() => setConfirm(true)}><BookOpenCheck aria-hidden="true" />{saving ? 'Guardando…' : 'Guardar en PDF Studio…'}</button>
             <span className="rc-hint">Para cambiar algo, escribilo en el chat con /pdf-generator.</span>
@@ -384,7 +516,8 @@ function PdfCard({chatId, id, run, model}: {chatId: string; id: string; run: Pdf
               ? 'Se crea «' + draft.title + '» con el diseño de «' + (targetUnit?.title || '') + '». Queda en PDF Studio → Manual, con una versión, y llega a tus otras computadoras.'
               : 'Se agregan ' + (built?.pages.length || 0) + ' páginas al final de «' + (targetUnit?.title || '') + '». Antes se guarda una versión de la unidad, para poder volver.'}
           >
-            <Facts rows={[['Páginas', String(built?.pages.length || 0)], ['Ejercicios', String(exercises)], ['Palabras nuevas', String(words.length)]]} />
+            <Facts rows={[['Páginas', String(built?.pages.length || 0)], ['Ejercicios', String(exercises)], ...(pictures ? [['Imágenes', (pictures - pending) + ' de ' + pictures] as [string, string]] : []), ['Palabras nuevas', String(words.length)]]} />
+            {pending ? <p className="rc-pdf-warn">{pending === 1 ? 'Falta 1 imagen: queda' : 'Faltan ' + pending + ' imágenes: quedan'} como recuadro «Imagen pendiente». Podés generarlas antes de guardar, o poner una imagen después en el editor.</p> : null}
           </ConfirmDialog>
         </>
       )}
@@ -453,9 +586,10 @@ function ReviewCard({chatId, id, run, model, attachments}: {chatId: string; id: 
         </div>
       ) : run.result ? (
         <div className="rc-skill-review">
-          <p className="rc-skill-title">Revisión con IA <small>{run.model || ''}{run.credits !== undefined ? ' · ' + creditText(run.credits) : ''}</small></p>
+          <p className="rc-skill-title">Revisión con IA <small>{run.model || ''}{run.webSearch ? ' · con búsqueda web' : ''}{run.credits !== undefined ? ' · ' + creditText(run.credits) : ''}</small></p>
           <p>{run.result.summary}</p>
           {run.result.issues.length ? <ul>{run.result.issues.map((x, i) => <ReviewItem key={i} kind={x.kind} page={x.page ?? null} quote={x.quote} problem={x.problem} suggestion={x.suggestion} href={link(x.page)} />)}</ul> : <p className="rc-hint">No encontró problemas.</p>}
+          {run.sources?.length ? <MessageSources sources={run.sources} /> : null}
           <p className="rc-hint">Es la opinión del modelo: revisala antes de corregir. Nada se cambió en el texto ni en el manual.</p>
         </div>
       ) : null}

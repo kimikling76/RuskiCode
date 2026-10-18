@@ -1,6 +1,7 @@
 import {z} from 'zod';
-import type {Component, Unit} from '@/lib/manual/model';
+import {aspectValue, pictureAspects, type Component, type ImageData, type PictureAspect, type Unit} from '@/lib/manual/model';
 import {plainText} from '@/lib/manual/elements';
+import type {Source} from '@/lib/ai/types';
 
 // Skills of the Chat: called with «/» in the composer. Each one does something concrete with the studio's own
 // tools, with a preview and a confirmation before anything is charged or changed. Without a skill the Chat stays
@@ -61,17 +62,32 @@ export type PdfRun = {
   draft?: PdfDraft; target?: PdfTarget; error?: string; model?: string; credits?: number;
   /** After saving: the unit and its first new page. */
   saved?: {unitId: string; title: string; page: number};
+  /** Asked with web search (the chat had it on and the model documents it), and the pages the API reported. */
+  webSearch?: boolean; sources?: Source[];
+  /**
+   * The draft's pictures, generated with a Kie image model from their prompts (never searched on the web), by slot
+   * (see pictureSlots). `prompt` is the one the image was made from: a slot whose prompt changed is pending again.
+   */
+  pictures?: Record<string, PictureState>;
+  /** Image model and options for the pictures, the batch of their jobs in Cinema, and the style for all of them. */
+  pictureModel?: string; pictureResolution?: string; pictureBatch?: string; imageStyle?: string;
 };
+export type PictureState = {prompt: string; image?: ImageData; job?: string};
 export type ReviewRun = {
   skill: 'revisar-ruso'; state: 'choose' | 'reviewing' | 'ready' | 'error';
   source: {kind: 'text'; text: string; documents?: number} | {kind: 'unit'; unitId: string; title: string; from: number; to: number};
   result?: Review; auto?: AutoIssue[]; error?: string; model?: string; credits?: number;
+  webSearch?: boolean; sources?: Source[];
 };
 export type SkillRun = ImageRun | VideoRun | PdfRun | ReviewRun;
 
 // ---------- /pdf-generator: the draft the model writes ----------
 
 const line = z.string().trim().min(1).max(300);
+const picturePromptSchema = z.string().trim().min(1).max(1200);
+const aspectSchema = z.enum(pictureAspects).catch('4:3');
+/** Most pictures one draft may ask for: each one is a paid task in Kie. */
+export const MAX_PICTURES = 24;
 export const draftBlockSchema = z.discriminatedUnion('type', [
   z.object({type: z.literal('heading'), text: z.string().trim().min(1).max(200)}),
   z.object({type: z.literal('text'), text: z.string().trim().min(1).max(4000)}),
@@ -83,12 +99,28 @@ export const draftBlockSchema = z.discriminatedUnion('type', [
     answers: z.array(z.string().trim().max(300)).max(16).default([]),
     columns: z.union([z.literal(1), z.literal(2)]).default(2),
   }),
+  z.object({
+    type: z.literal('image'), prompt: picturePromptSchema, caption: z.string().trim().max(200).optional(),
+    size: z.enum(['small', 'medium', 'large', 'full']).catch('medium'), aspect: aspectSchema,
+  }),
+  z.object({
+    type: z.literal('gallery'), columns: z.number().int().min(2).max(6).catch(3), aspect: z.enum(pictureAspects).catch('1:1'), numbered: z.boolean().catch(false),
+    items: z.array(z.object({prompt: picturePromptSchema, label: z.string().trim().max(80).catch('')})).min(1).max(18),
+  }),
+  z.object({
+    type: z.literal('comic'), columns: z.union([z.literal(2), z.literal(3)]).catch(2), aspect: aspectSchema,
+    panels: z.array(z.object({
+      prompt: picturePromptSchema,
+      bubbles: z.array(z.union([z.string(), z.object({text: z.string()})]).transform(b => (typeof b === 'string' ? b : b.text).trim().slice(0, 160))).max(3).catch([]),
+    })).min(1).max(9),
+  }),
 ]);
 export const draftSchema = z.object({
   title: z.string().trim().min(1).max(200),
   summary: z.string().trim().max(400).optional(),
+  imageStyle: z.string().trim().max(400).optional(),
   blocks: z.array(draftBlockSchema).min(1).max(30),
-});
+}).refine(d => pictureSlots(d).length <= MAX_PICTURES);
 export type PdfDraft = z.infer<typeof draftSchema>;
 
 /** The JSON object in a model's answer (with or without ```json fences); null when there is none. */
@@ -107,10 +139,78 @@ export function parseDraft(text: string): PdfDraft | null {
   return {...r.data, blocks: r.data.blocks.map(b => b.type === 'exercise' ? {...b, items: b.items.map(i => i.replace(/^\s*\d+[.)]\s+/, ''))} : b)};
 }
 
-/** The draft as the template's components, numbered after `start` (exercise number and audio code). */
-export function draftComponents(draft: PdfDraft, start: {number: number; unit: string; audio: number}): Component[] {
+// ---------- /pdf-generator: pictures ----------
+
+type DraftBlock = z.infer<typeof draftBlockSchema>;
+export type PictureSlot = {key: string; prompt: string; aspect: PictureAspect; kind: 'image' | 'gallery' | 'comic'; label: string};
+
+/** Every picture of a draft, in reading order: `3` is the image block 3, `5.2` the third picture of block 5. */
+export function pictureSlots(draft: {blocks: DraftBlock[]}): PictureSlot[] {
+  const out: PictureSlot[] = [];
+  draft.blocks.forEach((b, i) => {
+    if (b.type === 'image') out.push({key: String(i), prompt: b.prompt, aspect: b.aspect, kind: 'image', label: b.caption?.replace(/\*\*|==/g, '') || 'Imagen'});
+    if (b.type === 'gallery') b.items.forEach((it, k) => out.push({key: i + '.' + k, prompt: it.prompt, aspect: b.aspect, kind: 'gallery', label: it.label.replace(/\*\*|==/g, '') || (b.numbered ? String(k + 1) : 'Galería ' + (k + 1))}));
+    if (b.type === 'comic') b.panels.forEach((p, k) => out.push({key: i + '.' + k, prompt: p.prompt, aspect: b.aspect, kind: 'comic', label: 'Viñeta ' + (k + 1)}));
+  });
+  return out;
+}
+
+/** What the image model gets for one slot: its prompt, the common style, and no text inside the picture. */
+export function picturePrompt(slot: PictureSlot, style?: string) {
+  return [
+    slot.prompt.trim().replace(/\.?$/, '.'),
+    style?.trim() ? 'Style: ' + style.trim().replace(/\.?$/, '.') : '',
+    slot.kind === 'comic' ? 'Comic panel: keep the upper part of the frame calm and uncluttered, because speech bubbles are added on top later.' : '',
+    'Do not draw any text, letters, numbers, captions, speech bubbles, logos or watermarks.',
+  ].filter(Boolean).join(' ');
+}
+
+/** The image ratio closest to `aspect` among those a model offers ('' when it offers none). */
+export function nearestAspect(aspect: PictureAspect, offered: readonly string[]) {
+  const target = aspectValue(aspect);
+  let best = '', diff = Infinity;
+  for (const o of offered) {
+    const m = /^(\d+):(\d+)$/.exec(o);
+    if (!m) continue;
+    const d = Math.abs(Math.log(Number(m[1]) / Number(m[2]) / target));
+    if (d < diff) { diff = d; best = o; }
+  }
+  return best;
+}
+
+/** Pictures still valid for a draft: the same prompt in the same slot. Images made for another prompt are dropped. */
+export function keptPictures(draft: PdfDraft, pictures: PdfRun['pictures'], previous?: PdfRun['pictures']) {
+  const out: Record<string, PictureState> = {};
+  const byPrompt = new Map<string, PictureState>();
+  for (const p of Object.values(previous || {})) if (p.image) byPrompt.set(p.prompt, p);
+  for (const slot of pictureSlots(draft)) {
+    const own = pictures?.[slot.key];
+    const found = own?.prompt === slot.prompt ? own : byPrompt.get(slot.prompt);
+    if (found) out[slot.key] = found;
+  }
+  return out;
+}
+
+const sizes = {small: 0.38, medium: 0.55, large: 0.78, full: 1};
+
+/**
+ * The draft as the template's components, numbered after `start` (exercise number and audio code).
+ * `area` is the page's writing area, for the size of pictures; `pictures` are the images made so far.
+ */
+export function draftComponents(draft: PdfDraft, start: {number: number; unit: string; audio: number}, area: {width: number; height: number} = {width: 515, height: 740}, pictures: PdfRun['pictures'] = {}): Component[] {
   let n = start.number, a = start.audio;
-  return draft.blocks.map(b => {
+  const picture = (key: string, prompt: string) => {
+    const p = pictures[key];
+    return p?.image && p.prompt === prompt ? {image: p.image} : {};
+  };
+  return draft.blocks.map((b, i): Component => {
+    if (b.type === 'image') {
+      let w = area.width * sizes[b.size], h = w / aspectValue(b.aspect);
+      if (h > area.height * 0.62) { h = area.height * 0.62; w = h * aspectValue(b.aspect); }
+      return {type: 'image', width: Math.round(w * 100) / 100, height: Math.round(h * 100) / 100, rounded: true, prompt: b.prompt, ...(b.caption ? {caption: b.caption} : {}), ...picture(String(i), b.prompt)};
+    }
+    if (b.type === 'gallery') return {type: 'gallery', columns: b.columns, aspect: b.aspect, numbered: b.numbered, cells: b.items.map((it, k) => ({label: it.label, prompt: it.prompt, ...picture(i + '.' + k, it.prompt)}))};
+    if (b.type === 'comic') return {type: 'comic', columns: b.columns, aspect: b.aspect, panels: b.panels.map((p, k) => ({prompt: p.prompt, bubbles: p.bubbles.filter(Boolean), ...picture(i + '.' + k, p.prompt)}))};
     if (b.type !== 'exercise') return b.type === 'heading' ? {type: 'heading', text: b.text} : {type: 'text', text: b.text};
     const c: Component = {
       type: 'exercise', number: String(n++), audio: start.unit + '.' + String(a++).padStart(2, '0'),
@@ -136,11 +236,16 @@ export function unitVocabulary(units: Unit[]) {
     for (const el of b.elements) if (el.kind === 'text') for (const w of wordsOf(plainText(el))) words.add(w);
     if (b.component?.type === 'exercise') for (const w of wordsOf([b.component.instruction, ...b.component.example, ...b.component.items].join(' '))) words.add(w);
     if (b.component?.type === 'text' || b.component?.type === 'heading') for (const w of wordsOf(b.component.text)) words.add(w);
+    if (b.component?.type === 'gallery') for (const w of wordsOf(b.component.cells.map(x => x.label).join(' '))) words.add(w);
+    if (b.component?.type === 'comic') for (const w of wordsOf(b.component.panels.flatMap(x => x.bubbles).join(' '))) words.add(w);
   }
   return words;
 }
 
-const draftText = (d: PdfDraft) => d.blocks.map(b => b.type === 'exercise' ? [b.instruction, ...b.example, ...b.items].join(' ') : b.text).join(' ');
+const draftText = (d: PdfDraft) => d.blocks.map(b =>
+  b.type === 'exercise' ? [b.instruction, ...b.example, ...b.items].join(' ')
+    : b.type === 'image' ? b.caption || '' : b.type === 'gallery' ? b.items.map(x => x.label).join(' ')
+      : b.type === 'comic' ? b.panels.flatMap(p => p.bubbles).join(' ') : b.text).join(' ');
 
 /** Words of the draft that do not appear anywhere in the manual (a new form of a known word is listed too). */
 export function newWords(draft: PdfDraft, known: Set<string>) {
@@ -244,7 +349,7 @@ export function skillSummary(run: SkillRun): string {
   switch (run.skill) {
     case 'image-generation': return '[/image-generation · ' + (run.batchId ? 'pedido a Kie' : 'borrador') + ' · modelo ' + run.model + ' · prompt: «' + run.prompt.slice(0, 400) + '»]';
     case 'video-generation': return '[/video-generation · ' + (run.batchId ? 'pedido a Kie' : 'borrador') + ' · modelo ' + run.model + ' · prompt: «' + run.prompt.slice(0, 400) + '»]';
-    case 'pdf-generator': return run.draft ? '[/pdf-generator · borrador «' + run.draft.title + '» con ' + run.draft.blocks.length + ' bloques' + (run.saved ? ', guardado en PDF Studio' : '') + ']' : '[/pdf-generator · ' + (run.state === 'error' ? 'no se pudo escribir' : 'escribiendo') + ']';
+    case 'pdf-generator': return run.draft ? '[/pdf-generator · borrador «' + run.draft.title + '» con ' + run.draft.blocks.length + ' bloques' + (pictureSlots(run.draft).length ? ' y ' + pictureSlots(run.draft).length + ' imágenes' : '') + (run.saved ? ', guardado en PDF Studio' : '') + ']' : '[/pdf-generator · ' + (run.state === 'error' ? 'no se pudo escribir' : 'escribiendo') + ']';
     case 'revisar-ruso': return run.result ? '[/revisar-ruso · ' + run.result.issues.length + ' observaciones: ' + run.result.summary.slice(0, 300) + ']' : '[/revisar-ruso]';
   }
 }

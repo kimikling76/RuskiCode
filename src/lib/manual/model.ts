@@ -115,6 +115,11 @@ export type PathElement = z.infer<typeof pathElementSchema>;
 export const elementSchema = z.discriminatedUnion('kind', [textElementSchema, imageElementSchema, pathElementSchema]);
 export type Element = z.infer<typeof elementSchema>;
 
+/** Shapes of generated pictures, width:height. */
+export const pictureAspects = ['1:1', '4:3', '3:4', '3:2', '2:3', '16:9', '9:16'] as const;
+export type PictureAspect = (typeof pictureAspects)[number];
+export const aspectValue = (a: PictureAspect) => { const [w, h] = a.split(':').map(Number); return w / h; };
+
 /** New content written in the editor; its elements come from the template. */
 export const componentSchema = z.discriminatedUnion('type', [
   z.object({
@@ -131,7 +136,23 @@ export const componentSchema = z.discriminatedUnion('type', [
   }).strict(),
   z.object({type: z.literal('text'), text: z.string().max(6000)}).strict(),
   z.object({type: z.literal('heading'), text: z.string().max(200)}).strict(),
-  z.object({type: z.literal('image'), image: imageDataSchema, width: num, height: num, rounded: z.boolean()}).strict(),
+  /** A photo. `prompt`: what it was generated from (/pdf-generator); without `image` it is drawn as a pending frame. */
+  z.object({
+    type: z.literal('image'), image: imageDataSchema.optional(), width: num, height: num, rounded: z.boolean(),
+    prompt: z.string().max(2000).optional(), caption: z.string().max(300).optional(),
+  }).strict(),
+  /** Pictures in a grid, each with an optional label under it (an alphabet, a row of faces, numbered photos). */
+  z.object({
+    type: z.literal('gallery'), columns: z.number().int().min(2).max(6), aspect: z.enum(pictureAspects), numbered: z.boolean(),
+    /** First number when `numbered` (a gallery continued on the next page goes on counting). */
+    first: z.number().int().min(1).max(999).optional(),
+    cells: z.array(z.object({image: imageDataSchema.optional(), prompt: z.string().max(2000).optional(), label: z.string().max(120)}).strict()).min(1).max(24),
+  }).strict(),
+  /** A comic strip: framed panels with speech bubbles drawn by the studio, so their text stays editable. */
+  z.object({
+    type: z.literal('comic'), columns: z.union([z.literal(1), z.literal(2), z.literal(3)]), aspect: z.enum(pictureAspects),
+    panels: z.array(z.object({image: imageDataSchema.optional(), prompt: z.string().max(2000).optional(), bubbles: z.array(z.string().max(200)).max(4)}).strict()).min(1).max(12),
+  }).strict(),
 ]);
 export type Component = z.infer<typeof componentSchema>;
 
@@ -229,7 +250,9 @@ export function usedAssets(unit: Pick<Unit, 'pages' | 'template' | 'source' | 'a
   if (unit.source) out[unit.source.asset] = 'application/pdf';
   for (const p of unit.pages) for (const b of p.blocks) {
     add(b.elements);
-    if (b.component?.type === 'image') out[b.component.image.asset] = mimeOf(b.component.image);
+    const c = b.component;
+    const pictures = c?.type === 'image' ? [c.image] : c?.type === 'gallery' ? c.cells.map(x => x.image) : c?.type === 'comic' ? c.panels.map(x => x.image) : [];
+    for (const img of pictures) if (img) out[img.asset] = mimeOf(img);
   }
   add(unit.template.exerciseHeader?.elements);
   add(unit.template.footer);

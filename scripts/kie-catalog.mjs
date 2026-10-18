@@ -95,10 +95,17 @@ function textEntry(page, s, opPath, op) {
   if (raw.includes('image_url') || raw.includes('input_image') || raw.includes('inline_data')) inputs.push('image');
   if (/pdf/i.test(raw + desc) || raw.includes('input_file') || raw.includes('inline_data')) inputs.push('pdf');
   const id = slug(providerModel || opPath.split('/').filter(Boolean)[native ? 3 : 0].replace(/:.*$/, '').replace(/-openai$/, '') + (native ? '-native' : ''));
+  // Web search, only as the page documents it: Gemini's Google Search grounding (googleSearch) or OpenAI's web_search.
+  // A page that says the model ignores it (Kimi K3) gets none.
+  const noSearch = /does not support\**\s*web search|web_search`? (are|is) ignored/i.test(page.text);
+  const webSearch = noSearch || adapter === 'anthropic-messages' ? undefined
+    : raw.includes('googleSearch') ? 'googleSearch' : raw.includes('web_search') ? 'web_search'
+      // Responses pages describe the tool in their components: {"type": "web_search"}.
+      : adapter === 'openai-responses' && /"type":\s*"web_search"|-\s+web_search\b/.test(page.text) ? 'web_search' : undefined;
   return {
     id, name, provider: providerOf(family, providerModel), category: 'text', providerModel, endpoint: KIE + opPath, adapter,
     docs: page.url.replace(/\.md$/, ''), status: 'docs', checked: today + ' · docs.kie.ai (especificación de la página)',
-    inputs, stream: 'stream' in props,
+    inputs, stream: 'stream' in props, ...(webSearch ? {webSearch} : {}),
   };
 }
 

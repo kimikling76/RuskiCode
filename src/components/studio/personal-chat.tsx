@@ -3,7 +3,7 @@ import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import dynamic from 'next/dynamic';
 import {useQuery} from '@tanstack/react-query';
 import TextareaAutosize from 'react-textarea-autosize';
-import {ArrowUp, ArrowDown, ArrowUpRight, Copy, Check, RotateCcw, Square, FolderPlus, Pencil, MoreHorizontal, Paperclip, X, SquareSlash} from 'lucide-react';
+import {ArrowUp, ArrowDown, ArrowUpRight, Copy, Check, RotateCcw, Square, FolderPlus, Pencil, MoreHorizontal, Paperclip, X, SquareSlash, Globe} from 'lucide-react';
 import {useAssistants, type Assistant} from '@/store/assistants';
 import {AssistantMenu, AssistantPreview, AssistantChip, preferredModel} from './assistant-chooser';
 import {usePersonal, type PersonalMessage, type StudioProject} from '@/store/personal-chat';
@@ -21,6 +21,8 @@ import {AttachmentTray, MessageFiles, filesOf, useAttachments} from './chat-atta
 import {SkillCard} from './skill-cards';
 import {chatSkills, matchSkills, skillById, skillSummary, splitCommand, type MediaRef, type SkillId, type SkillRun} from '@/lib/skills/chat';
 import {reviewText, writePdf} from '@/lib/skills/run';
+import type {Source} from '@/lib/ai/types';
+import {MessageSources, mergeSources} from './chat-sources';
 
 const MessageMarkdown = dynamic(() => import('./message-markdown').then(m => m.MessageMarkdown), {
   loading: () => <span className="rc-thinking" aria-hidden="true"><span /><span /><span /></span>,
@@ -42,7 +44,9 @@ const errorDetails: Record<string, string> = {
   ATTACHMENT_MISSING: 'Un archivo adjunto ya no está guardado en el estudio. Adjuntalo de nuevo.',
   UPLOAD_FAILED: 'No se pudo pasar la imagen a Kie. Probá de nuevo en un momento.',
   ATTACHMENTS_UNAVAILABLE: 'No se pudieron leer los archivos adjuntos en el servidor. Probá más tarde.',
+  SEARCH_NOT_SUPPORTED: 'Este modelo no busca en la web en Kie. Elegí uno que diga «busca en la web» o apagá la búsqueda.',
 };
+
 
 const suggestions = [
   {title: 'Explorar una idea', prompt: 'Quiero explorar una idea. Haceme preguntas para ayudarme a desarrollarla.'},
@@ -80,6 +84,8 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
 
   const [text, setText] = useState('');
   const [model, setModel] = useState('auto');
+  // Web search before the first message; afterwards it lives in the chat itself.
+  const [search, setSearch] = useState(false);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState('');
   const [conversion, setConversion] = useState(false);
@@ -127,7 +133,11 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
   const hasMessages = Boolean(chat?.messages.length);
   const last = chat?.messages.at(-1);
   // «Automático» answers with the fast Gemini model (or the first available), as the server resolves it.
-  const effective = selectedModel === 'auto' ? models.find(m => m.id === 'kie-flash') || models[0] : models.find(m => m.id === selectedModel);
+  const modelFor = (id: string) => id === 'auto' ? models.find(m => m.id === 'kie-flash') || models[0] : models.find(m => m.id === id);
+  const effective = modelFor(selectedModel);
+  // Search is asked only from models whose Kie page documents a search tool.
+  const searchOn = chat ? Boolean(chat.webSearch) : search;
+  const canSearch = Boolean(effective?.webSearch);
   // With an image or video skill, attached images are references for that model, not for the text model.
   const imagesBlocked = !skill && Boolean(effective) && files.ready.some(a => a.kind === 'image') && !effective!.inputs?.includes('image');
   const hasInput = Boolean(text.trim()) || files.ready.length > 0;
@@ -227,6 +237,11 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
     if (chat) patch(chat.id, {model: id}); else setModel(id);
   }
 
+  function changeSearch(value: boolean) {
+    if (chat) patch(chat.id, {webSearch: value}); else setSearch(value);
+    textarea.current?.focus();
+  }
+
   function requestSend() {
     if (!canSend) return;
     // Image and video skills ask in their own card, with the model and options, before anything goes to Kie.
@@ -261,17 +276,18 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
     const base = usePersonal.getState().data.chats.find(c => c.id === chatId)?.messages || [];
     const images: MediaRef[] = attached.filter(a => a.kind === 'image').map(a => ({kind: 'asset', hash: a.hash, mime: a.mime, name: a.name}));
     const documents = attached.filter(a => a.kind === 'document');
+    const useSearch = searchOn && canSearch;
     const run: SkillRun = id === 'image-generation' ? {skill: id, prompt, model: '', aspect: '', resolution: '', count: 1, refs: images}
       : id === 'video-generation' ? {skill: id, prompt, model: '', aspect: '', resolution: '', duration: '', ...(images[0] ? {start: images[0]} : {})}
-        : id === 'pdf-generator' ? {skill: id, request: prompt, state: 'writing'}
-          : prompt || documents.length ? {skill: id, state: 'reviewing', source: {kind: 'text', text: prompt, documents: documents.length}}
-            : {skill: id, state: 'choose', source: {kind: 'unit', unitId: '', title: '', from: 1, to: 10}};
+        : id === 'pdf-generator' ? {skill: id, request: prompt, state: 'writing', ...(useSearch ? {webSearch: true} : {})}
+          : prompt || documents.length ? {skill: id, state: 'reviewing', source: {kind: 'text', text: prompt, documents: documents.length}, ...(useSearch ? {webSearch: true} : {})}
+            : {skill: id, state: 'choose', source: {kind: 'unit', unitId: '', title: '', from: 1, to: 10}, ...(useSearch ? {webSearch: true} : {})};
     const now = new Date().toISOString();
     const user: PersonalMessage = {id: crypto.randomUUID(), role: 'user', content: prompt, command: id, createdAt: now, ...(attached.length ? {attachments: attached} : {})};
     const card: PersonalMessage = {id: crypto.randomUUID(), role: 'assistant', content: skillSummary(run), skill: run, status: 'done', createdAt: now};
     const selected = existing ? usePersonal.getState().data.chats.find(c => c.id === chatId)?.model || 'auto' : model;
     nearBottom.current = true;
-    if (!patch(chatId, {messages: [...base, user, card], model: selected})) return;
+    if (!patch(chatId, {messages: [...base, user, card], model: selected, ...(existing ? {} : {webSearch: search})})) return;
     setText(''); files.clear();
     if (id === 'pdf-generator') void writePdf(chatId, card.id, selected);
     if (id === 'revisar-ruso' && run.skill === 'revisar-ruso' && run.state === 'reviewing') void reviewText(chatId, card.id, selected, attached);
@@ -306,14 +322,16 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
     const requestId = crypto.randomUUID();
     // A new chat uses the model chosen before it existed; an existing chat keeps its own.
     const selected = existing ? usePersonal.getState().data.chats.find(c => c.id === id)?.model || 'auto' : model;
-    const assistant: PersonalMessage = {id: messageId, role: 'assistant', content: '', status: 'streaming', createdAt: new Date().toISOString()};
+    const wanted = existing ? Boolean(usePersonal.getState().data.chats.find(c => c.id === id)?.webSearch) : search;
+    const useSearch = wanted && Boolean(modelFor(selected)?.webSearch);
+    const assistant: PersonalMessage = {id: messageId, role: 'assistant', content: '', status: 'streaming', createdAt: new Date().toISOString(), ...(useSearch ? {webSearch: true} : {})};
     // The assistant applies only if it was chosen for this chat. Its current instructions are sent and kept.
     const chosen = existing ? usePersonal.getState().data.chats.find(c => c.id === id)?.assistant : pendingAssistant ? {id: pendingAssistant.id, name: pendingAssistant.name, instructions: pendingAssistant.instructions, mediaCatalog: pendingAssistant.mediaCatalog} : undefined;
     const live = chosen ? useAssistants.getState().assistants.find(a => a.id === chosen.id) : undefined;
     const active = chosen ? (live ? {id: live.id, name: live.name, instructions: live.instructions, mediaCatalog: live.mediaCatalog} : chosen) : undefined;
     nearBottom.current = true;
     lastScrollTop.current = log.current?.scrollTop || 0;
-    if (!patch(id, {messages: [...base, assistant], model: selected, ...(active ? {assistant: active} : {})})) return;
+    if (!patch(id, {messages: [...base, assistant], model: selected, ...(active ? {assistant: active} : {}), ...(existing ? {} : {webSearch: search})})) return;
     if (!existing) setPendingAssistant(null);
 
     const chatId = id;
@@ -323,7 +341,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
     stoppedByUser.current = false;
     requestChat.current = chatId;
     abort.current = controller;
-    let done = false, accepted = false, realCredits: number | undefined, content = '', modelName = '';
+    let done = false, accepted = false, realCredits: number | undefined, content = '', modelName = '', sources: Source[] = [];
 
     function update(value: Partial<PersonalMessage>) {
       const current = usePersonal.getState().data.chats.find(c => c.id === chatId);
@@ -334,7 +352,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
       const r = await fetch('/api/personal-chat', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({requestId, purpose: 'chat', model: selected, messages: outbound, ...(active ? {assistant: {name: active.name, instructions: active.instructions, mediaCatalog: active.mediaCatalog}} : {})}),
+        body: JSON.stringify({requestId, purpose: 'chat', model: selected, messages: outbound, ...(active ? {assistant: {name: active.name, instructions: active.instructions, mediaCatalog: active.mediaCatalog}} : {}), ...(useSearch ? {webSearch: true} : {})}),
         signal: controller.signal,
       });
       if (!r.ok) { const e = await r.json(); throw Error(e.error); }
@@ -344,6 +362,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
         const e = JSON.parse(frame);
         if (e.type === 'delta') { content += e.text; update({content}); }
         if (e.type === 'model') { modelName = e.name; update({model: e.name}); }
+        if (e.type === 'sources' && Array.isArray(e.sources)) { sources = mergeSources(sources, e.sources); update({sources}); }
         if (e.type === 'usage' && typeof e.usage?.credits === 'number') { realCredits = e.usage.credits; update({credits: realCredits}); }
         if (e.type === 'error') throw Error(e.error);
         if (e.type === 'done') { done = true; update({status: 'done'}); }
@@ -565,7 +584,10 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
                     ) : m.skill && chat ? (
                       <SkillCard chatId={chat.id} message={m} model={chat.model || 'auto'} attachments={chat.messages[i - 1]?.attachments} />
                     ) : m.content ? (
-                      <MessageMarkdown content={m.content} />
+                      <>
+                        <MessageMarkdown content={m.content} />
+                        {m.sources?.length ? <MessageSources sources={m.sources} /> : null}
+                      </>
                     ) : streaming ? (
                       <span className="rc-thinking" role="status"><span /><span /><span /><span className="sr-only">Preparando la respuesta</span></span>
                     ) : m.stopped ? (
@@ -627,6 +649,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
                         </div>
                         <span className="rc-msg-meta">
                           {m.role === 'assistant' && m.model ? <span>{modelLabel(m.model)}</span> : null}
+                          {m.role === 'assistant' && m.webSearch ? <span>Con búsqueda web</span> : null}
                           {formatTime(m.createdAt)}
                           {m.role === 'assistant' && m.credits !== undefined ? (
                             <Tip label="Costo informado por Kie"><span tabIndex={0}>{credits(m.credits)}</span></Tip>
@@ -671,6 +694,12 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
             <div className="rc-notice" role="status">
               <span className="rc-dot rc-dot--danger" aria-hidden="true" />
               <span>{modelLabel(effective!.name)} no lee imágenes en Kie. Elegí un modelo que diga «lee imágenes» o quitá las imágenes.</span>
+            </div>
+          ) : null}
+          {searchOn && effective && !canSearch && !skill?.endsWith('-generation') ? (
+            <div className="rc-notice" role="status">
+              <span className="rc-dot" aria-hidden="true" />
+              <span>{modelLabel(effective.name)} no busca en la web en Kie: este mensaje va sin búsqueda. Elegí un modelo que diga «busca en la web» (Gemini o GPT).</span>
             </div>
           ) : null}
           {menuOpen ? (
@@ -725,6 +754,9 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
               <Tip label="Skills: generar imágenes o videos, crear páginas del manual, revisar el ruso">
                 <button type="button" className="rc-icon-btn" aria-label="Elegir una skill" aria-pressed={menu.open} disabled={!hydrated} onClick={() => { setMenu(m => ({open: !m.open, index: 0, dismissed: null})); textarea.current?.focus(); }}><SquareSlash /></button>
               </Tip>
+              <Tip label={searchOn ? 'Búsqueda web activada: el modelo puede consultar páginas y citarlas' : 'Buscar en la web (solo modelos que digan «busca en la web»)'}>
+                <button type="button" className={'rc-icon-btn rc-search-btn' + (searchOn ? ' is-on' : '')} aria-label="Buscar en la web" aria-pressed={searchOn} disabled={!hydrated} onClick={() => changeSearch(!searchOn)}><Globe /></button>
+              </Tip>
               <ChatModelPicker models={allModels} value={selectedModel} onChange={chooseModel} disabled={busy || !models.length} />
               <div className="rc-composer-spacer" />
               <label className="rc-ask" htmlFor="ask-first">
@@ -757,6 +789,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
         <dl className="rc-facts">
           <dt>Modelo</dt><dd>{modelName(selectedModel)}</dd>
           <dt>Asistente</dt><dd>{chat?.assistant?.name || pendingAssistant?.name || 'Ninguno (chat neutro)'}</dd>
+          <dt>Búsqueda web</dt><dd>{searchOn && canSearch ? 'Sí' : 'No'}</dd>
           {files.ready.length ? <><dt>Adjuntos</dt><dd>{files.ready.length}</dd></> : null}
         </dl>
       </ConfirmDialog>
