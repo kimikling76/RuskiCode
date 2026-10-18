@@ -115,7 +115,7 @@ export async function writePdf(chatId: string, messageId: string, model: string)
     const run = findMessage(chatId, messageId)?.skill as PdfRun | undefined;
     if (!run) return;
     const {units, models} = await designUnits();
-    if (!models.length) { updateRun<PdfRun>(chatId, messageId, {state: 'error', error: 'NO_MANUAL'}); return; }
+    if (!models.length) { updateRun<PdfRun>(chatId, messageId, {state: 'error', error: units.length ? 'NO_DESIGN' : 'NO_MANUAL'}); return; }
     const target: PdfTarget = run.target && models.some(u => u.id === run.target!.unitId) ? run.target : {mode: 'new', unitId: models[0].id};
     const unit = models.find(u => u.id === target.unitId)!;
     const previous = previousRun(chatId, messageId);

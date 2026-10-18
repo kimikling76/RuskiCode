@@ -35,7 +35,8 @@ import {MessageSources} from './chat-sources';
 // until the author confirms in a dialog that says what is going to happen.
 
 const skillErrors: Record<string, string> = {
-  NO_MANUAL: 'Todavía no hay una unidad del manual en este navegador. Importá una en PDF Studio → Manual: su diseño es la plantilla de las páginas nuevas.',
+  NO_MANUAL: 'Todavía no hay una unidad del manual en tu cuenta. En PDF Studio, en la sección «Manual», tocá «Importar unidad (PDF)» (no «Importar archivo», que crea un documento aparte). Su diseño es la plantilla de las páginas nuevas. Después tocá «Volver a intentar».',
+  NO_DESIGN: 'Las unidades del manual que importaste no tienen un encabezado de ejercicio para copiar (la banda con el número y la consigna). Importá una unidad con ejercicios en PDF Studio → Manual, o en el editor elegí un ejercicio y tocá «Usar este encabezado para los ejercicios nuevos». Después tocá «Volver a intentar».',
   INVALID_DRAFT: 'El modelo respondió en un formato que no es el de la plantilla. No se aplicó nada: probá de nuevo o con otro modelo.',
   INVALID_REVIEW: 'El modelo respondió en un formato inesperado. No se aplicó nada: probá de nuevo o con otro modelo.',
   UNIT_MISSING: 'Esa unidad ya no está en este navegador.',
@@ -438,8 +439,10 @@ function PdfCard({chatId, id, run, model, attachments}: {chatId: string; id: str
     return (
       <div className="rc-skill-body" role="alert">
         <p className="rc-skill-error"><span className="rc-dot rc-dot--danger" aria-hidden="true" />{skillError(run.error)}</p>
-        {run.error === 'NO_MANUAL' ? <Link href="/workspace?studio=pdf" className="rc-btn rc-btn--secondary rc-btn--sm">Ir a PDF Studio<ArrowUpRight aria-hidden="true" /></Link>
-          : <button type="button" className="rc-btn rc-btn--secondary rc-btn--sm" onClick={() => void writePdf(chatId, id, model)}>Volver a intentar</button>}
+        <div className="rc-skill-row">
+          {run.error === 'NO_MANUAL' || run.error === 'NO_DESIGN' ? <Link href="/workspace?studio=pdf" className="rc-btn rc-btn--secondary rc-btn--sm">Ir a PDF Studio<ArrowUpRight aria-hidden="true" /></Link> : null}
+          <button type="button" className="rc-btn rc-btn--secondary rc-btn--sm" onClick={() => void writePdf(chatId, id, model)}>Volver a intentar</button>
+        </div>
       </div>
     );
   }
