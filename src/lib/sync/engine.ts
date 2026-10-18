@@ -2,6 +2,7 @@
 import {create} from 'zustand';
 import {collections, hydrateAll, type Collection} from './collections';
 import {tokenOf} from './canonical';
+import {firstKinds} from './kinds';
 import type {RemoteItem, PushResult} from './server';
 
 // ---------- State shown to the person ----------
@@ -36,12 +37,13 @@ export const useSync = create<SyncState>(() => ({status: 'starting', savedAt: nu
 // ---------- Local bookkeeping ----------
 
 const META = 'rc-sync-v1';
-type Meta = {user: string | null; cursor: string; device: string; items: Record<string, {v: number; t: string}>};
+/** `kinds`: the kinds this computer has pulled; absent on computers that synced before the list existed. */
+type Meta = {user: string | null; cursor: string; device: string; items: Record<string, {v: number; t: string}>; kinds?: string[]};
 
 function loadMeta(): Meta {
   try {
     const m = JSON.parse(localStorage.getItem(META) || 'null');
-    if (m && typeof m.cursor === 'string' && m.items && typeof m.items === 'object') return {device: m.device || crypto.randomUUID(), user: m.user ?? null, cursor: m.cursor, items: m.items};
+    if (m && typeof m.cursor === 'string' && m.items && typeof m.items === 'object') return {device: m.device || crypto.randomUUID(), user: m.user ?? null, cursor: m.cursor, items: m.items, ...(Array.isArray(m.kinds) ? {kinds: m.kinds} : {})};
   } catch {}
   return {user: null, cursor: '0', device: crypto.randomUUID(), items: {}};
 }
@@ -140,7 +142,9 @@ async function pull(meta: Meta) {
   const retry = [...held.values()];
   held.clear();
   await process(meta, retry);
-  let since = meta.cursor;
+  // Records of a kind this computer did not know were skipped by an older version: they are pulled from the start.
+  const known = meta.kinds ?? firstKinds;
+  let since = collections.every(c => known.includes(c.kind)) ? meta.cursor : '0';
   for (let page = 0; page < 50; page++) {
     const r = await request('/api/sync?since=' + since);
     if (r.user && meta.user && r.user !== meta.user) {
@@ -156,6 +160,7 @@ async function pull(meta: Meta) {
   const heldSeqs = [...held.values()].map(i => BigInt(i.seq));
   const min = heldSeqs.length ? heldSeqs.reduce((a, b) => a < b ? a : b) : null;
   meta.cursor = min !== null && BigInt(since) >= min ? (min - BigInt(1)).toString() : since;
+  meta.kinds = collections.map(c => c.kind);
   useSync.setState({waiting: [...held.keys()]});
 }
 
