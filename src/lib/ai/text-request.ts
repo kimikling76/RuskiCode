@@ -3,8 +3,9 @@ import {usePersonal} from '@/store/personal-chat';
 import {sseData} from '@/lib/ai/sse';
 import type {Assistant} from '@/store/assistants';
 import type {Source} from './types';
+import type {BookPayload} from '@/lib/kb/prompt';
 
-export type TextPurpose = 'storyboard' | 'prompt' | 'book-review' | 'book-exercises' | 'book-rewrite' | 'pdf-generator' | 'russian-review';
+export type TextPurpose = 'storyboard' | 'prompt' | 'book-review' | 'book-exercises' | 'book-rewrite' | 'pdf-generator' | 'russian-review' | 'book-assist' | 'book-exercise';
 
 const usageLabels: Record<TextPurpose, {studio: 'chat' | 'cinema' | 'pdf'; label: string}> = {
   storyboard: {studio: 'cinema', label: 'Plan de planos'},
@@ -14,6 +15,8 @@ const usageLabels: Record<TextPurpose, {studio: 'chat' | 'cinema' | 'pdf'; label
   'book-rewrite': {studio: 'pdf', label: 'Mejora de un bloque'},
   'pdf-generator': {studio: 'pdf', label: '/pdf-generator'},
   'russian-review': {studio: 'chat', label: '/revisar-ruso'},
+  'book-assist': {studio: 'pdf', label: 'Asistente del libro'},
+  'book-exercise': {studio: 'pdf', label: 'Cambio de un ejercicio'},
 };
 
 export type TextAnswer = {text: string; model?: string; credits?: number; sources?: Source[]};
@@ -26,7 +29,8 @@ export async function textRequest(purpose: TextPurpose, content: string, signal?
 
 /** The same, with the model that answered and the credits Kie reported. `model` is a catalog id or 'auto'. */
 /** `webSearch` only for models that document a search tool (the server answers SEARCH_NOT_SUPPORTED otherwise). */
-export async function textAnswer(purpose: TextPurpose, content: string, opts: {signal?: AbortSignal; assistant?: Assistant | null; model?: string; attachments?: unknown[]; webSearch?: boolean} = {}): Promise<TextAnswer> {
+/** `book`: data of the author's book project, sent apart from the request (only inside that project). */
+export async function textAnswer(purpose: TextPurpose, content: string, opts: {signal?: AbortSignal; assistant?: Assistant | null; model?: string; attachments?: unknown[]; webSearch?: boolean; book?: BookPayload} = {}): Promise<TextAnswer> {
   const {signal, assistant} = opts;
   const model = opts.model && opts.model !== 'auto' ? opts.model : assistant && assistant.model !== 'auto' ? assistant.model : 'auto';
   let name: string | undefined;
@@ -37,7 +41,7 @@ export async function textAnswer(purpose: TextPurpose, content: string, opts: {s
     const r = await fetch('/api/personal-chat', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({requestId, purpose, model, messages: [{role: 'user', content, ...(opts.attachments?.length ? {attachments: opts.attachments} : {})}], ...(assistant ? {assistant: {name: assistant.name, instructions: assistant.instructions, mediaCatalog: assistant.mediaCatalog}} : {}), ...(opts.webSearch ? {webSearch: true} : {})}),
+      body: JSON.stringify({requestId, purpose, model, messages: [{role: 'user', content, ...(opts.attachments?.length ? {attachments: opts.attachments} : {})}], ...(assistant ? {assistant: {name: assistant.name, instructions: assistant.instructions, mediaCatalog: assistant.mediaCatalog}} : {}), ...(opts.webSearch ? {webSearch: true} : {}), ...(opts.book ? {book: opts.book} : {})}),
       signal,
     });
     if (!r.ok) {

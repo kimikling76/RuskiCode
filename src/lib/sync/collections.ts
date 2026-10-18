@@ -169,9 +169,12 @@ const jobs: Collection = {
   // Both computers may follow the same Kie task: the most advanced state wins, nothing is lost.
   merge: (local, remote) => {
     const a = local as CinemaJob, b = remote as CinemaJob;
-    if (terminal(a) !== terminal(b)) return terminal(a) ? a : b;
-    if ((a.finishedAt || 0) !== (b.finishedAt || 0)) return (a.finishedAt || 0) > (b.finishedAt || 0) ? a : b;
-    return {...b, credits: b.credits ?? a.credits};
+    const pick = terminal(a) !== terminal(b) ? (terminal(a) ? a : b)
+      : (a.finishedAt || 0) !== (b.finishedAt || 0) ? ((a.finishedAt || 0) > (b.finishedAt || 0) ? a : b)
+      : {...b, credits: b.credits ?? a.credits};
+    const other = pick === a ? b : a;
+    // The author's review and the record of what was sent are kept whichever copy wins.
+    return {...pick, review: pick.review ?? other.review, sent: pick.sent ?? other.sent, book: pick.book ?? other.book};
   },
 };
 

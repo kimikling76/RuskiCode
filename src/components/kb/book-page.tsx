@@ -20,6 +20,7 @@ const prefix: Record<KbKind, string> = {identity: 'identity', character: 'char',
 const order: KbKind[] = ['decision', 'identity', 'character', 'story', 'unit', 'page', 'rule', 'note'];
 
 const searchText = (e: KbEntry) => fold([e.title, e.body, e.kind === 'character' ? e.data.aliases.join(' ') : '', e.kind === 'page' ? e.data.text : '', e.kind === 'decision' ? e.data.question : ''].join(' '));
+const rank = (e: KbEntry, q: string) => { const t = fold(e.title); return t === q ? 0 : t.startsWith(q) ? 1 : t.includes(q) ? 2 : 3; };
 const sortKey = (e: KbEntry) => e.kind === 'page' ? e.data.number : e.kind === 'unit' ? e.data.number : 0;
 
 /** PDF Studio → Libro: the knowledge base of a book project, its import, review, versions and what the student knows. */
@@ -48,8 +49,8 @@ export function BookKnowledgePage() {
     const q = fold(query.trim());
     return (entries || [])
       .filter(e => (kind === 'all' || e.kind === kind) && (status === 'all' || e.status === status) && (!q || searchText(e).includes(q)))
-      // What is named in its title comes first: a character before the entries that only mention her.
-      .sort((a, b) => (q ? Number(!fold(a.title).includes(q)) - Number(!fold(b.title).includes(q)) : 0) || order.indexOf(a.kind) - order.indexOf(b.kind) || sortKey(a) - sortKey(b) || a.title.localeCompare(b.title));
+      // What the search names comes first: the entry with that exact title, then titles that start or contain it.
+      .sort((a, b) => (q ? rank(a, q) - rank(b, q) : 0) || order.indexOf(a.kind) - order.indexOf(b.kind) || sortKey(a) - sortKey(b) || a.title.localeCompare(b.title));
   }, [entries, kind, status, query]);
   const selected = entries?.find(e => e.id === selectedId) || null;
   const counts = useMemo(() => kbStatuses.map(s => [s, (entries || []).filter(e => e.status === s).length] as const), [entries]);
@@ -153,7 +154,7 @@ export function BookKnowledgePage() {
                       {selected ? (
                         <>
                           <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm rc-kb-back" onClick={() => go({e: null})}><ArrowLeft aria-hidden="true" />Volver a la lista</button>
-                          <EntryDetail entry={selected} names={names} all={entries || []} onOpen={id => go({e: id})} />
+                          <EntryDetail entry={selected} names={names} all={entries || []} project={project} onOpen={id => go({e: id})} />
                         </>
                       ) : entries?.length ? <p className="rc-hint rc-kb-pick">Elegí un dato para ver su fuente, su historial y lo que decidas sobre él.</p> : null}
                     </div>

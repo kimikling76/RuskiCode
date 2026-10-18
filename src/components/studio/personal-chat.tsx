@@ -23,6 +23,8 @@ import {chatSkills, matchSkills, skillById, skillSummary, splitCommand, type Med
 import {reviewText, writePdf} from '@/lib/skills/run';
 import type {Source} from '@/lib/ai/types';
 import {MessageSources, mergeSources} from './chat-sources';
+import {bookForAssistant, usedOf} from '@/lib/kb/context';
+import {BookUsedNote} from '@/components/kb/book-used';
 
 const MessageMarkdown = dynamic(() => import('./message-markdown').then(m => m.MessageMarkdown), {
   loading: () => <span className="rc-thinking" aria-hidden="true"><span /><span /><span /></span>,
@@ -349,10 +351,14 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
     }
 
     try {
+      // A book's data goes only with an assistant the author linked to that book; the neutral Chat sends none.
+      const lastUser = [...outbound].reverse().find(m => m.role === 'user')?.content || '';
+      const book = active ? await bookForAssistant(active.id, {query: lastUser}).catch(() => null) : null;
+      if (book) update({book: usedOf(book)});
       const r = await fetch('/api/personal-chat', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({requestId, purpose: 'chat', model: selected, messages: outbound, ...(active ? {assistant: {name: active.name, instructions: active.instructions, mediaCatalog: active.mediaCatalog}} : {}), ...(useSearch ? {webSearch: true} : {})}),
+        body: JSON.stringify({requestId, purpose: 'chat', model: selected, messages: outbound, ...(active ? {assistant: {name: active.name, instructions: active.instructions, mediaCatalog: active.mediaCatalog}} : {}), ...(useSearch ? {webSearch: true} : {}), ...(book ? {book: book.payload} : {})}),
         signal: controller.signal,
       });
       if (!r.ok) { const e = await r.json(); throw Error(e.error); }
@@ -650,6 +656,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
                         <span className="rc-msg-meta">
                           {m.role === 'assistant' && m.model ? <span>{modelLabel(m.model)}</span> : null}
                           {m.role === 'assistant' && m.webSearch ? <span>Con búsqueda web</span> : null}
+                          {m.role === 'assistant' && m.book ? <BookUsedNote used={m.book} /> : null}
                           {formatTime(m.createdAt)}
                           {m.role === 'assistant' && m.credits !== undefined ? (
                             <Tip label="Costo informado por Kie"><span tabIndex={0}>{credits(m.credits)}</span></Tip>

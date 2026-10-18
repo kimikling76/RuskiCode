@@ -1,6 +1,6 @@
 'use client';
 import {toast} from 'sonner';
-import {useCinema, type CinemaJob, type JobMode} from '@/store/cinema';
+import {useCinema, type CinemaJob, type JobBook, type JobMode, type SentRef} from '@/store/cinema';
 import type {AspectRatio, Resolution} from './capabilities';
 
 export type GenerationRequest = {
@@ -19,6 +19,8 @@ export type GenerationRequest = {
   batchId?: string;
   /** The caller's name for what these jobs are for (a picture slot of /pdf-generator). */
   tag?: string;
+  /** The book characters and reference files of the picture (kept with the job). */
+  book?: JobBook;
 };
 
 /**
@@ -43,6 +45,7 @@ export async function startGeneration(request: GenerationRequest) {
     boardId: request.boardId,
     shotId: request.shotId,
     ...(request.tag ? {tag: request.tag} : {}),
+    ...(request.book ? {book: request.book} : {}),
     state: 'sending',
     urls: [],
     createdAt: now,
@@ -67,8 +70,9 @@ export async function startGeneration(request: GenerationRequest) {
     try { r = await send(); } catch { await new Promise(res => setTimeout(res, 1500)); r = await send(); }
     const body = await r.json().catch(() => ({}));
     const tasks: string[] = Array.isArray(body.tasks) ? body.tasks : [];
+    const sent: SentRef[] | undefined = Array.isArray(body.sent) ? body.sent : undefined;
     jobs.forEach((job, i) => {
-      if (tasks[i]) updateJob(job.id, {taskId: tasks[i], state: 'waiting'});
+      if (tasks[i]) updateJob(job.id, {taskId: tasks[i], state: 'waiting', ...(sent ? {sent} : {})});
       else updateJob(job.id, {state: 'error', error: typeof body.error === 'string' ? body.error : 'PROVIDER_UNAVAILABLE', finishedAt: Date.now()});
     });
   } catch {

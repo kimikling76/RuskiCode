@@ -131,3 +131,54 @@
   .rc-kb-thumb { width: 88px; height: 88px; }
   .rc-kb-bar .rc-btn { flex: 1 1 auto; }
 }
+
+/* The book data that went with an answer */
+.rc-book-used { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.rc-book-used svg { width: 12px; height: 12px; }
+.rc-book-used-pop { width: min(360px, calc(100vw - 32px)); max-height: 50vh; overflow: auto; padding: var(--sp-4); border-radius: var(--radius-12); background: var(--bg-2); box-shadow: var(--shadow-pop); font-size: var(--fs-13); }
+.rc-book-used-pop p { margin: 0 0 var(--sp-2); }
+.rc-book-used-pop ul { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
+
+/* Manual editor → Libro */
+.rc-kb-editor .rc-pdf-kind { display: inline-flex; align-items: center; gap: 6px; }
+.rc-kb-editor .rc-pdf-kind svg { width: 14px; height: 14px; }
+.rc-kb-editor-where { margin: 0; font-size: var(--fs-14); }
+.rc-kb-chips, .rc-kb-quick { display: flex; flex-wrap: wrap; gap: var(--sp-1); margin: 0; }
+.rc-kb-quick .rc-chip { height: auto; min-height: 26px; padding: 4px 10px; text-align: left; white-space: normal; }
+.rc-kb-chips .rc-chip { text-decoration: none; }
+.rc-kb-chips .rc-chip[data-status='approved'] { border-color: var(--accent); }
+.rc-kb-editor-decisions { margin: 0; padding-left: 18px; font-size: var(--fs-13); }
+.rc-kb-answer { font-size: var(--fs-14); }
+.rc-kb-list-plain { margin: 0; padding-left: 18px; font-size: var(--fs-13); line-height: 1.5; }
+.rc-kb-compare { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); font-size: var(--fs-13); }
+.rc-kb-compare > div { display: grid; gap: var(--sp-1); align-content: start; padding: var(--sp-3); border: 1px solid var(--line); border-radius: var(--radius-8); }
+.rc-kb-compare ol { margin: 0; padding-left: 18px; }
+.rc-kb-compare em { color: var(--fg-3); font-style: normal; }
+.rc-kb-consequences { padding: var(--sp-3); border: 1px solid var(--warning); border-radius: var(--radius-8); font-size: var(--fs-13); }
+.rc-kb-consequences strong { display: flex; align-items: center; gap: 6px; }
+.rc-kb-consequences svg { width: 14px; height: 14px; color: var(--warning); }
+.rc-kb-consequences ul { margin: var(--sp-2) 0 0; padding-left: 18px; display: grid; gap: 2px; }
+@media (max-width: 640px) { .rc-kb-compare { grid-template-columns: 1fr; } }
+
+/* Illustration with the book's characters */
+.rc-kb-picture { display: grid; gap: var(--sp-4); }
+.rc-kb-cast { list-style: none; margin: var(--sp-2) 0 0; padding: 0; display: grid; gap: var(--sp-1); max-height: 280px; overflow: auto; border-top: 1px solid var(--line); }
+.rc-kb-cast li { padding: var(--sp-2) 0; border-bottom: 1px solid var(--line); }
+.rc-kb-cast li[data-on] { background: rgba(196, 235, 92, 0.04); }
+.rc-kb-cast-refs { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin: var(--sp-2) 0 0 var(--sp-6); }
+.rc-kb-cast-ref { display: grid; grid-template-columns: auto 64px; grid-template-rows: auto auto; align-items: center; gap: 4px var(--sp-2); max-width: 220px; font-size: var(--fs-12); cursor: pointer; }
+.rc-kb-cast-ref .rc-kb-thumb { width: 64px; height: 64px; }
+.rc-kb-cast-ref span:last-child { grid-column: 1 / -1; overflow-wrap: anywhere; }
+.rc-kb-parts { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
+.rc-kb-sending, .rc-kb-sent { margin: 0; padding-left: 18px; font-size: var(--fs-13); line-height: 1.5; }
+.rc-kb-sent li[data-ok] strong { color: var(--success); }
+.rc-kb-warnings { list-style: disc; padding-left: 30px; }
+.rc-kb-results { display: grid; gap: var(--sp-4); }
+.rc-kb-result { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-4); align-items: start; }
+.rc-kb-result-img { width: 100%; border-radius: var(--radius-8); background: var(--bg-recessed); }
+.rc-kb-result-info { display: grid; gap: var(--sp-2); font-size: var(--fs-13); }
+.rc-kb-question { margin: var(--sp-2) 0 0; font-weight: 500; }
+.rc-kb-actions .rc-btn[aria-pressed='true'] { border-color: var(--accent); }
+@media (max-width: 640px) {
+  .rc-kb-parts, .rc-kb-result { grid-template-columns: minmax(0, 1fr); }
+}

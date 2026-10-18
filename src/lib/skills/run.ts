@@ -3,6 +3,10 @@ import {useSyncExternalStore} from 'react';
 import {usePersonal, type PersonalMessage} from '@/store/personal-chat';
 import {startGeneration} from '@/lib/cinema/client';
 import {textAnswer} from '@/lib/ai/text-request';
+import {bookForUnit, usedOf} from '@/lib/kb/context';
+import {getEntry, listEntries} from '@/lib/kb/store';
+import {uploadEntryFiles} from '@/lib/kb/files';
+import {castOfBook} from '@/lib/kb/picture';
 import {fetchEditorFonts, type EditorFonts} from '@/lib/manual/fonts';
 import {listUnits, saveUnit, saveVersion} from '@/lib/manual/store';
 import {contentWidth, nextExercise} from '@/lib/manual/compose';
@@ -120,15 +124,20 @@ export async function writePdf(chatId: string, messageId: string, model: string)
     const target: PdfTarget = run.target && models.some(u => u.id === run.target!.unitId) ? run.target : {mode: 'new', unitId: models[0].id};
     const unit = models.find(u => u.id === target.unitId)!;
     const previous = previousRun(chatId, messageId);
-    const answer = await textAnswer('pdf-generator', pdfContext(unit, target, run.request, unitVocabulary(units), previous?.draft), {model, webSearch: run.webSearch});
+    // A unit of a book project brings that book's data (canon, progress, rules); any other unit brings none.
+    const book = await bookForUnit(unit.id, {query: run.request}).catch(() => null);
+    if (book) updateRun<PdfRun>(chatId, messageId, {book: usedOf(book)});
+    const answer = await textAnswer('pdf-generator', pdfContext(unit, target, run.request, unitVocabulary(units), previous?.draft), {model, webSearch: run.webSearch, book: book?.payload});
     const draft = parseDraft(answer.text);
     if (!draft) { updateRun<PdfRun>(chatId, messageId, {state: 'error', error: 'INVALID_DRAFT', model: answer.model, credits: answer.credits}); return; }
+    const bookCast = book ? castOfBook(draft.characters.map(c => c.name), await listEntries(book.project.id)) : undefined;
     // Pictures already made for the same prompt (in this card or the draft it changes) are kept: they are not paid twice.
     const fresh = findMessage(chatId, messageId)?.skill as PdfRun | undefined;
     const pictures = keptPictures(draft, fresh?.pictures, previous?.pictures);
     const cast = keptCast(draft, fresh?.cast, previous?.cast);
     updateRun<PdfRun>(chatId, messageId, {
       state: 'ready', draft, target, model: answer.model, credits: answer.credits, sources: answer.sources, pictures, cast, imageStyle: undefined, setting: undefined,
+      ...(book ? {bookCast, bookProject: {id: book.project.id, name: book.project.name}} : {bookCast: undefined, bookProject: undefined}),
       ...(previous?.pictureModel && !fresh?.pictureModel ? {pictureModel: previous.pictureModel, pictureResolution: previous.pictureResolution} : {}),
     });
   } catch (e) {
@@ -237,16 +246,21 @@ export async function generatePictures(chatId: string, messageId: string, opts: 
     const resolution = model.options.resolutions.includes(opts.resolution) ? opts.resolution : model.options.resolutions[0] || '';
     const own = max ? opts.refs.map(refValue) : [];
     let sent = 0;
-    const send = async (prompt: string, aspect: string, references: string[], tag: string) => {
+    const send = async (prompt: string, aspect: string, references: string[], tag: string, people: string[] = []) => {
       // The studio accepts up to 8 new Kie tasks every 10 seconds.
       if (sent++) await pause(1400);
-      await startGeneration({mode: 'create', model: model.id, prompt, aspect, resolution, references: references.slice(0, max), count: 1, batchId, tag});
+      const members = people.flatMap(n => run.bookCast?.[n] ? [run.bookCast[n]] : []);
+      const book = run.bookProject && members.length ? {project: run.bookProject.id, name: run.bookProject.name, characters: members.map(m => ({id: m.id, name: m.title, refs: m.hash && references.slice(0, max).includes('asset:' + m.hash) ? [{hash: m.hash, name: m.file || m.title}] : []}))} : undefined;
+      await startGeneration({mode: 'create', model: model.id, prompt, aspect, resolution, references: references.slice(0, max), count: 1, batchId, tag, ...(book ? {book} : {})});
       changedSending();
     };
 
     // 1. Portraits of the characters these pictures show, when the model takes references and there is none yet.
+    // A character of the book uses its approved picture from the library; without one, no new face is invented for it.
     const portraits = new Map<string, string>();
-    const needed = max ? cast.filter(c => slots.some(s => slotCharacters(s, cast).includes(c))) : [];
+    const library = run.bookCast || {};
+    for (const [name, m] of Object.entries(library)) if (m.hash && max) portraits.set(name, m.hash);
+    const needed = max ? cast.filter(c => !library[c.name] && slots.some(s => slotCharacters(s, cast).includes(c))) : [];
     for (const c of needed) if (hasImage(run.cast?.[c.name], c.look)) portraits.set(c.name, run.cast![c.name].image!.asset);
     const missing = needed.filter(c => !portraits.has(c.name));
     for (const c of missing) {
@@ -279,12 +293,15 @@ export async function generatePictures(chatId: string, messageId: string, opts: 
     }
     for (const c of missing) queue.delete('cast:' + c.name);
 
+    // The library pictures must be in the account for the server to send them (this computer may not have synced yet).
+    if (run.bookProject) for (const m of Object.values(library)) if (m.hash) { const e = await getEntry(run.bookProject.id, m.id).catch(() => undefined); if (e) await uploadEntryFiles(e).catch(() => {}); }
+
     // 2. The pictures, each with the portraits of its characters.
     for (const slot of slots) {
       const people = slotCharacters(slot, cast);
       // The portraits go first: with a model that takes few references they are what keeps the characters the same.
       const refs = [...people.flatMap(c => portraits.has(c.name) ? ['asset:' + portraits.get(c.name)] : []), ...own];
-      await send(picturePrompt(slot, style, {cast, setting, withPortraits: people.some(c => portraits.has(c.name))}), nearestAspect(slot.aspect, model.options.aspectRatios), refs, pictureTag(slot));
+      await send(picturePrompt(slot, style, {cast, setting, withPortraits: people.some(c => portraits.has(c.name))}), nearestAspect(slot.aspect, model.options.aspectRatios), refs, pictureTag(slot), people.map(c => c.name));
       queue.delete(slot.key);
     }
   } finally {
@@ -378,7 +395,9 @@ export async function reviewText(chatId: string, messageId: string, model: strin
     const docTexts = await Promise.all(docs.map(d => fetch('/api/sync/assets?hash=' + d.hash).then(r => r.ok ? r.text() : '').catch(() => '')));
     const auto = autoChecks([...pages, ...docTexts.map(text => ({page: null, text}))]);
     updateRun<ReviewRun>(chatId, messageId, {auto});
-    const answer = await textAnswer('russian-review', reviewRequest(pages.filter(p => p.text.trim()), note), {model, attachments: docs, webSearch: run.webSearch});
+    const book = run.source.kind === 'unit' ? await bookForUnit(run.source.unitId, {query: 'Revisá el ruso, los acentos y la tipografía. ' + note, context: pages.map(p => p.text).join('\n').slice(0, 20000)}).catch(() => null) : null;
+    if (book) updateRun<ReviewRun>(chatId, messageId, {book: usedOf(book)});
+    const answer = await textAnswer('russian-review', reviewRequest(pages.filter(p => p.text.trim()), note), {model, attachments: docs, webSearch: run.webSearch, book: book?.payload});
     const result = parseReview(answer.text);
     if (!result) { updateRun<ReviewRun>(chatId, messageId, {state: 'error', error: 'INVALID_REVIEW', model: answer.model, credits: answer.credits}); return; }
     updateRun<ReviewRun>(chatId, messageId, {state: 'ready', result, model: answer.model, credits: answer.credits, sources: answer.sources});

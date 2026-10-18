@@ -1,12 +1,13 @@
 'use client';
 import {useEffect, useMemo, useState} from 'react';
 import {toast} from 'sonner';
-import {Check, History, Pencil, RotateCcw} from 'lucide-react';
+import {Check, History, Images, Pencil, RotateCcw} from 'lucide-react';
 import {ConfirmDialog} from '@/components/ui/dialog';
 import {editEntry, restoreVersion} from '@/lib/kb/store';
-import {kindName, statusName, type EntryOf, type KbEntry, type KbStatus} from '@/lib/kb/model';
+import {kindName, statusName, type EntryOf, type KbEntry, type KbProject, type KbStatus} from '@/lib/kb/model';
 import type {EntryChange} from '@/lib/kb/versions';
 import {CharacterRefs} from './character-refs';
+import {BookImageDialog} from './book-image';
 
 const when = new Intl.DateTimeFormat('es-AR', {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'});
 const lines = (v: string) => v.split('\n').map(x => x.trim()).filter(Boolean);
@@ -20,8 +21,9 @@ export function StatusBadge({status}: {status: KbStatus}) {
 export type Names = Map<string, string>;
 
 /** One fact of the book: what it says, where it comes from, its versions, and what the author decides about it. */
-export function EntryDetail({entry, names, all, onOpen}: {entry: KbEntry; names: Names; all: KbEntry[]; onOpen: (id: string) => void}) {
+export function EntryDetail({entry, names, all, project, onOpen}: {entry: KbEntry; names: Names; all: KbEntry[]; project: KbProject; onOpen: (id: string) => void}) {
   const [editing, setEditing] = useState(false);
+  const [picture, setPicture] = useState(false);
   const [confirm, setConfirm] = useState<{status: KbStatus; label: string; title: string; text: string} | null>(null);
   const [restoring, setRestoring] = useState<number | null>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -73,7 +75,15 @@ export function EntryDetail({entry, names, all, onOpen}: {entry: KbEntry; names:
         </>
       )}
 
-      {entry.kind === 'character' && !editing ? <CharacterRefs entry={entry} /> : null}
+      {entry.kind === 'character' && !editing ? (
+        <>
+          <CharacterRefs entry={entry} />
+          <div className="rc-kb-block">
+            <button type="button" className="rc-btn rc-btn--secondary rc-btn--sm" onClick={() => setPicture(true)}><Images aria-hidden="true" />Ilustración con este personaje…</button>
+          </div>
+          <BookImageDialog open={picture} onClose={() => setPicture(false)} project={project} entries={all} initial={[entry.id]} />
+        </>
+      ) : null}
 
       <section className="rc-kb-block">
         <h3>Fuentes</h3>

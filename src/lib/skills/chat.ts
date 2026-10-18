@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import type {BookUsed} from '@/lib/kb/context';
 import {aspectValue, pictureAspects, type Component, type ImageData, type PictureAspect, type Unit} from '@/lib/manual/model';
 import {plainText} from '@/lib/manual/elements';
 import type {Source} from '@/lib/ai/types';
@@ -75,13 +76,20 @@ export type PdfRun = {
   setting?: string;
   /** A reference portrait of each character, by name (`prompt` is the look it was made from). */
   cast?: Record<string, PictureState>;
+  /** The book data sent with the request, when the unit belongs to a book project. */
+  book?: BookUsed;
+  /** Characters of the draft that are the book's: their approved main picture (by hash) goes instead of a new portrait. */
+  bookCast?: Record<string, BookCastMember>;
+  bookProject?: {id: string; name: string};
 };
+/** A character of the draft found in the book's library. Without `hash`, no approved picture: no portrait is invented. */
+export type BookCastMember = {id: string; title: string; hash?: string; file?: string};
 export type PictureState = {prompt: string; image?: ImageData; job?: string};
 export type ReviewRun = {
   skill: 'revisar-ruso'; state: 'choose' | 'reviewing' | 'ready' | 'error';
   source: {kind: 'text'; text: string; documents?: number} | {kind: 'unit'; unitId: string; title: string; from: number; to: number};
   result?: Review; auto?: AutoIssue[]; error?: string; model?: string; credits?: number;
-  webSearch?: boolean; sources?: Source[];
+  webSearch?: boolean; sources?: Source[]; book?: BookUsed;
 };
 export type SkillRun = ImageRun | VideoRun | PdfRun | ReviewRun;
 
