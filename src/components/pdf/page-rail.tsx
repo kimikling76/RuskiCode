@@ -55,11 +55,12 @@ export function PageRail({pages, css, pageSize, chapters, activePage, onPick, on
                 data-page={page.index}
                 className="rc-pdf-thumb"
                 aria-current={activePage === page.index ? 'page' : undefined}
-                aria-label={'Página ' + (page.index + 1) + (page.issues.length ? ': ' + page.issues.map(c => issueText[c] || c).join(' ') : '')}
                 onClick={() => onPick(page)}
               >
+                {/* The name comes from the text, not aria-label: the miniature's own text would not match it. */}
                 <Thumb html={page.html} css={css} scale={scale} width={pageSize.w} height={pageSize.h} />
-                <span className="rc-pdf-thumb-num">{page.index + 1}</span>
+                <span className="sr-only">Página </span><span className="rc-pdf-thumb-num">{page.index + 1}</span>
+                {page.issues.length ? <span className="sr-only">{': ' + page.issues.map(c => issueText[c] || c).join(' ')}</span> : null}
                 {page.issues.length ? (
                   <Tip label={page.issues.map(c => issueText[c] || c).join(' ')} side="right">
                     <span className="rc-pdf-thumb-issue" aria-hidden="true" />

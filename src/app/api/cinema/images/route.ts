@@ -5,6 +5,8 @@ import {createJob, imageJobStatus, CinemaError} from '@/lib/cinema/kie-jobs';
 import {beginRequest, recordRequest} from '@/lib/cinema/ledger';
 import {studioSession} from '@/lib/auth/server';
 import {approvedAssetURL} from '@/lib/pipeline/asset-url';
+import {getAsset} from '@/lib/sync/server';
+import {kieUpload, UploadError} from '@/lib/ai/kie-upload';
 
 export const runtime = 'nodejs';
 // Up to four sequential createTask calls of at most 30 s each.
@@ -19,7 +21,8 @@ const createInput = z.object({
   aspect: z.string().max(24).optional(),
   resolution: z.string().max(24).optional(),
   duration: z.string().max(12).optional(),
-  references: z.array(z.string().url().max(2000)).max(16).default([]),
+  /** Kie-hosted results, or `asset:<sha256>`: an image stored in the studio (an attachment), uploaded to Kie here. */
+  references: z.array(z.union([z.string().url().max(2000), z.string().regex(/^asset:[a-f0-9]{64}$/)])).max(16).default([]),
   count: z.number().int().min(1).max(8),
 }).strict();
 
@@ -42,6 +45,7 @@ function validate(input: z.infer<typeof createInput>) {
 const status: Record<string, number> = {
   MODEL_NOT_CONFIGURED: 503, PROVIDER_AUTH_ERROR: 502, INSUFFICIENT_BALANCE: 402, INVALID_PARAMETERS: 422,
   RATE_LIMIT: 429, PROVIDER_UNAVAILABLE: 502, CREATE_UNCERTAIN: 504, STATUS_UNAVAILABLE: 502, TASK_NOT_FOUND: 404, RESULT_INVALID: 502,
+  REFERENCE_MISSING: 422, UPLOAD_FAILED: 502,
 };
 const fail = (code: string) => Response.json({error: code}, {status: status[code] || 500, headers: {'Cache-Control': 'no-store'}});
 
@@ -59,7 +63,7 @@ export async function POST(req: Request) {
     return Response.json({error: 'INVALID_REQUEST'}, {status: 400});
   }
   try {
-    for (const reference of input.references) await approvedAssetURL(reference);
+    for (const reference of input.references) if (!reference.startsWith('asset:')) await approvedAssetURL(reference);
   } catch {
     return Response.json({error: 'REFERENCE_NOT_ALLOWED'}, {status: 400});
   }
@@ -83,10 +87,24 @@ export async function POST(req: Request) {
     return refuse(Response.json({error: 'RATE_LIMIT_UNAVAILABLE'}, {status: 503}));
   }
 
+  // The person's own images: read from their stored files and given to Kie as a temporary link (24 h).
+  const references: string[] = [];
+  for (const reference of input.references) {
+    if (!reference.startsWith('asset:')) { references.push(reference); continue; }
+    const hash = reference.slice(6);
+    try {
+      const asset = await getAsset(session.user.id, hash);
+      if (!asset || !/^image\/(png|jpeg|webp)$/.test(asset.mime)) return refuse(fail('REFERENCE_MISSING'));
+      references.push(await kieUpload(asset.data, asset.mime, hash));
+    } catch (e) {
+      return refuse(fail(e instanceof UploadError ? e.code : 'REFERENCE_MISSING'));
+    }
+  }
+
   const tasks: string[] = [];
   for (let i = 0; i < input.count; i++) {
     try {
-      tasks.push(await createJob(model, {prompt: input.prompt, aspect: input.aspect, resolution: input.resolution, duration: input.duration, references: input.references}));
+      tasks.push(await createJob(model, {prompt: input.prompt, aspect: input.aspect, resolution: input.resolution, duration: input.duration, references}));
       if (ledger.state === 'new') await recordRequest(input.requestId, 'pending', tasks);
     } catch (e) {
       const code = e instanceof CinemaError ? e.code : 'PROVIDER_UNAVAILABLE';

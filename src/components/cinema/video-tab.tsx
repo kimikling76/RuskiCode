@@ -13,7 +13,8 @@ import {JobCard} from './job-card';
  * what is missing for each one: no controls, no simulated progress.
  */
 export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
-  const enabled = videoModels.filter(enabledStatus);
+  // This tab has no starting image yet: models that require one are used from /video-generation in the Chat.
+  const enabled = videoModels.filter(m => enabledStatus(m) && m.options.modes.includes('create'));
   const allJobs = useCinema(s => s.data.jobs);
   const jobs = useMemo(() => allJobs.filter(j => j.mode === 'video'), [allJobs]);
   const [modelId, setModelId] = useState(enabled[0]?.id || '');

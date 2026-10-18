@@ -15,5 +15,7 @@ export const syncKinds = [
   'pdf-version',   // every saved version of an imported PDF (the file as an asset, up to 4 MB)
   'book-version',  // saved versions of a PDF Studio book (images as assets)
   'doc-chat',      // the «Crear con IA» chat and the assistant's history of one document
+  'manual-unit',   // manual units of PDF Studio (elements and template; the PDF and its images as assets)
+  'manual-version',// saved versions of a manual unit (a whole unit; files shared with it as assets)
 ] as const;
 export type SyncKind = (typeof syncKinds)[number];

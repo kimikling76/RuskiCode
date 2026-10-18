@@ -22,5 +22,6 @@ export function textConfig(m: TextModel): ModelConfig {
     // An empty providerModel means the endpoint names the model and the body carries no `model`.
     id: m.id, name: m.name, provider, keyEnv: 'KIE_API_KEY', model: m.providerModel || undefined, endpoint: endpointFor(m), stream: m.stream,
     bearer: true, kie: true, taskScore: {book: 0, image: 0, video: 0, general: 0}, supportsTools: false, supportsVision: false,
+    ...(m.webSearch ? {webSearch: m.webSearch} : {}),
   };
 }

@@ -9,7 +9,7 @@ import type {PublicModel} from '@/lib/ai/models';
 import {usableStatus} from '@/lib/ai/model-status';
 
 /** What a picker row needs. Text models from /api/personal-chat and media models share it. */
-export type ChatModel = Pick<PublicModel, 'id' | 'name' | 'provider'> & Partial<Pick<PublicModel, 'status' | 'available' | 'missing' | 'category' | 'price' | 'inputs'>>;
+export type ChatModel = Pick<PublicModel, 'id' | 'name' | 'provider'> & Partial<Pick<PublicModel, 'status' | 'available' | 'missing' | 'category' | 'price' | 'inputs' | 'webSearch'>>;
 
 /** A configured price is only an estimate; the real cost is what Kie reports afterwards. */
 export const estimate = (price: NonNullable<ChatModel['price']>) => 'estimado ≈ ' + price.credits.toLocaleString('es-AR') + ' créditos ' + price.per;
@@ -94,9 +94,9 @@ function Row({m, value, favorite, onChoose, onFavorite}: {m: ChatModel; value: s
   const ok = usable(m);
   const detail = m.status === 'unverified' ? 'No verificado' + (m.missing ? ' · ' + m.missing : '')
     : m.status === 'listed' ? 'Sin pantalla en el estudio' + (m.missing ? ' · ' + m.missing : '')
-      : m.available === false ? 'Sin configurar en el servidor'
+      : m.available === false ? m.missing || 'Sin configurar en el servidor'
         : (m.provider ? m.provider + ' · vía Kie' : 'Vía Kie') + (m.status === 'docs' ? ' · sin prueba real todavía' : '')
-          + (m.inputs?.includes('image') ? ' · lee imágenes' : '') + (m.price ? ' · ' + estimate(m.price) : '');
+          + (m.inputs?.includes('image') ? ' · lee imágenes' : '') + (m.webSearch ? ' · busca en la web' : '') + (m.price ? ' · ' + estimate(m.price) : '');
   return (
     <Command.Item
       value={m.id}

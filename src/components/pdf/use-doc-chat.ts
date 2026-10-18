@@ -35,3 +35,11 @@ export function useStoredModel(key: string) {
   const choose = (id: string) => { setModel(id); try { localStorage.setItem(key, id); } catch {} };
   return [model, choose] as const;
 }
+
+/** An on/off choice remembered in this browser for one panel. */
+export function useStoredFlag(key: string) {
+  const [on, setOn] = useState(false);
+  useEffect(() => { try { setOn(localStorage.getItem(key) === '1'); } catch {} }, [key]);
+  const choose = (value: boolean) => { setOn(value); try { localStorage.setItem(key, value ? '1' : '0'); } catch {} };
+  return [on, choose] as const;
+}

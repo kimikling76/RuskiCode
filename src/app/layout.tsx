@@ -8,6 +8,8 @@ import '../styles/chat.css';
 import '../styles/cinema.css';
 import '../styles/pdf.css';
 import '../styles/pdf-doc.css';
+import '../styles/manual.css';
+import '../styles/skills.css';
 import '../styles/settings.css';
 import '../styles/site.css';
 

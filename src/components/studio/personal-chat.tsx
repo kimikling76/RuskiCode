@@ -3,7 +3,7 @@ import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import dynamic from 'next/dynamic';
 import {useQuery} from '@tanstack/react-query';
 import TextareaAutosize from 'react-textarea-autosize';
-import {ArrowUp, ArrowDown, ArrowUpRight, Copy, Check, RotateCcw, Square, FolderPlus, Pencil, MoreHorizontal, Paperclip, X} from 'lucide-react';
+import {ArrowUp, ArrowDown, ArrowUpRight, Copy, Check, RotateCcw, Square, FolderPlus, Pencil, MoreHorizontal, Paperclip, X, SquareSlash, Globe} from 'lucide-react';
 import {useAssistants, type Assistant} from '@/store/assistants';
 import {AssistantMenu, AssistantPreview, AssistantChip, preferredModel} from './assistant-chooser';
 import {usePersonal, type PersonalMessage, type StudioProject} from '@/store/personal-chat';
@@ -18,6 +18,11 @@ import {Switch} from '@/components/ui/switch';
 import {sseData} from '@/lib/ai/sse';
 import {acceptAttachments} from '@/lib/personal-chat/attach-browser';
 import {AttachmentTray, MessageFiles, filesOf, useAttachments} from './chat-attachments';
+import {SkillCard} from './skill-cards';
+import {chatSkills, matchSkills, skillById, skillSummary, splitCommand, type MediaRef, type SkillId, type SkillRun} from '@/lib/skills/chat';
+import {reviewText, writePdf} from '@/lib/skills/run';
+import type {Source} from '@/lib/ai/types';
+import {MessageSources, mergeSources} from './chat-sources';
 
 const MessageMarkdown = dynamic(() => import('./message-markdown').then(m => m.MessageMarkdown), {
   loading: () => <span className="rc-thinking" aria-hidden="true"><span /><span /><span /></span>,
@@ -39,7 +44,9 @@ const errorDetails: Record<string, string> = {
   ATTACHMENT_MISSING: 'Un archivo adjunto ya no está guardado en el estudio. Adjuntalo de nuevo.',
   UPLOAD_FAILED: 'No se pudo pasar la imagen a Kie. Probá de nuevo en un momento.',
   ATTACHMENTS_UNAVAILABLE: 'No se pudieron leer los archivos adjuntos en el servidor. Probá más tarde.',
+  SEARCH_NOT_SUPPORTED: 'Este modelo no busca en la web en Kie. Elegí uno que diga «busca en la web» o apagá la búsqueda.',
 };
+
 
 const suggestions = [
   {title: 'Explorar una idea', prompt: 'Quiero explorar una idea. Haceme preguntas para ayudarme a desarrollarla.'},
@@ -77,6 +84,8 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
 
   const [text, setText] = useState('');
   const [model, setModel] = useState('auto');
+  // Web search before the first message; afterwards it lives in the chat itself.
+  const [search, setSearch] = useState(false);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState('');
   const [conversion, setConversion] = useState(false);
@@ -106,6 +115,11 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
   const fileInput = useRef<HTMLInputElement>(null);
   const files = useAttachments();
   const [dragging, setDragging] = useState(false);
+  // The skill called with «/»: it stays chosen for the next messages until it is removed.
+  const [skill, setSkill] = useState<SkillId | null>(null);
+  // The chat a skill message just created keeps that skill chosen.
+  const keepSkill = useRef(false);
+  const [menu, setMenu] = useState<{open: boolean; index: number; dismissed: string | null}>({open: false, index: 0, dismissed: null});
 
   const {data: modelData, isError, isPending, refetch, isFetching} = useQuery<{models: ChatModel[]}>({
     queryKey: ['personal-kie-models'],
@@ -119,9 +133,19 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
   const hasMessages = Boolean(chat?.messages.length);
   const last = chat?.messages.at(-1);
   // «Automático» answers with the fast Gemini model (or the first available), as the server resolves it.
-  const effective = selectedModel === 'auto' ? models.find(m => m.id === 'kie-flash') || models[0] : models.find(m => m.id === selectedModel);
-  const imagesBlocked = Boolean(effective) && files.ready.some(a => a.kind === 'image') && !effective!.inputs?.includes('image');
-  const canSend = hydrated && !busy && (Boolean(text.trim()) || files.ready.length > 0) && !files.reading && !imagesBlocked && models.length > 0;
+  const modelFor = (id: string) => id === 'auto' ? models.find(m => m.id === 'kie-flash') || models[0] : models.find(m => m.id === id);
+  const effective = modelFor(selectedModel);
+  // Search is asked only from models whose Kie page documents a search tool.
+  const searchOn = chat ? Boolean(chat.webSearch) : search;
+  const canSearch = Boolean(effective?.webSearch);
+  // With an image or video skill, attached images are references for that model, not for the text model.
+  const imagesBlocked = !skill && Boolean(effective) && files.ready.some(a => a.kind === 'image') && !effective!.inputs?.includes('image');
+  const hasInput = Boolean(text.trim()) || files.ready.length > 0;
+  const canSend = hydrated && !busy && !files.reading && !imagesBlocked && models.length > 0 && (skill === 'revisar-ruso' ? true : skill === 'pdf-generator' ? Boolean(text.trim()) : hasInput);
+  // «/» at the start of the message opens the list of skills; typing filters it.
+  const typed = /^\/[a-z-]*$/i.test(text) ? text : null;
+  const menuItems = typed !== null ? matchSkills(typed) : menu.open ? [...chatSkills] : [];
+  const menuOpen = (typed !== null && menu.dismissed !== typed && menuItems.length > 0) || menu.open;
 
   const jump = useCallback(() => {
     if (!log.current) return;
@@ -139,6 +163,8 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
     shownChat.current = activeId;
     if (abort.current && requestChat.current !== activeId) abort.current.abort();
     setText(''); files.clear(); setConversion(false); setConfirmSend(false); setConfirmRegenerate(null); setEditing(false); setPendingAssistant(null); setPreview(null);
+    if (!keepSkill.current) setSkill(null);
+    keepSkill.current = false;
     nearBottom.current = true; setShowJump(false);
   }, [activeId]);
   useEffect(() => () => abort.current?.abort(), []);
@@ -211,9 +237,16 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
     if (chat) patch(chat.id, {model: id}); else setModel(id);
   }
 
+  function changeSearch(value: boolean) {
+    if (chat) patch(chat.id, {webSearch: value}); else setSearch(value);
+    textarea.current?.focus();
+  }
+
   function requestSend() {
     if (!canSend) return;
-    if (askFirst) setConfirmSend(true); else void send();
+    // Image and video skills ask in their own card, with the model and options, before anything goes to Kie.
+    const media = skill === 'image-generation' || skill === 'video-generation' || /^\/(image|video)-generation\b/.test(text.trim());
+    if (askFirst && !media) setConfirmSend(true); else void send();
   }
 
   function requestRegenerate(withModel?: string) {
@@ -226,8 +259,47 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
     if (chat && title.trim() && rename(chat.id, title)) setEditing(false);
   }
 
+  function chooseSkill(id: SkillId) {
+    setSkill(id);
+    setMenu({open: false, index: 0, dismissed: null});
+    setText(t => /^\/[a-z-]*$/i.test(t) ? '' : t);
+    textarea.current?.focus();
+  }
+
+  /** A message to a skill: the user's line and the skill's card, which does the rest (with its own confirmation). */
+  function sendSkill(id: SkillId, prompt: string) {
+    const attached = files.ready;
+    const existing = chat?.id;
+    if (!existing) keepSkill.current = true;
+    const chatId = existing || create(prompt || skillById(id)!.name);
+    if (!chatId) return;
+    const base = usePersonal.getState().data.chats.find(c => c.id === chatId)?.messages || [];
+    const images: MediaRef[] = attached.filter(a => a.kind === 'image').map(a => ({kind: 'asset', hash: a.hash, mime: a.mime, name: a.name}));
+    const documents = attached.filter(a => a.kind === 'document');
+    const useSearch = searchOn && canSearch;
+    const run: SkillRun = id === 'image-generation' ? {skill: id, prompt, model: '', aspect: '', resolution: '', count: 1, refs: images}
+      : id === 'video-generation' ? {skill: id, prompt, model: '', aspect: '', resolution: '', duration: '', ...(images[0] ? {start: images[0]} : {})}
+        : id === 'pdf-generator' ? {skill: id, request: prompt, state: 'writing', ...(useSearch ? {webSearch: true} : {})}
+          : prompt || documents.length ? {skill: id, state: 'reviewing', source: {kind: 'text', text: prompt, documents: documents.length}, ...(useSearch ? {webSearch: true} : {})}
+            : {skill: id, state: 'choose', source: {kind: 'unit', unitId: '', title: '', from: 1, to: 10}, ...(useSearch ? {webSearch: true} : {})};
+    const now = new Date().toISOString();
+    const user: PersonalMessage = {id: crypto.randomUUID(), role: 'user', content: prompt, command: id, createdAt: now, ...(attached.length ? {attachments: attached} : {})};
+    const card: PersonalMessage = {id: crypto.randomUUID(), role: 'assistant', content: skillSummary(run), skill: run, status: 'done', createdAt: now};
+    const selected = existing ? usePersonal.getState().data.chats.find(c => c.id === chatId)?.model || 'auto' : model;
+    nearBottom.current = true;
+    if (!patch(chatId, {messages: [...base, user, card], model: selected, ...(existing ? {} : {webSearch: search})})) return;
+    setText(''); files.clear();
+    if (id === 'pdf-generator') void writePdf(chatId, card.id, selected);
+    if (id === 'revisar-ruso' && run.skill === 'revisar-ruso' && run.state === 'reviewing') void reviewText(chatId, card.id, selected, attached);
+  }
+
   async function send(isRegeneration = false) {
     if (!hydrated || sending.current) return;
+    // «/image-generation …» typed in full works like choosing the skill.
+    // A command typed at the start switches to that skill; otherwise the chosen one gets the message.
+    const parsed = splitCommand(text);
+    const called = isRegeneration ? {rest: ''} : parsed.skill ? parsed : skill ? {skill, rest: text.trim()} : parsed;
+    if (called.skill) { setSkill(called.skill); sendSkill(called.skill, called.rest); return; }
     const prompt = text.trim();
     const attached = isRegeneration ? [] : files.ready;
     if (!prompt && !attached.length && !isRegeneration) return;
@@ -244,19 +316,22 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
       base = [...base, {id: crypto.randomUUID(), role: 'user', content: prompt, ...(attached.length ? {attachments: attached} : {}), createdAt: new Date().toISOString()}];
     }
     // Files go as references; the server reads them from the studio's stored files.
-    const outbound = base.filter(m => m.content.trim() || m.attachments?.length).map(({role, content, attachments}) => ({role, content, ...(role === 'user' && attachments?.length ? {attachments} : {})}));
+    // A skill's card goes as its one-line summary; the user's line keeps the command it called.
+    const outbound = base.filter(m => m.content.trim() || m.attachments?.length).map(({role, content, attachments, command}) => ({role, content: command ? ('/' + command + ' ' + content).trim() : content, ...(role === 'user' && attachments?.length ? {attachments} : {})}));
     const messageId = crypto.randomUUID();
     const requestId = crypto.randomUUID();
     // A new chat uses the model chosen before it existed; an existing chat keeps its own.
     const selected = existing ? usePersonal.getState().data.chats.find(c => c.id === id)?.model || 'auto' : model;
-    const assistant: PersonalMessage = {id: messageId, role: 'assistant', content: '', status: 'streaming', createdAt: new Date().toISOString()};
+    const wanted = existing ? Boolean(usePersonal.getState().data.chats.find(c => c.id === id)?.webSearch) : search;
+    const useSearch = wanted && Boolean(modelFor(selected)?.webSearch);
+    const assistant: PersonalMessage = {id: messageId, role: 'assistant', content: '', status: 'streaming', createdAt: new Date().toISOString(), ...(useSearch ? {webSearch: true} : {})};
     // The assistant applies only if it was chosen for this chat. Its current instructions are sent and kept.
     const chosen = existing ? usePersonal.getState().data.chats.find(c => c.id === id)?.assistant : pendingAssistant ? {id: pendingAssistant.id, name: pendingAssistant.name, instructions: pendingAssistant.instructions, mediaCatalog: pendingAssistant.mediaCatalog} : undefined;
     const live = chosen ? useAssistants.getState().assistants.find(a => a.id === chosen.id) : undefined;
     const active = chosen ? (live ? {id: live.id, name: live.name, instructions: live.instructions, mediaCatalog: live.mediaCatalog} : chosen) : undefined;
     nearBottom.current = true;
     lastScrollTop.current = log.current?.scrollTop || 0;
-    if (!patch(id, {messages: [...base, assistant], model: selected, ...(active ? {assistant: active} : {})})) return;
+    if (!patch(id, {messages: [...base, assistant], model: selected, ...(active ? {assistant: active} : {}), ...(existing ? {} : {webSearch: search})})) return;
     if (!existing) setPendingAssistant(null);
 
     const chatId = id;
@@ -266,7 +341,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
     stoppedByUser.current = false;
     requestChat.current = chatId;
     abort.current = controller;
-    let done = false, accepted = false, realCredits: number | undefined, content = '', modelName = '';
+    let done = false, accepted = false, realCredits: number | undefined, content = '', modelName = '', sources: Source[] = [];
 
     function update(value: Partial<PersonalMessage>) {
       const current = usePersonal.getState().data.chats.find(c => c.id === chatId);
@@ -277,7 +352,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
       const r = await fetch('/api/personal-chat', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({requestId, purpose: 'chat', model: selected, messages: outbound, ...(active ? {assistant: {name: active.name, instructions: active.instructions, mediaCatalog: active.mediaCatalog}} : {})}),
+        body: JSON.stringify({requestId, purpose: 'chat', model: selected, messages: outbound, ...(active ? {assistant: {name: active.name, instructions: active.instructions, mediaCatalog: active.mediaCatalog}} : {}), ...(useSearch ? {webSearch: true} : {})}),
         signal: controller.signal,
       });
       if (!r.ok) { const e = await r.json(); throw Error(e.error); }
@@ -287,6 +362,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
         const e = JSON.parse(frame);
         if (e.type === 'delta') { content += e.text; update({content}); }
         if (e.type === 'model') { modelName = e.name; update({model: e.name}); }
+        if (e.type === 'sources' && Array.isArray(e.sources)) { sources = mergeSources(sources, e.sources); update({sources}); }
         if (e.type === 'usage' && typeof e.usage?.credits === 'number') { realCredits = e.usage.credits; update({credits: realCredits}); }
         if (e.type === 'error') throw Error(e.error);
         if (e.type === 'done') { done = true; update({status: 'done'}); }
@@ -323,6 +399,17 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (menuOpen && menuItems.length && !e.nativeEvent.isComposing) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const step = e.key === 'ArrowDown' ? 1 : -1;
+        setMenu(m => ({...m, index: (m.index + step + menuItems.length) % menuItems.length}));
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); chooseSkill(menuItems[Math.min(menu.index, menuItems.length - 1)].id); return; }
+      if (e.key === 'Escape') { e.preventDefault(); setMenu({open: false, index: 0, dismissed: typed}); return; }
+    }
+    if (e.key === 'Backspace' && skill && !text) { setSkill(null); return; }
     if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
     const modifier = e.ctrlKey || e.metaKey;
     // Desktop: Enter sends, Shift+Enter adds a line. Touch keyboards: Enter adds a line.
@@ -450,6 +537,10 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
                   </>
                 )}
               </div>
+              <div className="rc-skill-starters" role="group" aria-label="Skills">
+                <span className="rc-hint">Skills (escribí «/»):</span>
+                {chatSkills.map(sk => <button key={sk.id} type="button" className="rc-chip" onClick={() => chooseSkill(sk.id)} title={sk.description}><code>{sk.command}</code></button>)}
+              </div>
               <ul className="rc-suggestions" aria-label="Sugerencias para empezar">
                 {suggestions.map(s => (
                   <li key={s.title}>
@@ -486,11 +577,17 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
                   >
                     {m.role === 'user' ? (
                       <div className="rc-bubble">
+                        {m.command ? <code className="rc-skill-chip-inline">{skillById(m.command)?.command || '/' + m.command}</code> : null}
                         {m.attachments?.length ? <MessageFiles files={m.attachments} /> : null}
                         {m.content ? <p>{m.content}</p> : null}
                       </div>
+                    ) : m.skill && chat ? (
+                      <SkillCard chatId={chat.id} message={m} model={chat.model || 'auto'} attachments={chat.messages[i - 1]?.attachments} />
                     ) : m.content ? (
-                      <MessageMarkdown content={m.content} />
+                      <>
+                        <MessageMarkdown content={m.content} />
+                        {m.sources?.length ? <MessageSources sources={m.sources} /> : null}
+                      </>
                     ) : streaming ? (
                       <span className="rc-thinking" role="status"><span /><span /><span /><span className="sr-only">Preparando la respuesta</span></span>
                     ) : m.stopped ? (
@@ -518,14 +615,14 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
                     {!streaming ? (
                       <footer className="rc-msg-foot">
                         <div className="rc-msg-actions">
-                          {m.content ? (
+                          {m.content && !m.skill ? (
                             <Tip label={copied === m.id ? 'Copiado' : 'Copiar'}>
                               <button type="button" className="rc-icon-btn rc-icon-btn--sm" onClick={() => copy(m)} aria-label={copied === m.id ? 'Mensaje copiado' : 'Copiar mensaje'}>
                                 {copied === m.id ? <Check /> : <Copy />}
                               </button>
                             </Tip>
                           ) : null}
-                          {m.role === 'assistant' && isLast && !failed ? (
+                          {m.role === 'assistant' && isLast && !failed && !m.skill ? (
                             <Tip label="Regenerar">
                               <button type="button" className="rc-icon-btn rc-icon-btn--sm" disabled={busy} onClick={() => requestRegenerate()} aria-label="Regenerar respuesta">
                                 <RotateCcw />
@@ -537,7 +634,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
                               <button type="button" className="rc-icon-btn rc-icon-btn--sm" disabled={busy} aria-label="Más acciones del mensaje"><MoreHorizontal /></button>
                             </MenuTrigger>
                             <MenuContent align="start">
-                              {m.role === 'assistant' && isLast && otherModels.length ? (
+                              {m.role === 'assistant' && isLast && otherModels.length && !m.skill ? (
                                 <>
                                   <MenuLabel>Regenerar con</MenuLabel>
                                   {otherModels.map(o => (
@@ -552,6 +649,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
                         </div>
                         <span className="rc-msg-meta">
                           {m.role === 'assistant' && m.model ? <span>{modelLabel(m.model)}</span> : null}
+                          {m.role === 'assistant' && m.webSearch ? <span>Con búsqueda web</span> : null}
                           {formatTime(m.createdAt)}
                           {m.role === 'assistant' && m.credits !== undefined ? (
                             <Tip label="Costo informado por Kie"><span tabIndex={0}>{credits(m.credits)}</span></Tip>
@@ -598,7 +696,31 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
               <span>{modelLabel(effective!.name)} no lee imágenes en Kie. Elegí un modelo que diga «lee imágenes» o quitá las imágenes.</span>
             </div>
           ) : null}
+          {searchOn && effective && !canSearch && !skill?.endsWith('-generation') ? (
+            <div className="rc-notice" role="status">
+              <span className="rc-dot" aria-hidden="true" />
+              <span>{modelLabel(effective.name)} no busca en la web en Kie: este mensaje va sin búsqueda. Elegí un modelo que diga «busca en la web» (Gemini o GPT).</span>
+            </div>
+          ) : null}
+          {menuOpen ? (
+            <div className="rc-skill-menu" role="listbox" id="skill-menu" aria-label="Skills">
+              {menuItems.map((sk, k) => (
+                <button
+                  key={sk.id} type="button" role="option" id={'skill-option-' + sk.id} aria-selected={k === Math.min(menu.index, menuItems.length - 1)}
+                  className="rc-skill-option" onMouseDown={e => e.preventDefault()} onClick={() => chooseSkill(sk.id)}
+                >
+                  <code>{sk.command}</code><strong>{sk.name}</strong><span>{sk.description}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
           <form className="rc-composer" onSubmit={e => { e.preventDefault(); requestSend(); }}>
+            {skill ? (
+              <div className="rc-skill-active">
+                <code>{skillById(skill)!.command}</code><span>{skillById(skill)!.name}</span>
+                <Tip label="Quitar la skill (el chat vuelve a ser neutro)"><button type="button" className="rc-icon-btn rc-icon-btn--sm" aria-label={'Quitar ' + skillById(skill)!.command} onClick={() => { setSkill(null); textarea.current?.focus(); }}><X /></button></Tip>
+              </div>
+            ) : null}
             <AttachmentTray drafts={files.drafts} onRemove={files.remove} />
             <label className="sr-only" htmlFor="personal-message">Tu mensaje</label>
             <TextareaAutosize
@@ -610,8 +732,13 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
               value={text}
               disabled={!hydrated}
               maxLength={20000}
-              placeholder="Escribí tu mensaje"
-              onChange={e => setText(e.target.value)}
+              placeholder={skill ? skillById(skill)!.placeholder : 'Escribí tu mensaje (o «/» para una skill)'}
+              role="combobox"
+              aria-expanded={menuOpen}
+              aria-controls={menuOpen ? 'skill-menu' : undefined}
+              aria-autocomplete="list"
+              aria-activedescendant={menuOpen && menuItems.length ? 'skill-option-' + menuItems[Math.min(menu.index, menuItems.length - 1)].id : undefined}
+              onChange={e => { setText(e.target.value); setMenu(m => ({...m, index: 0, open: false})); }}
               onKeyDown={onKeyDown}
               onPaste={e => {
                 // A pasted image (a screenshot, an image copied from a page) is attached; pasted text stays text.
@@ -624,6 +751,12 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
                 <button type="button" className="rc-icon-btn rc-attach-btn" aria-label="Adjuntar imágenes o archivos" disabled={!hydrated} onClick={() => fileInput.current?.click()}><Paperclip /></button>
               </Tip>
               <input ref={fileInput} type="file" multiple hidden accept={acceptAttachments} onChange={e => { files.add([...(e.target.files || [])]); e.target.value = ''; }} />
+              <Tip label="Skills: generar imágenes o videos, crear páginas del manual, revisar el ruso">
+                <button type="button" className="rc-icon-btn" aria-label="Elegir una skill" aria-pressed={menu.open} disabled={!hydrated} onClick={() => { setMenu(m => ({open: !m.open, index: 0, dismissed: null})); textarea.current?.focus(); }}><SquareSlash /></button>
+              </Tip>
+              <Tip label={searchOn ? 'Búsqueda web activada: el modelo puede consultar páginas y citarlas' : 'Buscar en la web (solo modelos que digan «busca en la web»)'}>
+                <button type="button" className={'rc-icon-btn rc-search-btn' + (searchOn ? ' is-on' : '')} aria-label="Buscar en la web" aria-pressed={searchOn} disabled={!hydrated} onClick={() => changeSearch(!searchOn)}><Globe /></button>
+              </Tip>
               <ChatModelPicker models={allModels} value={selectedModel} onChange={chooseModel} disabled={busy || !models.length} />
               <div className="rc-composer-spacer" />
               <label className="rc-ask" htmlFor="ask-first">
@@ -656,6 +789,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
         <dl className="rc-facts">
           <dt>Modelo</dt><dd>{modelName(selectedModel)}</dd>
           <dt>Asistente</dt><dd>{chat?.assistant?.name || pendingAssistant?.name || 'Ninguno (chat neutro)'}</dd>
+          <dt>Búsqueda web</dt><dd>{searchOn && canSearch ? 'Sí' : 'No'}</dd>
           {files.ready.length ? <><dt>Adjuntos</dt><dd>{files.ready.length}</dd></> : null}
         </dl>
       </ConfirmDialog>

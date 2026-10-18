@@ -13,7 +13,8 @@ import YAML from 'yaml';
 
 const KIE = 'https://api.kie.ai';
 const DOCS = 'https://docs.kie.ai/';
-const today = new Date().toISOString().slice(0, 10);
+// CATALOG_DATE: the day the saved pages were read, when generating from a folder of saved pages.
+const today = process.env.CATALOG_DATE || new Date().toISOString().slice(0, 10);
 const out = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'src', 'lib', 'ai', 'kie-catalog.ts');
 
 async function pages(folder) {
@@ -94,10 +95,17 @@ function textEntry(page, s, opPath, op) {
   if (raw.includes('image_url') || raw.includes('input_image') || raw.includes('inline_data')) inputs.push('image');
   if (/pdf/i.test(raw + desc) || raw.includes('input_file') || raw.includes('inline_data')) inputs.push('pdf');
   const id = slug(providerModel || opPath.split('/').filter(Boolean)[native ? 3 : 0].replace(/:.*$/, '').replace(/-openai$/, '') + (native ? '-native' : ''));
+  // Web search, only as the page documents it: Gemini's Google Search grounding (googleSearch) or OpenAI's web_search.
+  // A page that says the model ignores it (Kimi K3) gets none.
+  const noSearch = /does not support\**\s*web search|web_search`? (are|is) ignored/i.test(page.text);
+  const webSearch = noSearch || adapter === 'anthropic-messages' ? undefined
+    : raw.includes('googleSearch') ? 'googleSearch' : raw.includes('web_search') ? 'web_search'
+      // Responses pages describe the tool in their components: {"type": "web_search"}.
+      : adapter === 'openai-responses' && /"type":\s*"web_search"|-\s+web_search\b/.test(page.text) ? 'web_search' : undefined;
   return {
     id, name, provider: providerOf(family, providerModel), category: 'text', providerModel, endpoint: KIE + opPath, adapter,
     docs: page.url.replace(/\.md$/, ''), status: 'docs', checked: today + ' · docs.kie.ai (especificación de la página)',
-    inputs, stream: 'stream' in props,
+    inputs, stream: 'stream' in props, ...(webSearch ? {webSearch} : {}),
   };
 }
 
@@ -142,14 +150,12 @@ function mediaEntry(page, s, opPath, op, category) {
     const k = arrayField || singleField;
     used.add(k);
     imagesRequired = required.has(k);
-    if (category === 'video') {
-      if (imagesRequired) return listed('Pide una imagen de inicio o de referencia: la pestaña de video todavía no la tiene.');
-    } else {
-      options.fields.images = k;
-      if (singleField) options.fields.imagesSingle = true;
-      options.maxReferences = arrayField ? Math.max(1, Number(f(k).maxItems) || 1) : 1;
-      options.modes = imagesRequired ? ['edit'] : ['create', 'edit'];
-    }
+    // Video: the image is where the video starts (or its reference). A model that requires it is offered only
+    // where an image can be given (/video-generation in the Chat); modes ['edit'] marks that.
+    options.fields.images = k;
+    if (singleField) options.fields.imagesSingle = true;
+    options.maxReferences = arrayField ? Math.max(1, Number(f(k).maxItems) || 1) : 1;
+    options.modes = imagesRequired ? ['edit'] : ['create', 'edit'];
   }
 
   // Shape, size, length and file type: only enumerated values are offered.

@@ -39,9 +39,10 @@ export function DocThumbs({doc, count, active, selected, onActivate, onSelect}: 
   onActivate: (index: number) => void; onSelect: (pages: Set<number>) => void;
 }) {
   const list = useRef<HTMLDivElement>(null);
+  // Also when the pages are drawn again (a page added at the end appears after the list is made).
   useEffect(() => {
     list.current?.querySelector<HTMLElement>(`[data-index="${active}"]`)?.scrollIntoView({block: 'nearest'});
-  }, [active]);
+  }, [active, count, doc]);
 
   function key(e: KeyboardEvent<HTMLDivElement>) {
     const move = (to: number) => {

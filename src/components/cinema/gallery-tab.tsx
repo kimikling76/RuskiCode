@@ -7,6 +7,7 @@ import {removeWithUndo} from '@/lib/cinema/client';
 import {Tip} from '@/components/ui/tooltip';
 import {Segmented} from './controls';
 import {KieImage, useImageActions} from './job-card';
+import {savedUrl} from '@/lib/cinema/keep';
 
 type Filter = 'all' | JobMode;
 const filters: {value: Filter; label: string}[] = [
@@ -76,7 +77,7 @@ export function GalleryTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
                   aria-label={(selecting ? (on ? 'Quitar de la selección: ' : 'Seleccionar: ') : 'Ver: ') + job.prompt.slice(0, 80)}
                   onClick={() => selecting ? toggle(job.id) : onOpen(job)}
                 >
-                  {job.mode === 'video' ? <video src={url} muted preload="metadata" playsInline aria-hidden="true" /> : <KieImage src={url} alt="" />}
+                  {job.mode === 'video' ? <video src={url} muted preload="metadata" playsInline aria-hidden="true" /> : <KieImage src={url} alt="" fallback={savedUrl(job)} />}
                   {selecting ? <span className="rc-tile-check" aria-hidden="true">{on ? <Check /> : null}</span> : null}
                 </button>
                 {!selecting ? (

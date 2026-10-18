@@ -1,14 +1,19 @@
 import type {ChatAttachment} from './attachments';
+import type {SkillId, SkillRun} from '@/lib/skills/chat';
+import type {Source} from '@/lib/ai/types';
 export const STORAGE_KEY='estudio-personal-v2';
 export const LEGACY_KEY='estudio-pure-chat-v1';
 export const UNDO_MS=8000;
 export const PERSONAL_SYSTEM='Eres un asistente útil; responde en el idioma del usuario.';
 /** `attachments`: files sent with a user message, as references to the studio's stored files (see attachments.ts). */
-export type PersonalMessage={id:string;role:'user'|'assistant';content:string;attachments?:ChatAttachment[];createdAt?:string;model?:string;credits?:number;status?:'streaming'|'done'|'error';error?:string;stopped?:boolean};
+/** `webSearch` and `sources`: the answer was asked with web search, and the pages the API said it used (when it says). */
+/** `command`: the skill a user message called (/image-generation…). `skill`: what that skill left in the chat (see src/lib/skills/chat.ts). */
+export type PersonalMessage={id:string;role:'user'|'assistant';content:string;attachments?:ChatAttachment[];createdAt?:string;model?:string;credits?:number;status?:'streaming'|'done'|'error';error?:string;stopped?:boolean;command?:SkillId;skill?:SkillRun;webSearch?:boolean;sources?:Source[]};
 export type ConversionLink={projectId:string;name:string;destination:'pdf'|'cinema'};
 /** The assistant chosen for this conversation, with the instructions last sent (kept even if the assistant is deleted). */
 export type ChatAssistant={id:string;name:string;instructions:string;mediaCatalog?:boolean};
-export type PersonalChat={id:string;title:string;model:string;createdAt:string;titleEdited?:boolean;messages:PersonalMessage[];conversions:ConversionLink[];assistant?:ChatAssistant};
+/** `webSearch`: the person turned on web search for this chat (only models that document it use it). */
+export type PersonalChat={id:string;title:string;model:string;createdAt:string;titleEdited?:boolean;messages:PersonalMessage[];conversions:ConversionLink[];assistant?:ChatAssistant;webSearch?:boolean};
 export type ConversionDraft={name:string;destination:'pdf'|'cinema';projectType:string;mode:'all'|'summary'|'selected';selectedIds:string[];brief:string;summary:string};
 export type StudioProject={id:string;name:string;destination:'pdf'|'cinema';projectType:string;brief:string;sourceChatId:string;sourceMode:string;source:{summary?:string;messages?:PersonalMessage[]};createdAt:string};
 export type PersonalData={version:2;chats:PersonalChat[];projects:StudioProject[];pending:{id:string;chat:PersonalChat;index:number;deadline:number}[];usage:UsageEntry[]};

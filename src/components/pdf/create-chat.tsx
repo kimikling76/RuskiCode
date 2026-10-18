@@ -1,7 +1,7 @@
 'use client';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
-import {ArrowUp, Sparkles, Square, Trash2, X} from 'lucide-react';
+import {ArrowUp, Globe, Sparkles, Square, Trash2, X} from 'lucide-react';
 import {toast} from 'sonner';
 import {addDocMessages, clearDocThread, type DocMessage} from '@/lib/books/doc-chat';
 import {docChatRequest} from '@/lib/ai/doc-chat-request';
@@ -10,8 +10,9 @@ import {alternateTurns} from '@/lib/assistant/edit-plan';
 import {errorDetail} from '@/lib/cinema/errors';
 import type {Block} from '@/lib/pipeline/types';
 import {MessageMarkdown} from '@/components/studio/message-markdown';
-import {ChatModelPicker} from '@/components/studio/chat-model-picker';
-import {useDocThread, useStoredModel, useTextModels} from './use-doc-chat';
+import {ChatModelPicker, usable} from '@/components/studio/chat-model-picker';
+import {MessageSources} from '@/components/studio/chat-sources';
+import {useDocThread, useStoredFlag, useStoredModel, useTextModels} from './use-doc-chat';
 import {blockNames, blockSummary} from './editor-api';
 
 export type InsertTarget = {id: string; label: string; hint: string; disabled?: string | null; run: (blocks: Block[]) => Promise<void> | void};
@@ -50,6 +51,11 @@ export function CreateChat({doc, context, targets, onClose}: {doc: string; conte
   const messages = useDocThread(doc, 'create');
   const {models, failed} = useTextModels();
   const [model, setModel] = useStoredModel('rc-create-chat-model');
+  const [search, setSearch] = useStoredFlag('rc-create-chat-search');
+  const ready = models.filter(usable);
+  const effective = model === 'auto' ? ready.find(m => m.id === 'kie-flash') || ready[0] : ready.find(m => m.id === model);
+  // Search is asked only from models whose Kie page documents a search tool.
+  const canSearch = Boolean(effective?.webSearch);
   const [text, setText] = useState('');
   const [streaming, setStreaming] = useState<{text: string; model?: string} | null>(null);
   const abort = useRef<AbortController | null>(null);
@@ -71,9 +77,10 @@ export function CreateChat({doc, context, targets, onClose}: {doc: string; conte
     abort.current = controller;
     setStreaming({text: ''});
     partial.current = '';
+    const webSearch = search && canSearch;
     try {
-      const answer = await docChatRequest({messages: turns, model, signal: controller.signal, onDelta: t => { partial.current = t; setStreaming(s => ({...s, text: t})); }});
-      await addDocMessages(doc, [{id: crypto.randomUUID(), thread: 'create', role: 'assistant', content: answer.text, createdAt: Date.now(), ...(answer.model ? {model: answer.model} : {}), ...(answer.credits !== undefined ? {credits: answer.credits} : {})}]);
+      const answer = await docChatRequest({messages: turns, model, webSearch, signal: controller.signal, onDelta: t => { partial.current = t; setStreaming(s => ({...s, text: t})); }});
+      await addDocMessages(doc, [{id: crypto.randomUUID(), thread: 'create', role: 'assistant', content: answer.text, createdAt: Date.now(), ...(answer.model ? {model: answer.model} : {}), ...(answer.credits !== undefined ? {credits: answer.credits} : {}), ...(webSearch ? {webSearch} : {}), ...(answer.sources ? {sources: answer.sources} : {})}]);
     } catch (e) {
       // A stopped answer keeps what arrived, so it can still be reviewed and inserted.
       if (controller.signal.aborted) {
@@ -104,7 +111,8 @@ export function CreateChat({doc, context, targets, onClose}: {doc: string; conte
         {messages.map(m => m.role === 'user' ? <p key={m.id} className="rc-assist-user">{m.content}</p> : (
           <article key={m.id} className="rc-create-answer">
             {m.error ? <p className="rc-form-error" role="alert">{errorDetail(m.error)}</p> : <MessageMarkdown content={m.content} />}
-            <small className="rc-assist-meta">{m.model ? m.model.name.replace(/\s*·\s*kie\s*$/i, '') : 'Respuesta interrumpida'}{m.credits !== undefined ? ' · Kie informó ' + m.credits.toLocaleString('es-AR') + ' créditos' : ''}</small>
+            {m.sources?.length ? <MessageSources sources={m.sources} /> : null}
+            <small className="rc-assist-meta">{m.model ? m.model.name.replace(/\s*·\s*kie\s*$/i, '') : 'Respuesta interrumpida'}{m.webSearch ? ' · con búsqueda web' : ''}{m.credits !== undefined ? ' · Kie informó ' + m.credits.toLocaleString('es-AR') + ' créditos' : ''}</small>
             {!m.error && m.content ? <Draft message={m} targets={targets} /> : null}
           </article>
         ))}
@@ -115,8 +123,10 @@ export function CreateChat({doc, context, targets, onClose}: {doc: string; conte
         <TextareaAutosize className="rc-textarea" minRows={2} maxRows={6} maxLength={8000} value={text} onChange={e => setText(e.target.value)}
           placeholder="«Creá dos ejercicios de A1 sobre presentarse»" aria-label="Mensaje para Crear con IA"
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(); } }} />
+        {search && effective && !canSearch ? <p className="rc-hint" role="status">Este modelo no busca en la web en Kie: el mensaje va sin búsqueda. Elegí uno que diga «busca en la web».</p> : null}
         <div className="rc-assist-bar">
           {models.length ? <ChatModelPicker models={models} value={model} onChange={setModel} title="Modelo de Crear con IA" /> : <span className="rc-hint">{failed ? 'No se pudo leer la lista de modelos.' : 'Cargando modelos…'}</span>}
+          <button type="button" className={'rc-icon-btn rc-search-btn' + (search ? ' is-on' : '')} aria-pressed={search} aria-label="Buscar en la web" title={search ? 'Búsqueda web activada' : 'Buscar en la web (solo modelos que digan «busca en la web»)'} onClick={() => setSearch(!search)}><Globe /></button>
           {streaming ? (
             <button type="button" className="rc-btn rc-btn--secondary rc-btn--sm" onClick={() => abort.current?.abort()}><Square aria-hidden="true" />Detener</button>
           ) : (

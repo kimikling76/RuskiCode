@@ -1,0 +1,66 @@
+/* Russian Code — PDF Studio · Manual. The page is the exported PDF; the editor only draws outlines over it. */
+
+.rc-man-stage { display: flex; align-items: flex-start; justify-content: center; gap: var(--sp-6); }
+.rc-man-figure { margin: 0; display: grid; gap: var(--sp-2); justify-items: center; }
+.rc-man-figure figcaption { font: 400 var(--fs-12)/1 var(--font-code); color: var(--fg-3); }
+.rc-man-paper { margin: 0; }
+.rc-man-diff { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: multiply; }
+.rc-man-overlay { position: absolute; inset: 0; cursor: default; touch-action: none; user-select: none; }
+.rc-man-overlay[data-dragging='true'] { cursor: grabbing; }
+
+.rc-man-block, .rc-man-el, .rc-man-selection, .rc-man-ghost { position: absolute; pointer-events: none; box-sizing: border-box; }
+.rc-man-block { border-radius: 2px; transition: box-shadow var(--dur-fast); }
+.rc-man-overlay:hover .rc-man-block { box-shadow: 0 0 0 1px rgba(110, 143, 31, 0.28); }
+.rc-man-block[data-selected='true'] { box-shadow: 0 0 0 1px rgba(110, 143, 31, 0.9), 0 0 0 4px rgba(196, 235, 92, 0.18); }
+.rc-man-block[data-locked='true'][data-selected='true'] { box-shadow: 0 0 0 1px rgba(128, 131, 137, 0.9), 0 0 0 4px rgba(128, 131, 137, 0.15); }
+.rc-man-el { outline: 1px dashed rgba(110, 143, 31, 0.55); }
+.rc-man-el[data-selected='true'] { outline: 1.5px solid #6E8F1F; }
+.rc-man-el[data-overflow='true'] { outline: 1.5px solid #D2452E; background: rgba(224, 113, 94, 0.08); }
+.rc-man-selection { outline: 2px solid #6E8F1F; outline-offset: 1px; }
+.rc-man-ghost { outline: 2px dashed #6E8F1F; background: rgba(196, 235, 92, 0.12); }
+.rc-man-handle { position: absolute; width: 10px; height: 10px; border: 1.5px solid #6E8F1F; border-radius: 2px; background: #fff; pointer-events: auto; }
+.rc-man-handle[data-corner='nw'] { left: -6px; top: -6px; cursor: nwse-resize; }
+.rc-man-handle[data-corner='ne'] { right: -6px; top: -6px; cursor: nesw-resize; }
+.rc-man-handle[data-corner='sw'] { left: -6px; bottom: -6px; cursor: nesw-resize; }
+.rc-man-handle[data-corner='se'] { right: -6px; bottom: -6px; cursor: nwse-resize; }
+.rc-man-guide { position: absolute; pointer-events: none; background: #D2452E; }
+.rc-man-guide--v { top: 0; bottom: 0; width: 1px; }
+.rc-man-guide--h { left: 0; right: 0; height: 1px; }
+
+/* ---------- Inspector ---------- */
+.rc-man-num-row { display: flex; align-items: center; gap: var(--sp-2); }
+.rc-man-num-row .rc-input { min-width: 0; font-variant-numeric: tabular-nums; }
+.rc-man-num-row small { font: 400 var(--fs-12)/1 var(--font-code); color: var(--fg-3); }
+.rc-man-text, .rc-man-image, .rc-man-component { display: grid; gap: var(--sp-4); }
+.rc-man-hl { color: #8DB4FF; }
+.rc-man-switch { display: flex; align-items: flex-start; gap: var(--sp-3); }
+.rc-man-switch label { display: grid; gap: 2px; font-size: var(--fs-13); color: var(--fg-1); cursor: pointer; }
+.rc-man-switch small { font-size: var(--fs-12); color: var(--fg-3); }
+.rc-man-locked svg { flex-shrink: 0; width: 15px; height: 15px; color: var(--fg-3); }
+.rc-man-els { display: grid; gap: 2px; max-height: 320px; margin: 0; padding: 0; overflow-y: auto; list-style: none; scrollbar-width: thin; scrollbar-color: var(--bg-4) transparent; }
+.rc-man-el-row { display: grid; gap: 2px; width: 100%; padding: 6px var(--sp-3); border: 0; border-radius: var(--radius-6); background: transparent; color: var(--fg-1); font-size: var(--fs-13); text-align: left; cursor: pointer; }
+.rc-man-el-row:hover, .rc-man-el-row[aria-current='true'] { background: var(--bg-2); }
+.rc-man-el-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.rc-man-el-row span { display: flex; align-items: center; gap: var(--sp-2); }
+.rc-man-el-row span svg { width: 12px; height: 12px; color: var(--fg-3); }
+.rc-man-el-row small { overflow: hidden; color: var(--fg-3); font-size: var(--fs-12); text-overflow: ellipsis; white-space: nowrap; }
+.rc-man-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.rc-man-version-form { display: grid; gap: var(--sp-3); }
+.rc-man-version-form .rc-btn { justify-self: start; }
+.rc-btn[aria-disabled='true'] { opacity: 0.5; pointer-events: none; }
+
+@media (max-width: 1023px) {
+  .rc-man-stage[data-compare='side'] { flex-direction: column; align-items: center; }
+}
+
+/* Long names (a block label, a line of text) never widen the panel. */
+.rc-man .rc-pdf-form { grid-template-columns: minmax(0, 1fr); }
+.rc-man .rc-pdf-form-head > .rc-pdf-kind { min-width: 0; flex: 1; }
+.rc-man .rc-pdf-two > * { min-width: 0; }
+
+/* Photos, galleries and comics: their texts and pictures in the inspector. */
+.rc-man-pictures { display: grid; gap: var(--sp-3); min-width: 0; }
+.rc-man-picture-list { display: grid; gap: var(--sp-3); margin: 0; padding: 0; list-style: none; }
+.rc-man-picture-list > li { display: grid; gap: var(--sp-2); padding: var(--sp-3); border: 1px solid var(--line); border-radius: var(--radius-8); min-width: 0; }
+.rc-man-picture-head { font-size: var(--fs-13); font-weight: 600; color: var(--fg-1); }
+.rc-man-picture-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }

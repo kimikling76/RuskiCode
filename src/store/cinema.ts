@@ -22,10 +22,14 @@ export type CinemaJob = {
   source?: string;
   boardId?: string;
   shotId?: string;
+  /** What the job is for, given by the caller (a picture slot of /pdf-generator). */
+  tag?: string;
   taskId?: string;
   state: JobState;
   urls: string[];
   credits?: number;
+  /** The studio's own copies of the result images (Kie deletes its files after 14 days). */
+  saved?: {hash: string; mime: string}[];
   error?: string;
   failMessage?: string;
   createdAt: number;
