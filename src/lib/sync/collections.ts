@@ -16,6 +16,11 @@ import {
 } from '@/lib/books/originals';
 import {listAllBookVersions, putSyncedBookVersion, removeSyncedBookVersion, type BookVersion} from '@/lib/books/versions';
 import {listDocChats, putSyncedDocChat, removeSyncedDocChat, mergeDocChats, type DocChat} from '@/lib/books/doc-chat';
+import {
+  listUnits, putSyncedUnit, removeSyncedUnit, isUnitOpen, uploadAssets, downloadAssets, listAllVersions as listManualVersions,
+  putSyncedVersion as putManualVersion, removeSyncedVersion as removeManualVersion, type ManualVersion,
+} from '@/lib/manual/store';
+import type {Unit} from '@/lib/manual/model';
 import type {PersonalChat, StudioProject} from '@/store/personal-chat';
 import type {UsageEntry} from '@/lib/personal-chat/state';
 import type {Board} from '@/store/cinema';
@@ -390,7 +395,49 @@ const docChats: Collection = {
   merge: (local, remote) => mergeDocChats(local as DocChat, remote as DocChat),
 };
 
-export const collections: Collection[] = [chats, projects, usage, jobs, boards, notes, books, drafts, composer, assistants, favorites, originals, versions, bookVersions, docChats];
+// A manual unit carries its files by hash: they are sent before the record and fetched after it arrives.
+const manualUnits: Collection = {
+  kind: 'manual-unit',
+  list: async () => (await listUnits()).map(u => ({key: u.id, data: u})),
+  apply: async changes => {
+    for (const {key, data} of changes) {
+      if (data === null) await removeSyncedUnit(key);
+      else await putSyncedUnit({...(data as Unit), id: key});
+    }
+    libraryEvents?.dispatchEvent(new Event('synced'));
+  },
+  subscribe: onLibrary,
+  label: data => 'Unidad: ' + ((data as Unit).title || 'manual'),
+  token: data => 'u' + (data as Unit).updatedAt,
+  busy: key => isUnitOpen(key),
+  duplicate: data => {
+    const u = data as Unit;
+    const id = crypto.randomUUID();
+    return {key: id, data: {...u, id, title: copyLabel(u.title, 200), updatedAt: Date.now()}};
+  },
+  encode: async data => { await uploadAssets((data as Unit).assets); return data; },
+  decode: async data => { await downloadAssets((data as Unit).assets); return data; },
+};
+
+const manualVersions: Collection = {
+  kind: 'manual-version',
+  list: async () => (await listManualVersions()).map(v => ({key: v.id, data: v})),
+  apply: async changes => {
+    for (const {key, data} of changes) {
+      if (data === null) await removeManualVersion(key);
+      else await putManualVersion({...(data as ManualVersion), id: key});
+    }
+    libraryEvents?.dispatchEvent(new Event('synced'));
+  },
+  subscribe: onLibrary,
+  label: data => 'Versión: ' + ((data as ManualVersion).label || 'unidad'),
+  token: data => 'v' + (data as ManualVersion).createdAt,
+  merge: (_local, remote) => remote,
+  encode: async data => { await uploadAssets((data as ManualVersion).unit.assets); return data; },
+  decode: async data => { await downloadAssets((data as ManualVersion).unit.assets); return data; },
+};
+
+export const collections: Collection[] = [chats, projects, usage, jobs, boards, notes, books, drafts, composer, assistants, favorites, originals, versions, bookVersions, docChats, manualUnits, manualVersions];
 
 /** Loads every store from this browser before the first sync. */
 export function hydrateAll() {

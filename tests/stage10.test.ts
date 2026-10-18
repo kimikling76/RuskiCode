@@ -11,7 +11,7 @@ import {editorFonts} from '../src/lib/manual/fonts';
 import {cleanup, unitFromPdf} from '../src/lib/manual/segment';
 import {unitSchema, type Element, type Unit} from '../src/lib/manual/model';
 import {composeComponent, nextExercise, parseMarkup, placeOnPage, wrapSpans} from '../src/lib/manual/compose';
-import {addComponent, addPage, deletePage, editText, mapElement, moveBlock, replaceImage, restyle} from '../src/lib/manual/edit';
+import {addComponent, addPage, countEverywhere, deletePage, editText, mapElement, moveBlock, replaceEverywhere, replaceImage, restyle} from '../src/lib/manual/edit';
 import {plainText, strokeReach} from '../src/lib/manual/elements';
 
 // Manual engine (stage 10) on a synthetic unit made with ReportLab (scripts/manual-fixture.py): generic text, the
@@ -257,4 +257,15 @@ test('a missing image is left out and reported instead of failing the export', a
   const out = await renderUnit(unit, {fonts, asset: async h => (h === lost ? null : assetsOf(r)(h))});
   assert.deepEqual(out.missing, [lost]);
   assert.equal((await PDFDocument.load(out.bytes)).getPageCount(), 3);
+});
+
+test('a footer corrected once can be corrected on every page, template included', async () => {
+  const {unit} = unitFromPdf(fonts, await read(), meta);
+  assert.equal(countEverywhere(unit, 'footer-text', 'Тестовый курс · A1'), 2);
+  const r = replaceEverywhere(unit, 'footer-text', 'Тестовый курс · A1', 'Тестовый курс · А1');
+  assert.equal(r.count, 2);
+  assert.equal(countEverywhere(r.unit, 'footer-text', 'Тестовый курс · А1'), 2);
+  assert.ok(r.unit.template.footer?.some(e => plainText(e) === 'Тестовый курс · А1'), 'new pages get the corrected footer');
+  const added = addPage(fonts, r.unit, 1);
+  assert.ok(added.page.blocks.flatMap(b => b.elements).some(e => plainText(e) === 'Тестовый курс · А1'));
 });

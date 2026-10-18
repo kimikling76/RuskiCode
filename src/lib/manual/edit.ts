@@ -1,6 +1,6 @@
 import type {EditorFonts} from './fonts';
 import {composeComponent, componentLabel, newId, newPage, renumberPages} from './compose';
-import {elementBox, matrixBox, opsBox, scaleAbout, translate, type Box} from './elements';
+import {clipBox, intersect, matrixBox, opsBox, scaleAbout, shownBox, translate, type Box} from './elements';
 import type {Block, Clip, Component, Element, ImageData, Page, Span, Template, Unit} from './model';
 
 // Changes to a unit. Every function returns a new unit and leaves the one it got unchanged, so the editor can
@@ -73,6 +73,31 @@ export function restyle(el: Text, start: number, end: number, change: StyleChang
   return {...rest, spans: fromChars(out, styleOf(el.spans[0]))};
 }
 
+/**
+ * The same text in every element with this role (the footer of every page, the side tab): what reads `from` now
+ * reads `to`, each keeping its own style. The template's copies change too, so new pages come out right.
+ * It also changes locked blocks: it is a change the author asks for explicitly, for the whole unit.
+ */
+export function replaceEverywhere(unit: Unit, role: string, from: string, to: string): {unit: Unit; count: number} {
+  let count = 0;
+  const fix = (el: Element): Element => {
+    if (el.kind !== 'text' || el.role !== role || el.spans.map(sp => sp.text).join('') !== from) return el;
+    count++;
+    return editText(el, to);
+  };
+  const pages = unit.pages.map(p => ({...p, blocks: p.blocks.map(b => ({...b, elements: b.elements.map(fix)}))}));
+  const before = count;
+  const template = {...unit.template, ...(unit.template.footer ? {footer: unit.template.footer.map(fix)} : {}), ...(unit.template.side ? {side: unit.template.side.map(fix)} : {})};
+  return {unit: {...unit, pages, template}, count: before};
+}
+
+/** How many elements of the unit with this role read exactly `text`. */
+export function countEverywhere(unit: Unit, role: string, text: string) {
+  let n = 0;
+  for (const p of unit.pages) for (const b of p.blocks) for (const el of b.elements) if (el.kind === 'text' && el.role === role && el.spans.map(sp => sp.text).join('') === text) n++;
+  return n;
+}
+
 // ---------- Unit helpers ----------
 
 export function touch(unit: Unit, now = Date.now()): Unit { return {...unit, updatedAt: now}; }
@@ -111,7 +136,7 @@ export function moveElement(unit: Unit, pageId: string, elementId: string, dx: n
 /** Resizes an element so its box becomes `to` (images and shapes stretch; text changes its size with the height). */
 export function resizeElement(fonts: EditorFonts, unit: Unit, pageId: string, elementId: string, to: Box) {
   return mapElement(unit, pageId, elementId, e => {
-    const from = elementBox(fonts, e);
+    const from = shownBox(fonts, e);
     const sx = (to[2] - to[0]) / Math.max(0.01, from[2] - from[0]);
     const sy = (to[3] - to[1]) / Math.max(0.01, from[3] - from[1]);
     if (e.kind === 'text') {
@@ -130,7 +155,10 @@ export function resizeElement(fonts: EditorFonts, unit: Unit, pageId: string, el
 export function replaceImage(unit: Unit, pageId: string, elementId: string, image: ImageData) {
   return mapElement(unit, pageId, elementId, e => {
     if (e.kind !== 'image') return e;
-    const box = matrixBox(e.matrix);
+    // The visible part: a photo cut out of a larger picture is replaced in its cut-out.
+    let box: Box | null = matrixBox(e.matrix);
+    for (const c of e.clips || []) box = box && intersect(box, clipBox(c));
+    if (!box) box = matrixBox(e.matrix);
     const bw = box[2] - box[0], bh = box[3] - box[1];
     const scale = Math.max(bw / image.width, bh / image.height);
     const w = image.width * scale, h = image.height * scale;

@@ -128,6 +128,11 @@ export function visibleBox(fonts: EditorFonts, el: Element, ink = false): Box | 
   return box;
 }
 
+/** The box the author sees and handles: the visible part (a photo cut out of a larger picture is its cut-out). */
+export function shownBox(fonts: EditorFonts, el: Element): Box {
+  return visibleBox(fonts, el) ?? elementBox(fonts, el);
+}
+
 export function blockBox(fonts: EditorFonts, block: Block): Box | null {
   let box: Box | null = null;
   for (const el of block.elements) {

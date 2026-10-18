@@ -210,3 +210,28 @@ export const unitSchema = z.object({
 export type Unit = z.infer<typeof unitSchema>;
 
 export const black: Color = {space: 'gray', c: [0]};
+
+/**
+ * The files a unit uses, with their stored type: the imported PDF, the images of its pages, versions aside.
+ * Kept in `assets` so that sync knows which files to send.
+ */
+export function usedAssets(unit: Pick<Unit, 'pages' | 'template' | 'source' | 'assets'>): Unit['assets'] {
+  const out: Unit['assets'] = {};
+  const mimeOf = (d: ImageData) => d.format === 'jpeg' ? 'image/jpeg' as const : d.format === 'png' ? 'image/png' as const : 'application/octet-stream' as const;
+  const add = (els: Element[] | undefined) => {
+    for (const el of els || []) if (el.kind === 'image') {
+      out[el.image.asset] = unit.assets[el.image.asset] ?? mimeOf(el.image);
+      if (el.smask) out[el.smask.asset] = unit.assets[el.smask.asset] ?? mimeOf(el.smask);
+    }
+  };
+  if (unit.source) out[unit.source.asset] = 'application/pdf';
+  for (const p of unit.pages) for (const b of p.blocks) {
+    add(b.elements);
+    if (b.component?.type === 'image') out[b.component.image.asset] = mimeOf(b.component.image);
+  }
+  add(unit.template.exerciseHeader?.elements);
+  add(unit.template.footer);
+  add(unit.template.side);
+  return out;
+}
+

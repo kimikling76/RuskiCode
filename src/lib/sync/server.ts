@@ -124,7 +124,9 @@ export function push(userId: string, device: string, changes: z.infer<typeof cha
 }
 
 // text/plain: the text of a document attached in the Chat, read in the browser.
-export const assetMimes = ['image/png', 'image/jpeg', 'image/webp', 'application/pdf', 'text/plain'] as const;
+// application/octet-stream: an image of a manual unit exactly as its PDF stored it (still encoded); it is only
+// ever read back by the editor, never shown by the browser on its own.
+export const assetMimes = ['image/png', 'image/jpeg', 'image/webp', 'application/pdf', 'text/plain', 'application/octet-stream'] as const;
 export const MAX_ASSET_BYTES = 4_000_000;
 
 export function putAsset(userId: string, hash: string, mime: string, bytes: Uint8Array) {

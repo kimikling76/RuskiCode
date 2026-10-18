@@ -1,7 +1,7 @@
 import {PDFDict, PDFDocument, PDFName, PDFNull, PDFNumber, PDFBool, PDFRef, type PDFFont, type PDFObject} from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import {lineLayout, noShaping, type EditorFonts} from './fonts';
-import {elementBox} from './elements';
+import {elementBox, shownBox} from './elements';
 import {type Clip, type Color, type Element, type FontId, type ImageData, type PathOp, type Unit} from './model';
 
 // Writes a unit as a PDF. Same input, same bytes: no dates or random names are added, so two exports of an
@@ -211,7 +211,7 @@ export async function renderUnit(unit: Unit, opts: RenderOptions): Promise<Rende
         }
         out.push('ET', 'Q');
         const box = elementBox(opts.fonts, el);
-        boxes.push({page: pageIndex, block, element: el.id, box});
+        boxes.push({page: pageIndex, block, element: el.id, box: shownBox(opts.fonts, el)});
         if (el.maxWidth !== undefined) {
           const width = box[2] - el.x;
           if (width > el.maxWidth + 0.5) overflows.push({page: pageIndex, block, element: el.id, width, maxWidth: el.maxWidth});
@@ -222,7 +222,7 @@ export async function renderUnit(unit: Unit, opts: RenderOptions): Promise<Rende
           const name = node.newXObject('Im', ref);
           out.push(...pre, el.matrix.map(fmt).join(' ') + ' cm', name.asString() + ' Do', 'Q');
         }
-        boxes.push({page: pageIndex, block, element: el.id, box: elementBox(opts.fonts, el)});
+        boxes.push({page: pageIndex, block, element: el.id, box: shownBox(opts.fonts, el)});
       } else {
         out.push(...pre);
         if (el.fill) out.push(colorOps(el.fill.color, false));
@@ -237,7 +237,7 @@ export async function renderUnit(unit: Unit, opts: RenderOptions): Promise<Rende
         out.push(pathOps(el.ops));
         const paint = el.fill && el.stroke ? (el.fill.evenOdd ? 'B*' : 'B') : el.fill ? (el.fill.evenOdd ? 'f*' : 'f') : 'S';
         out.push(paint, 'Q');
-        boxes.push({page: pageIndex, block, element: el.id, box: elementBox(opts.fonts, el)});
+        boxes.push({page: pageIndex, block, element: el.id, box: shownBox(opts.fonts, el)});
       }
     }
     const content = ctx.flateStream(new TextEncoder().encode(out.join('\n')));
