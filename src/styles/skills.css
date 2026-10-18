@@ -95,3 +95,8 @@
 .rc-skill-picture-label { font-size: var(--fs-12); color: var(--fg-2); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .rc-skill-picture-prompt summary { cursor: pointer; width: fit-content; font-size: var(--fs-12); color: var(--fg-3); border-radius: var(--radius-4); }
 .rc-skill-picture-prompt .rc-textarea { margin-top: var(--sp-1); font-size: var(--fs-12); }
+.rc-skill-cast { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--sp-3); margin: 0; padding: 0; list-style: none; }
+.rc-skill-cast li { display: grid; gap: var(--sp-2); align-content: start; min-width: 0; }
+.rc-skill-cast .rc-skill-picture { max-width: 120px; }
+.rc-skill-cast .rc-textarea { font-size: var(--fs-12); }
+.rc-skill-picture .rc-skill-picture-state { z-index: 1; }
