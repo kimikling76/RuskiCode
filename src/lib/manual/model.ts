@@ -126,6 +126,8 @@ export const componentSchema = z.discriminatedUnion('type', [
     example: z.array(z.string().max(300)).max(6),
     items: z.array(z.string().max(300)).max(40),
     columns: z.union([z.literal(1), z.literal(2)]),
+    /** Expected answers, one per item, for the teacher's key. Not drawn on the page. */
+    answers: z.array(z.string().max(300)).max(40).optional(),
   }).strict(),
   z.object({type: z.literal('text'), text: z.string().max(6000)}).strict(),
   z.object({type: z.literal('heading'), text: z.string().max(200)}).strict(),

@@ -7,6 +7,7 @@ import {useCinemaUi} from '@/store/cinema-ui';
 import {ratioValue, imageModel} from '@/lib/cinema/capabilities';
 import {retryJob, downloadImage} from '@/lib/cinema/client';
 import {errorDetail} from '@/lib/cinema/errors';
+import {savedUrl} from '@/lib/cinema/keep';
 import {Tip} from '@/components/ui/tooltip';
 import {ConfirmDialog} from '@/components/ui/dialog';
 import {findModel} from '@/lib/ai/models';
@@ -30,11 +31,15 @@ export function Elapsed({since}: {since: number}) {
   return <span className="rc-cine-elapsed">{String(Math.floor(s / 60)).padStart(2, '0')}:{String(s % 60).padStart(2, '0')}</span>;
 }
 
-/** Kie deletes generated files after 14 days: show that plainly instead of a broken image. */
-export function KieImage({src, alt, className}: {src: string; alt: string; className?: string}) {
-  const [missing, setMissing] = useState(false);
-  if (missing) return <span className={'rc-kie-missing ' + (className || '')}>Kie ya no tiene este archivo</span>;
-  return <img src={src} alt={alt} className={className} loading="lazy" decoding="async" onError={() => setMissing(true)} />;
+/**
+ * Kie deletes generated files after 14 days: the studio's copy is shown then (`fallback`), or that is said plainly
+ * instead of a broken image.
+ */
+export function KieImage({src, alt, className, fallback}: {src: string; alt: string; className?: string; fallback?: string}) {
+  const [failed, setFailed] = useState(0);
+  const current = failed === 0 ? src : failed === 1 && fallback ? fallback : null;
+  if (!current) return <span className={'rc-kie-missing ' + (className || '')}>Kie ya no tiene este archivo</span>;
+  return <img src={current} alt={alt} className={className} loading="lazy" decoding="async" onError={() => setFailed(n => n + (n === 0 && !fallback ? 2 : 1))} />;
 }
 
 export function useImageActions() {
@@ -88,7 +93,7 @@ export function JobCard({job, onOpen}: {job: CinemaJob; onOpen: (job: CinemaJob)
         </div>
       ) : url ? (
         <button type="button" className="rc-job-media" onClick={() => onOpen(job)} aria-label="Ver imagen">
-          <KieImage src={url} alt={job.prompt.slice(0, 120)} />
+          <KieImage src={url} alt={job.prompt.slice(0, 120)} fallback={savedUrl(job)} />
         </button>
       ) : (
         <div className="rc-job-frame" style={{aspectRatio: String(ratio)}}>

@@ -2,6 +2,7 @@
 import {useEffect, useRef} from 'react';
 import {useCinema, isActive, type CinemaJob} from '@/store/cinema';
 import {usePersonal} from '@/store/personal-chat';
+import {keepResult} from '@/lib/cinema/keep';
 
 const modeLabels: Record<CinemaJob['mode'], string> = {create: 'Imagen', edit: 'Edición de imagen', shot: 'Imagen de un plano', video: 'Video'};
 
@@ -20,6 +21,11 @@ export function CinemaJobRunner() {
   const failures = useRef(new Map<string, number>());
 
   useEffect(() => { hydrate(); }, [hydrate]);
+
+  // Finished images without a copy in the studio get one (also those finished on another computer).
+  useEffect(() => {
+    for (const job of jobs) if (job.state === 'success' && !job.saved?.length && job.mode !== 'video') void keepResult(job);
+  }, [jobs]);
 
   useEffect(() => {
     const pending = jobs.filter(j => isActive(j) && j.taskId);

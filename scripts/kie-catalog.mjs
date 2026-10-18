@@ -13,7 +13,8 @@ import YAML from 'yaml';
 
 const KIE = 'https://api.kie.ai';
 const DOCS = 'https://docs.kie.ai/';
-const today = new Date().toISOString().slice(0, 10);
+// CATALOG_DATE: the day the saved pages were read, when generating from a folder of saved pages.
+const today = process.env.CATALOG_DATE || new Date().toISOString().slice(0, 10);
 const out = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'src', 'lib', 'ai', 'kie-catalog.ts');
 
 async function pages(folder) {
@@ -142,14 +143,12 @@ function mediaEntry(page, s, opPath, op, category) {
     const k = arrayField || singleField;
     used.add(k);
     imagesRequired = required.has(k);
-    if (category === 'video') {
-      if (imagesRequired) return listed('Pide una imagen de inicio o de referencia: la pestaña de video todavía no la tiene.');
-    } else {
-      options.fields.images = k;
-      if (singleField) options.fields.imagesSingle = true;
-      options.maxReferences = arrayField ? Math.max(1, Number(f(k).maxItems) || 1) : 1;
-      options.modes = imagesRequired ? ['edit'] : ['create', 'edit'];
-    }
+    // Video: the image is where the video starts (or its reference). A model that requires it is offered only
+    // where an image can be given (/video-generation in the Chat); modes ['edit'] marks that.
+    options.fields.images = k;
+    if (singleField) options.fields.imagesSingle = true;
+    options.maxReferences = arrayField ? Math.max(1, Number(f(k).maxItems) || 1) : 1;
+    options.modes = imagesRequired ? ['edit'] : ['create', 'edit'];
   }
 
   // Shape, size, length and file type: only enumerated values are offered.

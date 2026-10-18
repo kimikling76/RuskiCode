@@ -15,6 +15,8 @@ export type GenerationRequest = {
   source?: string;
   boardId?: string;
   shotId?: string;
+  /** Given by the caller to find these jobs later (a chat skill card); a new one otherwise. */
+  batchId?: string;
 };
 
 /**
@@ -23,7 +25,7 @@ export type GenerationRequest = {
  */
 export async function startGeneration(request: GenerationRequest) {
   const {addJobs, updateJob} = useCinema.getState();
-  const batchId = crypto.randomUUID();
+  const batchId = request.batchId || crypto.randomUUID();
   const now = Date.now();
   const jobs: CinemaJob[] = Array.from({length: request.count}, () => ({
     id: crypto.randomUUID(),

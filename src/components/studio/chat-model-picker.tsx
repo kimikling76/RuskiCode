@@ -94,7 +94,7 @@ function Row({m, value, favorite, onChoose, onFavorite}: {m: ChatModel; value: s
   const ok = usable(m);
   const detail = m.status === 'unverified' ? 'No verificado' + (m.missing ? ' · ' + m.missing : '')
     : m.status === 'listed' ? 'Sin pantalla en el estudio' + (m.missing ? ' · ' + m.missing : '')
-      : m.available === false ? 'Sin configurar en el servidor'
+      : m.available === false ? m.missing || 'Sin configurar en el servidor'
         : (m.provider ? m.provider + ' · vía Kie' : 'Vía Kie') + (m.status === 'docs' ? ' · sin prueba real todavía' : '')
           + (m.inputs?.includes('image') ? ' · lee imágenes' : '') + (m.price ? ' · ' + estimate(m.price) : '');
   return (

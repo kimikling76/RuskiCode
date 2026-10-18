@@ -26,6 +26,8 @@ export type CinemaJob = {
   state: JobState;
   urls: string[];
   credits?: number;
+  /** The studio's own copies of the result images (Kie deletes its files after 14 days). */
+  saved?: {hash: string; mime: string}[];
   error?: string;
   failMessage?: string;
   createdAt: number;

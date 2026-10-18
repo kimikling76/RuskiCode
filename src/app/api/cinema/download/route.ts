@@ -6,7 +6,7 @@ export const maxDuration = 60;
 
 const MAX_BYTES = 60 * 1024 * 1024;
 
-/** Streams a Kie-hosted image back as an attachment so the browser can save it with a proper name. */
+/** Streams a Kie-hosted image or video back as an attachment so the browser can save it with a proper name. */
 export async function GET(req: Request) {
   if (!await authorized(req)) return Response.json({error: 'AUTH_REQUIRED'}, {status: 401});
   const params = new URL(req.url).searchParams;
@@ -26,10 +26,10 @@ export async function GET(req: Request) {
   }
   const type = upstream.headers.get('content-type') || '';
   if (!upstream.ok || !upstream.body) return Response.json({error: 'ASSET_DOWNLOAD_FAILED'}, {status: 502});
-  if (!/^image\/(png|jpeg|webp)\b/.test(type)) { await upstream.body.cancel(); return Response.json({error: 'ASSET_TYPE_NOT_ALLOWED'}, {status: 415}); }
+  if (!/^(image\/(png|jpeg|webp)|video\/(mp4|webm|quicktime))\b/.test(type)) { await upstream.body.cancel(); return Response.json({error: 'ASSET_TYPE_NOT_ALLOWED'}, {status: 415}); }
   if (Number(upstream.headers.get('content-length') || 0) > MAX_BYTES) { await upstream.body.cancel(); return Response.json({error: 'ASSET_TOO_LARGE'}, {status: 413}); }
 
-  const extension = type.includes('png') ? 'png' : type.includes('webp') ? 'webp' : 'jpg';
+  const extension = type.includes('png') ? 'png' : type.includes('webp') ? 'webp' : type.includes('mp4') ? 'mp4' : type.includes('webm') ? 'webm' : type.includes('quicktime') ? 'mov' : 'jpg';
   let size = 0;
   const limited = upstream.body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
     transform(chunk, controller) {

@@ -14,6 +14,8 @@ export const cinemaErrorDetails: Record<string, string> = {
   TASK_NOT_FOUND: 'Kie ya no tiene registro de esta tarea.',
   RESULT_INVALID: 'Kie terminó la tarea pero no devolvió una imagen.',
   REFERENCE_NOT_ALLOWED: 'Una de las referencias no es una imagen alojada en Kie.',
+  REFERENCE_MISSING: 'Una imagen de referencia ya no está guardada en el estudio. Adjuntala de nuevo.',
+  UPLOAD_FAILED: 'No se pudo pasar la imagen de referencia a Kie. Probá de nuevo en un momento.',
   INVALID_REQUEST: 'La solicitud no es válida. Revisá el prompt.',
   GENERATION_FAILED: 'Kie no pudo generar la imagen.',
   NETWORK: 'Se perdió la conexión. Revisá internet y reintentá.',

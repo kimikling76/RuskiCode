@@ -4,7 +4,7 @@ import {libraryEvents} from '@/lib/books/library';
 import {fetchEditorFonts} from './fonts';
 import {readPdf} from './pdf-read';
 import {unitFromPdf, type ImportReport} from './segment';
-import {newPage, setCentredText} from './compose';
+import {blankUnitFrom} from './units';
 import {unitSchema, usedAssets, type Unit} from './model';
 
 // Manual units in this browser (IndexedDB), with their files and versions:
@@ -208,21 +208,8 @@ export async function importUnitPdf(name: string, bytes: Uint8Array, opts: {numb
 
 /** A new unit that uses the template and page frame of another one: one page, ready to add exercises. */
 export async function createUnitFrom(model: Unit, title: string, number?: string) {
-  const now = Date.now();
-  // The frame of a lesson page: footer with its page number and the side tab, when the model has one.
-  const has = (p: Unit['pages'][number], role: string) => p.blocks.some(b => b.elements.some(e => e.role === role));
-  const usable = model.pages.filter(p => !p.conserved);
-  const first = usable.find(p => has(p, 'page-number') && has(p, 'unit-tab')) ?? usable.find(p => has(p, 'page-number')) ?? usable.find(p => p.blocks.some(b => b.kind === 'footer')) ?? model.pages[0];
-  const base: Unit = {
-    schemaVersion: 1, id: crypto.randomUUID(), title: title.trim().slice(0, 200) || 'Unidad nueva', ...(number ? {number} : {}),
-    createdAt: now, updatedAt: now, pages: [], template: model.template, assets: {},
-  };
   const fonts = await fetchEditorFonts();
-  const frame = newPage({...base, pages: [first]}, 0);
-  // The frame of the model's page, with this unit's number on the side tab and page 1 in the footer.
-  const page = {...frame, blocks: frame.blocks.map(b => ({...b, elements: b.elements.map(el =>
-    el.role === 'page-number' ? setCentredText(fonts, el, '1') : el.role === 'unit-tab' && number ? setCentredText(fonts, el, number) : el)}))};
-  const unit: Unit = {...base, pages: [page], assets: model.assets};
+  const unit = blankUnitFrom(fonts, model, {id: crypto.randomUUID(), title, number, now: Date.now()});
   const saved = await saveUnit(unit);
   await saveVersion(saved, 'Unidad nueva');
   return saved.id;

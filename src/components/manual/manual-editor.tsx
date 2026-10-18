@@ -33,7 +33,10 @@ const MAX_UNDO = 100;
  * versions. Every change is saved here at once and travels to the account; the PDF is made the same way on export.
  */
 export function ManualEditor() {
-  const id = useSearchParams().get('id') || '';
+  const params = useSearchParams();
+  const id = params.get('id') || '';
+  // ?page=N opens that page (links from /pdf-generator and /revisar-ruso).
+  const startPage = Number(params.get('page')) || 0;
   const [unit, setUnit] = useState<Unit | null>(null);
   const [fonts, setFonts] = useState<EditorFonts | null>(null);
   const [error, setError] = useState('');
@@ -67,7 +70,7 @@ export function ManualEditor() {
       if (!u) { setError('Esta unidad no está en este navegador. Si la importaste en otra computadora, esperá a que diga «Guardado» y recargá.'); return; }
       setUnit(u); latest.current = u;
       history.current = {past: [], future: [], mergeKey: null, mergeAt: 0};
-      setActive(a => Math.min(a, u.pages.length - 1));
+      setActive(a => Math.min(reloads === 0 && startPage > 0 ? startPage - 1 : a, u.pages.length - 1));
     }).catch(() => setError('Este navegador no permite leer la unidad (almacenamiento bloqueado o modo privado).'));
     void listVersions(id).then(v => { if (alive) setVersions(v); });
     return () => { alive = false; };
