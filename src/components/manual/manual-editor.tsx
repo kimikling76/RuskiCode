@@ -21,8 +21,9 @@ import {Tip} from '@/components/ui/tooltip';
 import {DocThumbs} from '@/components/pdf/doc-view';
 import {ManualPage, type CompareMode, type Selection, type Zoom} from './manual-page';
 import {AddPanel, PagesPanel, SelectionPanel, VersionsPanel, type ManualApi} from './manual-inspector';
+import {EditorBookPanel} from '@/components/kb/editor-book-panel';
 
-type Tab = 'selection' | 'add' | 'pages' | 'versions';
+type Tab = 'selection' | 'add' | 'pages' | 'versions' | 'book';
 const zoomSteps = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const none: Selection = {block: null, element: null};
 const MAX_UNDO = 100;
@@ -232,11 +233,14 @@ export function ManualEditor() {
     } finally { setExporting(false); }
   }
 
-  async function newVersion(label: string) {
+  async function keepVersion(label: string) {
     if (!latest.current) return;
     await saveUnit(latest.current);
     await saveVersion(latest.current, label);
     setVersions(await listVersions(id));
+  }
+  async function newVersion(label: string) {
+    await keepVersion(label);
     toast('Versión guardada: «' + label + '»');
   }
 
@@ -348,12 +352,13 @@ export function ManualEditor() {
 
         <Tabs.Root className="rc-pdf-inspector" value={tab} onValueChange={v => setTab(v as Tab)}>
           <Tabs.List className="rc-pdf-tabs" aria-label="Panel">
-            {([['selection', 'Selección'], ['add', 'Agregar'], ['pages', 'Páginas'], ['versions', 'Versiones']] as const).map(([v, label]) => <Tabs.Trigger key={v} value={v} className="rc-tab">{label}</Tabs.Trigger>)}
+            {([['selection', 'Selección'], ['add', 'Agregar'], ['pages', 'Páginas'], ['versions', 'Versiones'], ['book', 'Libro']] as const).map(([v, label]) => <Tabs.Trigger key={v} value={v} className="rc-tab">{label}</Tabs.Trigger>)}
           </Tabs.List>
           <Tabs.Content value="selection" className="rc-pdf-panel">{api ? <SelectionPanel key={page?.id + ':' + (selection.block || '') + ':' + (selection.element || '')} api={api} /> : null}</Tabs.Content>
           <Tabs.Content value="add" className="rc-pdf-panel">{api ? <AddPanel api={api} /> : null}</Tabs.Content>
           <Tabs.Content value="pages" className="rc-pdf-panel">{api ? <PagesPanel api={api} /> : null}</Tabs.Content>
           <Tabs.Content value="versions" className="rc-pdf-panel"><VersionsPanel versions={versions} onSave={l => void newVersion(l)} onRestore={v => void restore(v)} /></Tabs.Content>
+          <Tabs.Content value="book" className="rc-pdf-panel">{api ? <EditorBookPanel api={api} onVersion={keepVersion} /> : null}</Tabs.Content>
         </Tabs.Root>
       </div>
     </div>

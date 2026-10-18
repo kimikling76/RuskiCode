@@ -18,6 +18,7 @@ import {composerBooks, createLocalBook, editorHref, listLocalBooks, libraryEvent
 import {Dialog} from '@/components/ui/dialog';
 import {Segmented} from '@/components/cinema/controls';
 import {ManualSection} from '@/components/manual/manual-home';
+import {BookSection} from '@/components/kb/book-section';
 
 type Project = {id: string; name: string; brief: string};
 const dateFormat = new Intl.DateTimeFormat('es-AR', {day: 'numeric', month: 'short', year: 'numeric'});
@@ -129,6 +130,8 @@ export function PdfHome({projects, legacy, onOpenProject, onOpenLegacy}: {projec
       </div>
       <p id="pdf-import-hint" className="rc-hint rc-pdf-home-note">PDF, Word (.docx), texto, Markdown, HTML o un editable (.json). También podés arrastrarlo hasta acá. Un PDF se puede editar tal cual o convertir en bloques.</p>
       {storageError ? <p className="rc-form-error" role="alert">Este navegador no permite guardar libros (almacenamiento bloqueado o modo privado).</p> : null}
+
+      <BookSection />
 
       <ManualSection />
 

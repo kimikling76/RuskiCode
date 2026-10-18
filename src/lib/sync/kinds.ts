@@ -17,5 +17,11 @@ export const syncKinds = [
   'doc-chat',      // the «Crear con IA» chat and the assistant's history of one document
   'manual-unit',   // manual units of PDF Studio (elements and template; the PDF and its images as assets)
   'manual-version',// saved versions of a manual unit (a whole unit; files shared with it as assets)
+  'kb-project',    // book projects: name, manual units and assistants that bring the book's context
+  'kb-entry',      // knowledge base of a book project, one record per fact with its sources and history
 ] as const;
+
 export type SyncKind = (typeof syncKinds)[number];
+
+/** Kinds every computer knew before a newer kind existed: a computer that never saw a kind pulls it from the start. */
+export const firstKinds: readonly SyncKind[] = syncKinds.slice(0, syncKinds.indexOf('kb-project'));

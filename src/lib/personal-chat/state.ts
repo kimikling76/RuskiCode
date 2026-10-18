@@ -1,6 +1,7 @@
 import type {ChatAttachment} from './attachments';
 import type {SkillId, SkillRun} from '@/lib/skills/chat';
 import type {Source} from '@/lib/ai/types';
+import type {BookUsed} from '@/lib/kb/context';
 export const STORAGE_KEY='estudio-personal-v2';
 export const LEGACY_KEY='estudio-pure-chat-v1';
 export const UNDO_MS=8000;
@@ -8,7 +9,8 @@ export const PERSONAL_SYSTEM='Eres un asistente útil; responde en el idioma del
 /** `attachments`: files sent with a user message, as references to the studio's stored files (see attachments.ts). */
 /** `webSearch` and `sources`: the answer was asked with web search, and the pages the API said it used (when it says). */
 /** `command`: the skill a user message called (/image-generation…). `skill`: what that skill left in the chat (see src/lib/skills/chat.ts). */
-export type PersonalMessage={id:string;role:'user'|'assistant';content:string;attachments?:ChatAttachment[];createdAt?:string;model?:string;credits?:number;status?:'streaming'|'done'|'error';error?:string;stopped?:boolean;command?:SkillId;skill?:SkillRun;webSearch?:boolean;sources?:Source[]};
+/** `book`: the book data sent with this answer (titles only), when a book's assistant was chosen. */
+export type PersonalMessage={id:string;role:'user'|'assistant';content:string;attachments?:ChatAttachment[];createdAt?:string;model?:string;credits?:number;status?:'streaming'|'done'|'error';error?:string;stopped?:boolean;command?:SkillId;skill?:SkillRun;webSearch?:boolean;sources?:Source[];book?:BookUsed};
 export type ConversionLink={projectId:string;name:string;destination:'pdf'|'cinema'};
 /** The assistant chosen for this conversation, with the instructions last sent (kept even if the assistant is deleted). */
 export type ChatAssistant={id:string;name:string;instructions:string;mediaCatalog?:boolean};

@@ -21,6 +21,10 @@ import {
   putSyncedVersion as putManualVersion, removeSyncedVersion as removeManualVersion, type ManualVersion,
 } from '@/lib/manual/store';
 import type {Unit} from '@/lib/manual/model';
+import {listProjects, putSyncedProject, removeSyncedProject, listEntries, putSyncedEntry, removeSyncedEntry} from '@/lib/kb/store';
+import {mergeEntries, mergeProjects} from '@/lib/kb/versions';
+import {uploadEntryFiles} from '@/lib/kb/files';
+import {entryKey, type KbEntry, type KbProject} from '@/lib/kb/model';
 import type {PersonalChat, StudioProject} from '@/store/personal-chat';
 import type {UsageEntry} from '@/lib/personal-chat/state';
 import type {Board} from '@/store/cinema';
@@ -165,9 +169,12 @@ const jobs: Collection = {
   // Both computers may follow the same Kie task: the most advanced state wins, nothing is lost.
   merge: (local, remote) => {
     const a = local as CinemaJob, b = remote as CinemaJob;
-    if (terminal(a) !== terminal(b)) return terminal(a) ? a : b;
-    if ((a.finishedAt || 0) !== (b.finishedAt || 0)) return (a.finishedAt || 0) > (b.finishedAt || 0) ? a : b;
-    return {...b, credits: b.credits ?? a.credits};
+    const pick = terminal(a) !== terminal(b) ? (terminal(a) ? a : b)
+      : (a.finishedAt || 0) !== (b.finishedAt || 0) ? ((a.finishedAt || 0) > (b.finishedAt || 0) ? a : b)
+      : {...b, credits: b.credits ?? a.credits};
+    const other = pick === a ? b : a;
+    // The author's review and the record of what was sent are kept whichever copy wins.
+    return {...pick, review: pick.review ?? other.review, sent: pick.sent ?? other.sent, book: pick.book ?? other.book};
   },
 };
 
@@ -437,7 +444,49 @@ const manualVersions: Collection = {
   decode: async data => { await downloadAssets((data as ManualVersion).unit.assets); return data; },
 };
 
-export const collections: Collection[] = [chats, projects, usage, jobs, boards, notes, books, drafts, composer, assistants, favorites, originals, versions, bookVersions, docChats, manualUnits, manualVersions];
+// A book project: two computers' links to units and assistants add up; a renamed project on both is a conflict.
+const kbProjects: Collection = {
+  kind: 'kb-project',
+  list: async () => (await listProjects()).map(p => ({key: p.id, data: p})),
+  apply: async changes => {
+    for (const {key, data} of changes) {
+      if (data === null) await removeSyncedProject(key);
+      else await putSyncedProject({...(data as KbProject), id: key});
+    }
+    libraryEvents?.dispatchEvent(new Event('synced'));
+  },
+  subscribe: onLibrary,
+  label: data => 'Libro: ' + ((data as KbProject).name || 'proyecto'),
+  token: data => 'u' + (data as KbProject).updatedAt,
+  merge: (local, remote) => mergeProjects(local as KbProject, remote as KbProject),
+};
+
+// One fact of a book. A copy made from the other is merged; two different edits wait for the person to choose.
+const kbEntries: Collection = {
+  kind: 'kb-entry',
+  list: async () => (await listEntries()).map(e => ({key: entryKey(e.project, e.id), data: e})),
+  apply: async changes => {
+    for (const {key, data} of changes) {
+      if (data === null) await removeSyncedEntry(key);
+      else await putSyncedEntry(data as KbEntry);
+    }
+    libraryEvents?.dispatchEvent(new Event('synced'));
+  },
+  subscribe: onLibrary,
+  label: data => 'Libro: ' + ((data as KbEntry).title || 'dato'),
+  token: data => 'v' + (data as KbEntry).version + ':' + (data as KbEntry).updatedAt,
+  merge: (local, remote) => mergeEntries(local as KbEntry, remote as KbEntry),
+  // Pictures of a character go to the account before the entry that names them.
+  encode: async data => { await uploadEntryFiles(data as KbEntry); return data; },
+  // The copy is a proposal next to the other version, never a second canon.
+  duplicate: data => {
+    const e = data as KbEntry;
+    const id = (e.id.slice(0, 90) + '.copia-' + crypto.randomUUID().slice(0, 6));
+    return {key: entryKey(e.project, id), data: {...e, id, status: 'proposed', title: copyLabel(e.title, 300), note: 'Copia de esta computadora (conflicto de sincronización)', updatedAt: Date.now()}};
+  },
+};
+
+export const collections: Collection[] = [chats, projects, usage, jobs, boards, notes, books, drafts, composer, assistants, favorites, originals, versions, bookVersions, docChats, manualUnits, manualVersions, kbProjects, kbEntries];
 
 /** Loads every store from this browser before the first sync. */
 export function hydrateAll() {

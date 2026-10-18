@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import {z} from 'zod';
 import {authorized, sameOrigin, limit} from '@/lib/ai/security';
 import {findModel, enabledStatus} from '@/lib/ai/models';
@@ -88,14 +89,18 @@ export async function POST(req: Request) {
   }
 
   // The person's own images: read from their stored files and given to Kie as a temporary link (24 h).
+  // `sent` says which file Kie got for each reference: its hash, measured on the bytes uploaded, and the link.
   const references: string[] = [];
+  const sent: {reference: string; url: string; sha256?: string; size?: number; mime?: string}[] = [];
   for (const reference of input.references) {
-    if (!reference.startsWith('asset:')) { references.push(reference); continue; }
+    if (!reference.startsWith('asset:')) { references.push(reference); sent.push({reference, url: reference}); continue; }
     const hash = reference.slice(6);
     try {
       const asset = await getAsset(session.user.id, hash);
       if (!asset || !/^image\/(png|jpeg|webp)$/.test(asset.mime)) return refuse(fail('REFERENCE_MISSING'));
-      references.push(await kieUpload(asset.data, asset.mime, hash));
+      const url = await kieUpload(asset.data, asset.mime, hash);
+      references.push(url);
+      sent.push({reference, url, sha256: createHash('sha256').update(asset.data).digest('hex'), size: asset.data.length, mime: asset.mime});
     } catch (e) {
       return refuse(fail(e instanceof UploadError ? e.code : 'REFERENCE_MISSING'));
     }
@@ -111,11 +116,11 @@ export async function POST(req: Request) {
       // A timeout may have created the task: remember it as uncertain so a retry cannot pay twice.
       if (ledger.state === 'new') await recordRequest(input.requestId, code === 'CREATE_UNCERTAIN' || tasks.length ? 'uncertain' : 'failed', tasks, code);
       if (!tasks.length) return fail(code);
-      return Response.json({tasks, error: code}, {headers: {'Cache-Control': 'no-store'}});
+      return Response.json({tasks, sent, error: code}, {headers: {'Cache-Control': 'no-store'}});
     }
   }
   if (ledger.state === 'new') await recordRequest(input.requestId, 'created', tasks);
-  return Response.json({tasks}, {headers: {'Cache-Control': 'no-store'}});
+  return Response.json({tasks, sent}, {headers: {'Cache-Control': 'no-store'}});
 }
 
 /** Real task state from Kie: waiting, queuing, generating, success or fail. */

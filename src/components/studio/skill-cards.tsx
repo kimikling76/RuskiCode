@@ -1,4 +1,5 @@
 'use client';
+import {BookUsedNote} from '@/components/kb/book-used';
 import {Fragment, useEffect, useMemo, useRef, useState} from 'react';
 import Link from 'next/link';
 import TextareaAutosize from 'react-textarea-autosize';
@@ -344,8 +345,10 @@ function PdfPictures({chatId, id, run, refs}: {chatId: string; id: string; run: 
   const toSend = missingPictures(run).filter(s => !busy(s.key) && !arriving(s.key));
   const usedRefs = o.maxReferences ? refs.slice(0, o.maxReferences) : [];
   const portraitOf = (c: Character) => { const p = run.cast?.[c.name]; return p?.image && p.prompt === c.look ? p.image : undefined; };
+  // A character of the book: its approved picture from the library is the reference; nobody invents a portrait for it.
+  const libraryOf = (c: Character) => run.bookCast?.[c.name];
   const shown = cast.filter(c => slots.some(s => slotCharacters(s, cast).includes(c)));
-  const portraitsToMake = o.maxReferences ? shown.filter(c => !portraitOf(c) && (confirm || []).some(s => slotCharacters(s, cast).includes(c))) : [];
+  const portraitsToMake = o.maxReferences ? shown.filter(c => !libraryOf(c) && !portraitOf(c) && (confirm || []).some(s => slotCharacters(s, cast).includes(c))) : [];
   const pickerModels = imageModels.map(m => {
     const p = publicModel(m, true);
     return m.options.modes.includes('create') ? p : {...p, available: false, missing: 'Solo edita una imagen: para las imágenes del borrador hace falta un modelo que las cree desde texto.'};
@@ -368,6 +371,16 @@ function PdfPictures({chatId, id, run, refs}: {chatId: string; id: string; run: 
             {shown.map(c => {
               const portrait = portraitOf(c);
               const job = jobs.get('cast:' + c.name);
+              const lib = libraryOf(c);
+              if (lib) return (
+                <li key={c.name}>
+                  <div className="rc-skill-picture" data-shape="3:4">
+                    {lib.hash ? <img src={'/api/sync/assets?hash=' + lib.hash} alt={'Imagen aprobada de ' + lib.title} loading="lazy" /> : <span className="rc-skill-picture-state">Sin imagen aprobada</span>}
+                  </div>
+                  <strong lang="ru">{c.name}</strong>
+                  <span className="rc-hint">{lib.hash ? 'Del libro: ' + (lib.file || lib.title) + ' (aprobada)' : 'Personaje del libro sin imagen aprobada: no se le inventa un retrato; sale de su descripción.'}</span>
+                </li>
+              );
               return (
                 <li key={c.name}>
                   <div className="rc-skill-picture" data-shape="3:4">
@@ -383,6 +396,7 @@ function PdfPictures({chatId, id, run, refs}: {chatId: string; id: string; run: 
               );
             })}
           </ul>
+          {run.bookCast && Object.keys(run.bookCast).length ? <p className="rc-hint">Los personajes del libro «{run.bookProject?.name}» van con su imagen aprobada de la biblioteca como referencia. Ningún modelo garantiza el mismo rostro: revisá cada resultado.</p> : null}
           {o.maxReferences
             ? <p className="rc-hint">Primero se hace un retrato de cada personaje; después ese retrato va como referencia en cada imagen donde aparece, para que sea la misma persona. Si cambiás cómo es, el retrato se hace de nuevo.</p>
             : <p className="rc-pdf-warn">{model.name} no recibe imágenes de referencia: cada imagen sale solo de su descripción y los personajes pueden verse distintos. Para que sean siempre los mismos, elegí un modelo que acepte referencias, como Nano Banana 2.1.</p>}
@@ -447,6 +461,7 @@ function PdfPictures({chatId, id, run, refs}: {chatId: string; id: string; run: 
           ...(o.aspectRatios.length ? [['Formato', 'el de cada imagen del borrador'] as [string, string]] : []),
           ...(o.resolutions.length ? [[o.resolutionLabel || 'Resolución', optionLabel(resolution)] as [string, string]] : []),
           ['Referencias', usedRefs.length ? String(usedRefs.length) + (portraitsToMake.length || shown.some(portraitOf) ? ' + retratos' : '') : portraitsToMake.length || shown.some(portraitOf) ? 'Retratos de los personajes' : 'Ninguna'],
+          ...(o.maxReferences && shown.some(c => libraryOf(c)?.hash) ? [['Imágenes del libro', shown.filter(c => libraryOf(c)?.hash).map(c => libraryOf(c)!.title).join(', ')] as [string, string]] : []),
           ['Último costo', lastCost],
         ]} />
       </ConfirmDialog>
@@ -520,7 +535,7 @@ function PdfCard({chatId, id, run, model, attachments}: {chatId: string; id: str
     <div className="rc-skill-body">
       <p className="rc-skill-title">{draft.title}</p>
       {draft.summary ? <p className="rc-hint">{draft.summary}</p> : null}
-      <p className="rc-hint">{draft.blocks.length} bloques · {exercises} {exercises === 1 ? 'ejercicio' : 'ejercicios'}{pictures ? ' · ' + pictures + (pictures === 1 ? ' imagen' : ' imágenes') : ''}{run.model ? ' · escrito con ' + run.model : ''}{run.webSearch ? ' · con búsqueda web' : ''}{run.credits !== undefined ? ' · ' + creditText(run.credits) : ''}</p>
+      <p className="rc-hint">{draft.blocks.length} bloques · {exercises} {exercises === 1 ? 'ejercicio' : 'ejercicios'}{pictures ? ' · ' + pictures + (pictures === 1 ? ' imagen' : ' imágenes') : ''}{run.model ? ' · escrito con ' + run.model : ''}{run.webSearch ? ' · con búsqueda web' : ''}{run.credits !== undefined ? ' · ' + creditText(run.credits) : ''}{run.book ? <> · <BookUsedNote used={run.book} /></> : null}</p>
       {run.sources?.length ? <MessageSources sources={run.sources} /> : null}
       {run.state === 'saved' && run.saved ? (
         <>
@@ -639,7 +654,7 @@ function ReviewCard({chatId, id, run, model, attachments}: {chatId: string; id: 
         </div>
       ) : run.result ? (
         <div className="rc-skill-review">
-          <p className="rc-skill-title">Revisión con IA <small>{run.model || ''}{run.webSearch ? ' · con búsqueda web' : ''}{run.credits !== undefined ? ' · ' + creditText(run.credits) : ''}</small></p>
+          <p className="rc-skill-title">Revisión con IA <small>{run.model || ''}{run.webSearch ? ' · con búsqueda web' : ''}{run.credits !== undefined ? ' · ' + creditText(run.credits) : ''}{run.book ? <> · <BookUsedNote used={run.book} /></> : null}</small></p>
           <p>{run.result.summary}</p>
           {run.result.issues.length ? <ul>{run.result.issues.map((x, i) => <ReviewItem key={i} kind={x.kind} page={x.page ?? null} quote={x.quote} problem={x.problem} suggestion={x.suggestion} href={link(x.page)} />)}</ul> : <p className="rc-hint">No encontró problemas.</p>}
           {run.sources?.length ? <MessageSources sources={run.sources} /> : null}

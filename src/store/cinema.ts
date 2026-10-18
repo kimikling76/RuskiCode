@@ -34,6 +34,19 @@ export type CinemaJob = {
   failMessage?: string;
   createdAt: number;
   finishedAt?: number;
+  /** What the server uploaded to Kie for each reference (hash measured on the bytes sent). */
+  sent?: SentRef[];
+  /** A picture of a book's characters: who, with which reference files. */
+  book?: JobBook;
+  /** The author's review of the result against the approved looks; never set automatically. */
+  review?: 'consistent' | 'changed';
+};
+
+export type SentRef = {reference: string; url: string; sha256?: string; size?: number; mime?: string};
+export type JobBook = {
+  project: string;
+  name: string;
+  characters: {id: string; name: string; refs: {hash: string; name: string}[]}[];
 };
 
 export type Shot = {id: string; title: string; description: string; prompt: string};
