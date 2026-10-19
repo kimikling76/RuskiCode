@@ -12,6 +12,8 @@
 // - "4K": kie.ai/nano-banana-2 (family product page).
 // - Task states, error codes, creditsConsumed and the 14-day retention: docs.kie.ai/market/common/get-task-detail
 //   and docs.kie.ai (Getting Started).
+// - Reference images: «image_input … up to 10 images» (maxItems 10, up to 30 MB each) in
+//   docs.kie.ai/market/google/nanobanana-2-1, checked 2026-10-19. The studio used 4 before; Kie never set that limit.
 
 export const imageModel = {id: 'nano-banana-2-1', name: 'Nano Banana 2.1', provider: 'Google'} as const;
 
@@ -23,7 +25,7 @@ export const resolutions = ['1K', '2K', '4K'] as const;
 export type Resolution = (typeof resolutions)[number] | (string & {});
 
 export const outputFormat = 'png';
-export const maxReferences = 4;
+export const maxReferences = 10;
 export const maxVariants = 4;
 export const retentionDays = 14;
 

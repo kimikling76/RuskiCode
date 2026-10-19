@@ -23,8 +23,10 @@ import {chatSkills, matchSkills, skillById, skillSummary, splitCommand, type Med
 import {reviewText, writePdf} from '@/lib/skills/run';
 import type {Source} from '@/lib/ai/types';
 import {MessageSources, mergeSources} from './chat-sources';
-import {bookForAssistant, usedOf} from '@/lib/kb/context';
+import {bookForAssistant, bookForProject, usedOf} from '@/lib/kb/context';
 import {BookUsedNote} from '@/components/kb/book-used';
+import {BookChip, BookToggle} from '@/components/kb/book-toggle';
+import type {ChatBook} from '@/lib/personal-chat/state';
 
 const MessageMarkdown = dynamic(() => import('./message-markdown').then(m => m.MessageMarkdown), {
   loading: () => <span className="rc-thinking" aria-hidden="true"><span /><span /><span /></span>,
@@ -88,6 +90,8 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
   const [model, setModel] = useState('auto');
   // Web search before the first message; afterwards it lives in the chat itself.
   const [search, setSearch] = useState(false);
+  // «Contexto del libro» before the first message; afterwards it lives in the chat. Off unless the person turns it on.
+  const [bookPick, setBookPick] = useState<ChatBook | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState('');
   const [conversion, setConversion] = useState(false);
@@ -139,6 +143,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
   const effective = modelFor(selectedModel);
   // Search is asked only from models whose Kie page documents a search tool.
   const searchOn = chat ? Boolean(chat.webSearch) : search;
+  const bookOn: ChatBook | null = chat ? chat.book || null : bookPick;
   const canSearch = Boolean(effective?.webSearch);
   // With an image or video skill, attached images are references for that model, not for the text model.
   const imagesBlocked = !skill && Boolean(effective) && files.ready.some(a => a.kind === 'image') && !effective!.inputs?.includes('image');
@@ -239,6 +244,11 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
     if (chat) patch(chat.id, {model: id}); else setModel(id);
   }
 
+  function changeBook(value: ChatBook | null) {
+    if (chat) patch(chat.id, {book: value || undefined}); else setBookPick(value);
+    textarea.current?.focus();
+  }
+
   function changeSearch(value: boolean) {
     if (chat) patch(chat.id, {webSearch: value}); else setSearch(value);
     textarea.current?.focus();
@@ -289,7 +299,8 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
     const card: PersonalMessage = {id: crypto.randomUUID(), role: 'assistant', content: skillSummary(run), skill: run, status: 'done', createdAt: now};
     const selected = existing ? usePersonal.getState().data.chats.find(c => c.id === chatId)?.model || 'auto' : model;
     nearBottom.current = true;
-    if (!patch(chatId, {messages: [...base, user, card], model: selected, ...(existing ? {} : {webSearch: search})})) return;
+    if (!patch(chatId, {messages: [...base, user, card], model: selected, ...(existing ? {} : {webSearch: search, ...(bookPick ? {book: bookPick} : {})})})) return;
+    if (!existing) setBookPick(null);
     setText(''); files.clear();
     if (id === 'pdf-generator') void writePdf(chatId, card.id, selected);
     if (id === 'revisar-ruso' && run.skill === 'revisar-ruso' && run.state === 'reviewing') void reviewText(chatId, card.id, selected, attached);
@@ -333,8 +344,9 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
     const active = chosen ? (live ? {id: live.id, name: live.name, instructions: live.instructions, mediaCatalog: live.mediaCatalog} : chosen) : undefined;
     nearBottom.current = true;
     lastScrollTop.current = log.current?.scrollTop || 0;
-    if (!patch(id, {messages: [...base, assistant], model: selected, ...(active ? {assistant: active} : {}), ...(existing ? {} : {webSearch: search})})) return;
-    if (!existing) setPendingAssistant(null);
+    if (!patch(id, {messages: [...base, assistant], model: selected, ...(active ? {assistant: active} : {}), ...(existing ? {} : {webSearch: search, ...(bookPick ? {book: bookPick} : {})})})) return;
+    if (!existing) { setPendingAssistant(null); setBookPick(null); }
+    const chatBook = existing ? usePersonal.getState().data.chats.find(c => c.id === id)?.book : bookPick;
 
     const chatId = id;
     sending.current = true; setBusy(true);
@@ -351,9 +363,11 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
     }
 
     try {
-      // A book's data goes only with an assistant the author linked to that book; the neutral Chat sends none.
+      // A book's data goes only when the person turned on «Contexto del libro» in this chat, or with an assistant they
+      // linked to that book. The neutral Chat sends none.
       const lastUser = [...outbound].reverse().find(m => m.role === 'user')?.content || '';
-      const book = active ? await bookForAssistant(active.id, {query: lastUser}).catch(() => null) : null;
+      const book = chatBook ? await bookForProject(chatBook.project, {query: lastUser, cast: true}).catch(() => null)
+        : active ? await bookForAssistant(active.id, {query: lastUser}).catch(() => null) : null;
       if (book) update({book: usedOf(book)});
       const r = await fetch('/api/personal-chat', {
         method: 'POST',
@@ -728,6 +742,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
                 <Tip label="Quitar la skill (el chat vuelve a ser neutro)"><button type="button" className="rc-icon-btn rc-icon-btn--sm" aria-label={'Quitar ' + skillById(skill)!.command} onClick={() => { setSkill(null); textarea.current?.focus(); }}><X /></button></Tip>
               </div>
             ) : null}
+            {bookOn ? <BookChip value={bookOn} onClear={() => changeBook(null)} /> : null}
             <AttachmentTray drafts={files.drafts} onRemove={files.remove} />
             <label className="sr-only" htmlFor="personal-message">Tu mensaje</label>
             <TextareaAutosize
@@ -764,6 +779,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
               <Tip label={searchOn ? 'Búsqueda web activada: el modelo puede consultar páginas y citarlas' : 'Buscar en la web (solo modelos que digan «busca en la web»)'}>
                 <button type="button" className={'rc-icon-btn rc-search-btn' + (searchOn ? ' is-on' : '')} aria-label="Buscar en la web" aria-pressed={searchOn} disabled={!hydrated} onClick={() => changeSearch(!searchOn)}><Globe /></button>
               </Tip>
+              <BookToggle value={bookOn} onChange={changeBook} disabled={!hydrated} />
               <ChatModelPicker models={allModels} value={selectedModel} onChange={chooseModel} disabled={busy || !models.length} />
               <div className="rc-composer-spacer" />
               <label className="rc-ask" htmlFor="ask-first">
@@ -797,6 +813,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
           <dt>Modelo</dt><dd>{modelName(selectedModel)}</dd>
           <dt>Asistente</dt><dd>{chat?.assistant?.name || pendingAssistant?.name || 'Ninguno (chat neutro)'}</dd>
           <dt>Búsqueda web</dt><dd>{searchOn && canSearch ? 'Sí' : 'No'}</dd>
+          <dt>Contexto del libro</dt><dd>{bookOn ? '«' + bookOn.name + '»' : 'No'}</dd>
           {files.ready.length ? <><dt>Adjuntos</dt><dd>{files.ready.length}</dd></> : null}
         </dl>
       </ConfirmDialog>

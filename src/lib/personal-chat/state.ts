@@ -15,7 +15,9 @@ export type ConversionLink={projectId:string;name:string;destination:'pdf'|'cine
 /** The assistant chosen for this conversation, with the instructions last sent (kept even if the assistant is deleted). */
 export type ChatAssistant={id:string;name:string;instructions:string;mediaCatalog?:boolean};
 /** `webSearch`: the person turned on web search for this chat (only models that document it use it). */
-export type PersonalChat={id:string;title:string;model:string;createdAt:string;titleEdited?:boolean;messages:PersonalMessage[];conversions:ConversionLink[];assistant?:ChatAssistant;webSearch?:boolean};
+export type PersonalChat={id:string;title:string;model:string;createdAt:string;titleEdited?:boolean;messages:PersonalMessage[];conversions:ConversionLink[];assistant?:ChatAssistant;webSearch?:boolean;book?:ChatBook};
+/** «Contexto del libro» turned on in this chat: every message (and /pdf-generator, /revisar-ruso) carries that book's data. */
+export type ChatBook={project:string;name:string};
 export type ConversionDraft={name:string;destination:'pdf'|'cinema';projectType:string;mode:'all'|'summary'|'selected';selectedIds:string[];brief:string;summary:string};
 export type StudioProject={id:string;name:string;destination:'pdf'|'cinema';projectType:string;brief:string;sourceChatId:string;sourceMode:string;source:{summary?:string;messages?:PersonalMessage[]};createdAt:string};
 export type PersonalData={version:2;chats:PersonalChat[];projects:StudioProject[];pending:{id:string;chat:PersonalChat;index:number;deadline:number}[];usage:UsageEntry[]};

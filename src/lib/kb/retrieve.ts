@@ -1,5 +1,6 @@
 import {buildIndex, findCharacters, fold, tokens} from './names';
 import {knownText, knownUntil} from './progress';
+import {ageOf} from './characters';
 import {statusName, type EntryOf, type KbEntry, type KbKind, type KbStatus} from './model';
 
 // The part of the knowledge base a request needs, as source material for the model.
@@ -20,6 +21,8 @@ export type BookTask = {
   characters?: string[];
   /** Upper bound of the text sent, in characters. */
   budget?: number;
+  /** Also the whole cast, one line per character, so the model can pick who appears (/pdf-generator, the Chat). */
+  cast?: boolean;
 };
 
 export type BookItem = {id: string; kind: KbKind; title: string; status: KbStatus; source: string; text: string};
@@ -43,6 +46,8 @@ function characterText(c: EntryOf<'character'>, names: Map<string, string>) {
   const d = c.data;
   const lines = [c.body.trim()];
   if (d.role && !c.body.includes(d.role)) lines.push('Manifiesto: ' + d.role);
+  const age = ageOf(c);
+  if (age) lines.push('Edad: ' + age + (d.age ? ' (confirmada por el autor)' : ' (según las fuentes)'));
   lines.push(d.look ? 'Descripción confirmada: ' + d.look : 'Sin descripción de apariencia confirmada por el autor.');
   if (d.relations.length) lines.push('Relaciones: ' + d.relations.map(r => r.label + ' ' + (names.get(r.to) || r.to)).join('; '));
   if (d.distinct.length) lines.push('No confundir con: ' + d.distinct.map(id => names.get(id) || id).join(', '));
@@ -81,6 +86,23 @@ function itemOf(e: KbEntry, names: Map<string, string>): BookItem {
 }
 
 /** The unit and page a request names («unidad 3», «página 15», «pág. 9»), when it names them. */
+/** Every character in one line each: name and aliases, age, who they are, look and picture, so none is invented. */
+function castText(chars: EntryOf<'character'>[], names: Map<string, string>) {
+  const lines = chars.map(c => {
+    const d = c.data;
+    const age = ageOf(c);
+    const picture = d.missing && !d.mainRef ? 'sin imagen verificada' : d.mainRef ? 'imagen aprobada' : 'sin imagen aprobada';
+    return '- ' + (d.nameRu || c.title) + ' [' + label(c.status) + ']'
+      + (d.aliases.length ? ' (también: ' + d.aliases.filter(a => a !== d.nameRu).slice(0, 4).join(', ') + ')' : '')
+      + (age ? ' · ' + age : '')
+      + (d.role ? ' · ' + d.role.replace(/\s+/g, ' ').slice(0, 160) : '')
+      + (d.look ? ' · aspecto confirmado: ' + d.look.slice(0, 240) : '')
+      + (d.distinct.length ? ' · no confundir con ' + d.distinct.map(id => names.get(id) || id).join(', ') : '')
+      + ' · ' + picture;
+  });
+  return 'Personajes del libro, con su nombre como se escribe en el libro. Los personajes con nombre de la historia son estos: no inventes otros ni otra familia. Pueden aparecer personas sin nombre (un vendedor, un médico).\n' + lines.join('\n');
+}
+
 export function placeIn(query: string) {
   const q = fold(query);
   const unit = q.match(/\b(?:unidad|урок|unit)\s*(\d{1,2})\b/)?.[1];
@@ -141,6 +163,7 @@ export function retrieve(entries: KbEntry[], task: BookTask): BookContext {
   }
   // It goes right after the page (or the unit) it is about, before rules and notes.
   const anchor = pageEntry(page) && picked.includes(pageEntry(page)!) ? pageEntry(page) : picked.find(e => e.kind === 'unit');
+  if (task.cast && chars.length) push({id: 'cast', kind: 'character', title: 'Reparto del libro', status: 'observed', source: 'Fichas de los personajes de la base', text: castText(chars, names)});
   for (const e of picked) {
     push(itemOf(e, names));
     if (e === anchor && known) { push(known); known = null; }

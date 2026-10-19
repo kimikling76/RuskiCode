@@ -8,6 +8,7 @@ import {kindName, statusName, type EntryOf, type KbEntry, type KbProject, type K
 import type {EntryChange} from '@/lib/kb/versions';
 import {CharacterRefs} from './character-refs';
 import {BookImageDialog} from './book-image';
+import {ageOf} from '@/lib/kb/characters';
 
 const when = new Intl.DateTimeFormat('es-AR', {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'});
 const lines = (v: string) => v.split('\n').map(x => x.trim()).filter(Boolean);
@@ -181,6 +182,7 @@ function CharacterView({entry, names, link}: {entry: EntryOf<'character'>; names
       <Field label="Nombre ruso">{d.nameRu || '—'}</Field>
       <Field label="Alias de búsqueda">{d.aliases.join(', ') || '—'}</Field>
       {d.role ? <Field label="En el manifiesto">{d.role}</Field> : null}
+      <Field label="Edad">{d.age ? d.age : ageOf(entry) ? <>{ageOf(entry)} <span className="rc-hint">(según las fuentes, sin confirmar)</span></> : <span className="rc-hint">Sin datos.</span>}</Field>
       <Field label="Descripción confirmada">{d.look ? d.look : <span className="rc-hint">Sin descripción confirmada. Los modelos de texto reciben solo lo aprobado.</span>}</Field>
       <Field label="Relaciones">{d.relations.length ? <ul>{d.relations.map((r, i) => <li key={i}>{r.label} {link('char.' + r.to, nameOf(names, r.to))}</li>)}</ul> : 'sin datos'}</Field>
       {d.distinct.length ? <Field label="No confundir con">{d.distinct.map(id => link('char.' + id, nameOf(names, id)))}</Field> : null}
@@ -211,6 +213,7 @@ function EntryForm({entry, names, onCancel, onSave}: {entry: KbEntry; names: Nam
         <>
           <label className="rc-field"><span>Nombre ruso</span><input className="rc-input" maxLength={120} value={data.nameRu} onChange={e => set('nameRu', e.target.value)} /></label>
           <label className="rc-field"><span>Alias de búsqueda (separados por comas)</span><input className="rc-input" value={data.aliases} onChange={e => set('aliases', e.target.value)} /><small className="rc-hint">Un alias que compartan dos personajes se marca como ambiguo y no se le asigna a ninguno.</small></label>
+          <label className="rc-field"><span>Edad</span><input className="rc-input" maxLength={80} value={data.age} onChange={e => set('age', e.target.value)} placeholder={entry.kind === 'character' && ageOf(entry) ? 'Según las fuentes: ' + ageOf(entry) : 'Por ejemplo: 14 años, unos 70 años, bebé'} /><small className="rc-hint">Va en los prompts de imagen para que el modelo respete la edad.</small></label>
           <label className="rc-field"><span>Descripción confirmada (rostro, pelo, cuerpo, edad)</span><textarea className="rc-textarea" rows={3} maxLength={2000} value={data.look} onChange={e => set('look', e.target.value)} /><small className="rc-hint">Es lo que reciben los modelos de texto en lugar de las imágenes. La ropa puede variar por escena.</small></label>
           <label className="rc-field"><span>Relaciones (una por línea: «madre de: id»)</span><textarea className="rc-textarea" rows={3} value={data.relations} onChange={e => set('relations', e.target.value)} /><small className="rc-hint">Ids: {ids.join(', ')}</small></label>
           <label className="rc-field"><span>No confundir con (ids separados por comas)</span><input className="rc-input" value={data.distinct} onChange={e => set('distinct', e.target.value)} /></label>
@@ -247,7 +250,7 @@ function EntryForm({entry, names, onCancel, onSave}: {entry: KbEntry; names: Nam
 
 function formData(e: KbEntry): Record<string, string> {
   if (e.kind === 'character') return {
-    nameRu: e.data.nameRu, aliases: e.data.aliases.join(', '), look: e.data.look || '', distinct: e.data.distinct.join(', '),
+    nameRu: e.data.nameRu, aliases: e.data.aliases.join(', '), look: e.data.look || '', age: e.data.age || '', distinct: e.data.distinct.join(', '),
     relations: e.data.relations.map(r => r.label + ': ' + r.to).join('\n'), missing: e.data.missing ? '1' : '',
   };
   if (e.kind === 'unit') return {
@@ -262,9 +265,9 @@ function formData(e: KbEntry): Record<string, string> {
 /** The data of the entry with the form's values; null when a value cannot be read. */
 function parseForm(e: KbEntry, f: Record<string, string>): unknown {
   if (e.kind === 'character') {
-    const {look: _look, missing: _missing, ...rest} = e.data;
+    const {look: _look, missing: _missing, age: _age, ...rest} = e.data;
     return {
-      ...rest, nameRu: f.nameRu.trim(), aliases: list(f.aliases), distinct: list(f.distinct),
+      ...rest, nameRu: f.nameRu.trim(), aliases: list(f.aliases), distinct: list(f.distinct), ...(f.age.trim() ? {age: f.age.trim()} : {}),
       relations: lines(f.relations).flatMap(l => { const at = l.lastIndexOf(':'); return at > 0 ? [{label: l.slice(0, at).trim(), to: l.slice(at + 1).trim()}] : []; }),
       ...(f.look.trim() ? {look: f.look.trim()} : {}), ...(f.missing ? {missing: true} : {}),
     };

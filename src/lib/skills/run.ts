@@ -3,8 +3,9 @@ import {useSyncExternalStore} from 'react';
 import {usePersonal, type PersonalMessage} from '@/store/personal-chat';
 import {startGeneration} from '@/lib/cinema/client';
 import {textAnswer} from '@/lib/ai/text-request';
-import {bookForUnit, usedOf} from '@/lib/kb/context';
-import {getEntry, listEntries} from '@/lib/kb/store';
+import {bookForProject, bookForUnit, usedOf} from '@/lib/kb/context';
+import {withAge} from '@/lib/kb/characters';
+import {getEntry, getProject, listEntries} from '@/lib/kb/store';
 import {uploadEntryFiles} from '@/lib/kb/files';
 import {castOfBook} from '@/lib/kb/picture';
 import {fetchEditorFonts, type EditorFonts} from '@/lib/manual/fonts';
@@ -102,6 +103,9 @@ export function buildPdf(fonts: EditorFonts, units: Unit[], run: PdfRun) {
   return {...layOut(fonts, unit, components, true), isNew: false, from: unit};
 }
 
+/** The book the person turned on for this chat with «Contexto del libro», if any. */
+const chatProjectOf = (chatId: string) => usePersonal.getState().data.chats.find(c => c.id === chatId)?.book?.project;
+
 function previousRun(chatId: string, messageId: string) {
   const messages = usePersonal.getState().data.chats.find(c => c.id === chatId)?.messages || [];
   const before = messages.slice(0, messages.findIndex(m => m.id === messageId));
@@ -121,16 +125,22 @@ export async function writePdf(chatId: string, messageId: string, model: string)
     if (!run) return;
     const {units, models} = await designUnits();
     if (!models.length) { updateRun<PdfRun>(chatId, messageId, {state: 'error', error: units.length ? 'NO_DESIGN' : 'NO_MANUAL'}); return; }
-    const target: PdfTarget = run.target && models.some(u => u.id === run.target!.unitId) ? run.target : {mode: 'new', unitId: models[0].id};
+    // «Contexto del libro» turned on in this chat brings that book; otherwise a unit linked to a book brings its own.
+    const chatBook = chatProjectOf(chatId);
+    const project = chatBook ? await getProject(chatBook).catch(() => undefined) : undefined;
+    const ownUnit = project ? models.find(u => u.id in project.units) : undefined;
+    const target: PdfTarget = run.target && models.some(u => u.id === run.target!.unitId) ? run.target : {mode: 'new', unitId: (ownUnit || models[0]).id};
     const unit = models.find(u => u.id === target.unitId)!;
     const previous = previousRun(chatId, messageId);
-    // A unit of a book project brings that book's data (canon, progress, rules); any other unit brings none.
-    const book = await bookForUnit(unit.id, {query: run.request}).catch(() => null);
+    const task = {query: run.request, cast: true, ...(project?.units[unit.id] ? {unit: project.units[unit.id]} : {})};
+    const book = await (chatBook ? bookForProject(chatBook, task) : bookForUnit(unit.id, task)).catch(() => null);
     if (book) updateRun<PdfRun>(chatId, messageId, {book: usedOf(book)});
     const answer = await textAnswer('pdf-generator', pdfContext(unit, target, run.request, unitVocabulary(units), previous?.draft), {model, webSearch: run.webSearch, book: book?.payload});
     const draft = parseDraft(answer.text);
     if (!draft) { updateRun<PdfRun>(chatId, messageId, {state: 'error', error: 'INVALID_DRAFT', model: answer.model, credits: answer.credits}); return; }
     const bookCast = book ? castOfBook(draft.characters.map(c => c.name), await listEntries(book.project.id)) : undefined;
+    // A character of the book keeps its age in every picture, whatever the text model wrote.
+    if (bookCast) draft.characters = draft.characters.map(c => bookCast[c.name]?.age ? {...c, look: withAge(c.look, bookCast[c.name].age)} : c);
     // Pictures already made for the same prompt (in this card or the draft it changes) are kept: they are not paid twice.
     const fresh = findMessage(chatId, messageId)?.skill as PdfRun | undefined;
     const pictures = keptPictures(draft, fresh?.pictures, previous?.pictures);
@@ -395,7 +405,9 @@ export async function reviewText(chatId: string, messageId: string, model: strin
     const docTexts = await Promise.all(docs.map(d => fetch('/api/sync/assets?hash=' + d.hash).then(r => r.ok ? r.text() : '').catch(() => '')));
     const auto = autoChecks([...pages, ...docTexts.map(text => ({page: null, text}))]);
     updateRun<ReviewRun>(chatId, messageId, {auto});
-    const book = run.source.kind === 'unit' ? await bookForUnit(run.source.unitId, {query: 'Revisá el ruso, los acentos y la tipografía. ' + note, context: pages.map(p => p.text).join('\n').slice(0, 20000)}).catch(() => null) : null;
+    const reviewTask = {query: 'Revisá el ruso, los acentos y la tipografía. ' + note, context: pages.map(p => p.text).join('\n').slice(0, 20000)};
+    const chatBook = chatProjectOf(chatId);
+    const book = await (chatBook ? bookForProject(chatBook, reviewTask) : run.source.kind === 'unit' ? bookForUnit(run.source.unitId, reviewTask) : Promise.resolve(null)).catch(() => null);
     if (book) updateRun<ReviewRun>(chatId, messageId, {book: usedOf(book)});
     const answer = await textAnswer('russian-review', reviewRequest(pages.filter(p => p.text.trim()), note), {model, attachments: docs, webSearch: run.webSearch, book: book?.payload});
     const result = parseReview(answer.text);

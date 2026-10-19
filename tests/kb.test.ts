@@ -13,6 +13,9 @@ import {bookBlock, bookSchema, withBook, BOOK_NOTE} from '../src/lib/kb/prompt';
 import {personalInput, systemForPersonal, messagesForPersonal} from '../src/lib/personal-chat/input';
 import {PERSONAL_SYSTEM} from '../src/lib/personal-chat/state';
 import {approvedRefs, bookPicturePrompt, castOfBook, defaultPicks, pictureWarnings, plannedRefs} from '../src/lib/kb/picture';
+import {ageIn, ageInEnglish, ageOf, withAge} from '../src/lib/kb/characters';
+import {BOOK_PDF_NOTE} from '../src/lib/kb/prompt';
+import {imageModels} from '../src/lib/ai/models';
 import type {EntryOf, KbRef} from '../src/lib/kb/model';
 
 // Knowledge base of a book project. Every fixture here is invented: the real book's content lives only in the
@@ -386,4 +389,54 @@ test('a /pdf-generator draft uses the library picture for book characters and in
   assert.equal(cast['Света'].hash, ref(1).hash);
   assert.equal(cast['Галина'].hash, undefined, 'a book character without an approved picture gets no portrait');
   assert.equal(cast['мама'], undefined, 'not a character of the book');
+});
+
+// ---------- The book in the Chat and in /pdf-generator: who appears, at what age ----------
+
+test('ages come from the sources until the author confirms one, and go into image prompts in English', () => {
+  assert.equal(ageIn('12 años; hijo de Борис y Света.'), '12 años');
+  assert.equal(ageIn('una mujer de unos 70 años, ni gorda'), 'unos 70 años');
+  assert.equal(ageIn('bebé, de aproximadamente un año, hijo de'), 'aproximadamente un año');
+  assert.equal(ageIn('Hermana de Света.'), undefined);
+  assert.equal(ageInEnglish('unos 70 años'), 'about 70 years old');
+  assert.equal(ageInEnglish('bebé'), 'a baby');
+  assert.equal(withAge('a 12-year-old boy with short dark hair', '14 años'), '14 years old; a boy with short dark hair', 'a wrong age is replaced');
+  assert.equal(withAge('a 14-year-old boy', '14 años'), 'a 14-year-old boy', 'the right age is left as written');
+  assert.equal(withAge('a woman of about 40, curly hair', 'unos 70 años'), 'About 70 years old; a woman, curly hair');
+  assert.equal(withAge('a woman with curly hair', undefined), 'a woman with curly hair');
+  const {byId} = plan([manifest, context]);
+  const kolya = byId.get('char.kolya')!;
+  assert.ok(kolya.kind === 'character' && kolya.data.age === undefined && ageOf(kolya) === '12 años', 'a file\'s age is read from the sources, never stored as confirmed');
+  const galya = byId.get('char.aunt-galya')!;
+  assert.ok(galya.kind === 'character' && ageOf(galya) === 'unos 70 años');
+  const confirmed = {...kolya, data: {...kolya.data, age: '13 años'}} as EntryOf<'character'>;
+  assert.equal(ageOf(confirmed), '13 años', 'the author\'s age wins');
+});
+
+test('with the whole cast, the model can pick the book\'s characters; /pdf-generator is told to use them with their ages', () => {
+  const ctx = retrieve(base(), {query: 'Una página sobre la familia en la cocina', cast: true});
+  const cast = ctx.items.find(i => i.id === 'cast')!;
+  assert.ok(cast, 'the cast goes even when nobody is named');
+  assert.match(cast.text, /- Коля \[observado en un archivo\].* · 12 años/);
+  assert.match(cast.text, /- Тётя Галя .*unos 70 años/);
+  assert.match(cast.text, /- Ксюша .*sin imagen verificada/);
+  assert.match(cast.text, /no inventes otros ni otra familia/);
+  assert.ok(!retrieve(base(), {query: 'Una página'}).items.some(i => i.id === 'cast'), 'only when asked for');
+  const sveta = retrieve(base(), {query: 'Коля'}).items.find(i => i.id === 'char.kolya')!;
+  assert.match(sveta.text, /Edad: 12 años \(según las fuentes\)/);
+  const payload = bookSchema.parse({project: 'Libro de prueba', items: ctx.items});
+  const pdf = personalInput.parse({requestId: crypto.randomUUID(), model: 'auto', purpose: 'pdf-generator', messages: [{role: 'user', content: 'x'}], book: payload});
+  assert.ok(systemForPersonal(pdf).includes(BOOK_PDF_NOTE));
+  assert.match(BOOK_PDF_NOTE, /first the age/);
+  const chat = personalInput.parse({requestId: crypto.randomUUID(), model: 'auto', purpose: 'chat', messages: [{role: 'user', content: 'x'}], book: payload});
+  assert.ok(!systemForPersonal(chat).includes(BOOK_PDF_NOTE));
+  const ages = castOfBook(['Коля', 'Тётя Галя'], base());
+  assert.equal(ages['Коля'].age, '12 años');
+  assert.equal(ages['Тётя Галя'].age, 'unos 70 años');
+});
+
+test('Nano Banana 2.1 takes up to 10 reference images, as its documentation says', () => {
+  const nano = imageModels.find(m => m.id === 'nano-banana-2-1')!;
+  assert.equal(nano.options.maxReferences, 10);
+  assert.equal(nano.options.fields.images, 'image_input');
 });

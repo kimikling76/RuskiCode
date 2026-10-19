@@ -378,7 +378,9 @@ function PdfPictures({chatId, id, run, refs}: {chatId: string; id: string; run: 
                     {lib.hash ? <img src={'/api/sync/assets?hash=' + lib.hash} alt={'Imagen aprobada de ' + lib.title} loading="lazy" /> : <span className="rc-skill-picture-state">Sin imagen aprobada</span>}
                   </div>
                   <strong lang="ru">{c.name}</strong>
-                  <span className="rc-hint">{lib.hash ? 'Del libro: ' + (lib.file || lib.title) + ' (aprobada)' : 'Personaje del libro sin imagen aprobada: no se le inventa un retrato; sale de su descripción.'}</span>
+                  <span className="rc-hint">{lib.hash ? 'Del libro: ' + (lib.file || lib.title) + ' (aprobada)' : 'Personaje del libro sin imagen aprobada: no se le inventa un retrato; sale de su descripción.'}{lib.age ? ' · ' + lib.age : ''}</span>
+                  <TextareaAutosize className="rc-textarea" minRows={2} maxRows={6} maxLength={600} defaultValue={c.look} aria-label={'Cómo es ' + c.name}
+                    onBlur={e => { const v = e.target.value.trim(); if (v && v !== c.look) updateRun<PdfRun>(chatId, id, {draft: withCharacterLook(run, c.name, v)}); }} />
                 </li>
               );
               return (

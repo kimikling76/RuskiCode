@@ -66,6 +66,8 @@ export const characterDataSchema = z.object({
   /** Characters easy to confuse with this one; kept apart in prompts. */
   distinct: z.array(short(60)).max(20),
   role: short(500).optional(),
+  /** Age as the author confirms it («14 años», «unos 70 años», «bebé»). Without it, the one the sources give is used. */
+  age: short(80).optional(),
   /** Confirmed appearance: face, hair, build, age. What text models receive instead of pictures. */
   look: short(2000).optional(),
   relations: z.array(relationSchema).max(40),
