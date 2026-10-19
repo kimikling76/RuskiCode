@@ -79,19 +79,21 @@ export function pictureWarnings(chars: EntryOf<'character'>[], sent: PlannedRef[
 
 /**
  * The characters of a /pdf-generator draft that are the book's, by the name the draft uses, each with its approved
- * main picture when there is one. A name that is not the book's, or that could be more than one, is left out.
+ * main picture, its age and its confirmed look when there are. A name that is not the book's, or that could be more
+ * than one, is left out.
  */
 export function castOfBook(names: string[], entries: KbEntry[]) {
   const chars = entries.filter((e): e is EntryOf<'character'> => e.kind === 'character' && e.status !== 'superseded');
   const index = buildIndex(chars.map(c => ({id: c.id, nameRu: c.data.nameRu || c.title, aliases: c.data.aliases})));
-  const out: Record<string, {id: string; title: string; hash?: string; file?: string; age?: string}> = {};
+  const out: Record<string, {id: string; title: string; hash?: string; file?: string; age?: string; look?: string}> = {};
   for (const name of names) {
     const found = findCharacters(name, index);
     if (found.ids.length !== 1 || found.ambiguous.length) continue;
     const c = chars.find(x => x.id === found.ids[0])!;
     const main = approvedRefs(c).find(r => r.hash === c.data.mainRef && !r.chunks);
     const age = ageOf(c);
-    out[name] = {id: c.id, title: c.title, ...(main ? {hash: main.hash, file: main.name} : {}), ...(age ? {age} : {})};
+    const look = c.data.look?.trim();
+    out[name] = {id: c.id, title: c.title, ...(main ? {hash: main.hash, file: main.name} : {}), ...(age ? {age} : {}), ...(look ? {look} : {})};
   }
   return out;
 }

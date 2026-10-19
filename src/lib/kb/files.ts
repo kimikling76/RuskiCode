@@ -1,6 +1,6 @@
 'use client';
 import {getAsset, putAsset, MAX_ASSET} from '@/lib/manual/store';
-import type {KbEntry, KbRef} from './model';
+import type {KbEntry, KbRef, PackageFile} from './model';
 
 // Pictures and sheets of the characters, stored unchanged by their content hash in this browser and in the account
 // (/api/sync/assets, the same store as the manual's files). A file over the size of one stored file is kept in parts,
@@ -72,4 +72,63 @@ export async function uploadEntryFiles(entry: KbEntry) {
       if (got !== hash) throw Error('ASSET_MISMATCH');
     }
   }
+}
+
+// ---------- Files inside an export ----------
+
+function toBase64(bytes: Uint8Array) {
+  let text = '';
+  for (let at = 0; at < bytes.byteLength; at += 0x8000) text += String.fromCharCode(...bytes.subarray(at, at + 0x8000));
+  return btoa(text);
+}
+
+function fromBase64(data: string) {
+  const text = atob(data);
+  const bytes = new Uint8Array(text.length);
+  for (let i = 0; i < text.length; i++) bytes[i] = text.charCodeAt(i);
+  return bytes;
+}
+
+export type Unpacked = {bytes: Uint8Array; chunks?: string[]};
+
+/** The files an export carries, each checked against its hash, with the parts a large one is kept in. */
+export async function unpackFiles(files: PackageFile[]) {
+  const ok = new Map<string, Unpacked>();
+  const bad: string[] = [];
+  for (const f of files) {
+    if (ok.has(f.hash)) continue;
+    let bytes: Uint8Array;
+    try { bytes = fromBase64(f.data); } catch { bad.push(f.name); continue; }
+    if (bytes.byteLength > MAX_REF_FILE || await sha256(bytes) !== f.hash) { bad.push(f.name); continue; }
+    if (bytes.byteLength <= MAX_ASSET) { ok.set(f.hash, {bytes}); continue; }
+    const chunks: string[] = [];
+    for (let at = 0; at < bytes.byteLength; at += CHUNK) chunks.push(await sha256(bytes.slice(at, at + CHUNK)));
+    ok.set(f.hash, {bytes, chunks});
+  }
+  return {ok, bad};
+}
+
+/** Keeps the files of an export in this browser; the account gets them when their entries sync. */
+export async function storeUnpacked(files: Iterable<Unpacked>) {
+  for (const f of files) {
+    if (!f.chunks) { await putAsset(f.bytes); continue; }
+    for (let at = 0; at < f.bytes.byteLength; at += CHUNK) await putAsset(f.bytes.slice(at, at + CHUNK));
+  }
+}
+
+/** The files of the characters' references, for an export that carries its pictures; `missing` names the ones not found. */
+export async function packFiles(entries: KbEntry[]) {
+  const files: PackageFile[] = [];
+  const missing: string[] = [];
+  const seen = new Set<string>();
+  for (const e of entries) {
+    if (e.kind !== 'character') continue;
+    for (const r of e.data.refs) {
+      if (seen.has(r.hash)) continue;
+      seen.add(r.hash);
+      const bytes = await refBytes(r);
+      if (bytes) files.push({hash: r.hash, mime: r.mime, name: r.name, data: toBase64(bytes)}); else missing.push(r.name);
+    }
+  }
+  return {files, missing};
 }

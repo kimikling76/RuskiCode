@@ -8,6 +8,7 @@ import {Dialog} from '@/components/ui/dialog';
 import {addEntry, createProject} from '@/lib/kb/store';
 import {emptyData, KB_FORMAT, kbKinds, kbStatuses, kindName, statusName, type KbEntry, type KbKind, type KbProject, type KbStatus} from '@/lib/kb/model';
 import {slug} from '@/lib/kb/import';
+import {packFiles} from '@/lib/kb/files';
 import {defaultAliases, fold} from '@/lib/kb/names';
 import {useKbEntries, useKbProjects} from './use-kb';
 import {ImportButton} from './import-dialog';
@@ -57,13 +58,16 @@ export function BookKnowledgePage() {
   const pendingDecisions = (entries || []).filter(e => e.kind === 'decision' && e.status === 'pending').length;
   const noApprovedPicture = (entries || []).filter(e => e.kind === 'character' && !e.data.missing && !e.data.mainRef).length;
 
-  function exportBase() {
+  async function exportBase() {
     if (!project || !entries) return;
-    const body = {format: KB_FORMAT, project: project.name, exported: new Date().toISOString().slice(0, 10), entries: entries.map(e => ({id: e.id, kind: e.kind, title: e.title, body: e.body, status: e.status, data: e.data, sources: e.sources, tags: e.tags}))};
+    // With the characters' pictures inside, so importing it in another browser or account brings them too.
+    const {files, missing} = await packFiles(entries);
+    const body = {format: KB_FORMAT, project: project.name, exported: new Date().toISOString().slice(0, 10), entries: entries.map(e => ({id: e.id, kind: e.kind, title: e.title, body: e.body, status: e.status, data: e.data, sources: e.sources, tags: e.tags})), ...(files.length ? {files} : {})};
     const url = URL.createObjectURL(new Blob([JSON.stringify(body, null, 1)], {type: 'application/json'}));
     const a = document.createElement('a');
     a.href = url; a.download = 'contexto-' + slug(project.name) + '.json'; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
+    if (missing.length) toast('Se exportó sin estas imágenes, que no están en este navegador ni en tu cuenta: ' + missing.join(', ') + '.', {duration: 10000});
   }
 
   return (
@@ -93,7 +97,7 @@ export function BookKnowledgePage() {
                   ) : <strong className="rc-kb-project-name">{project.name}</strong>}
                   <ImportButton project={project} />
                   <button type="button" className="rc-btn rc-btn--ghost" onClick={() => setAdding(true)}><Plus aria-hidden="true" />Agregar dato</button>
-                  <button type="button" className="rc-btn rc-btn--ghost" disabled={!entries?.length} onClick={exportBase}><Download aria-hidden="true" />Exportar</button>
+                  <button type="button" className="rc-btn rc-btn--ghost" disabled={!entries?.length} onClick={() => void exportBase().catch(() => toast('No se pudo exportar la base.'))}><Download aria-hidden="true" />Exportar</button>
                 </div>
 
                 <p className="rc-kb-counts">

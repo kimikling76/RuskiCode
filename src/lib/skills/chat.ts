@@ -83,7 +83,7 @@ export type PdfRun = {
   bookProject?: {id: string; name: string};
 };
 /** A character of the draft found in the book's library. Without `hash`, no approved picture: no portrait is invented. */
-export type BookCastMember = {id: string; title: string; hash?: string; file?: string; age?: string};
+export type BookCastMember = {id: string; title: string; hash?: string; file?: string; age?: string; look?: string};
 export type PictureState = {prompt: string; image?: ImageData; job?: string};
 export type ReviewRun = {
   skill: 'revisar-ruso'; state: 'choose' | 'reviewing' | 'ready' | 'error';

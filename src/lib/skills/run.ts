@@ -4,7 +4,7 @@ import {usePersonal, type PersonalMessage} from '@/store/personal-chat';
 import {startGeneration} from '@/lib/cinema/client';
 import {textAnswer} from '@/lib/ai/text-request';
 import {bookForProject, bookForUnit, usedOf} from '@/lib/kb/context';
-import {withAge} from '@/lib/kb/characters';
+import {bookLook} from '@/lib/kb/characters';
 import {getEntry, getProject, listEntries} from '@/lib/kb/store';
 import {uploadEntryFiles} from '@/lib/kb/files';
 import {castOfBook} from '@/lib/kb/picture';
@@ -139,8 +139,8 @@ export async function writePdf(chatId: string, messageId: string, model: string)
     const draft = parseDraft(answer.text);
     if (!draft) { updateRun<PdfRun>(chatId, messageId, {state: 'error', error: 'INVALID_DRAFT', model: answer.model, credits: answer.credits}); return; }
     const bookCast = book ? castOfBook(draft.characters.map(c => c.name), await listEntries(book.project.id)) : undefined;
-    // A character of the book keeps its age in every picture, whatever the text model wrote.
-    if (bookCast) draft.characters = draft.characters.map(c => bookCast[c.name]?.age ? {...c, look: withAge(c.look, bookCast[c.name].age)} : c);
+    // A character of the book keeps its confirmed look and its age in every picture, whatever the text model wrote.
+    if (bookCast) draft.characters = draft.characters.map(c => bookCast[c.name] ? {...c, look: bookLook(c.look, bookCast[c.name])} : c);
     // Pictures already made for the same prompt (in this card or the draft it changes) are kept: they are not paid twice.
     const fresh = findMessage(chatId, messageId)?.skill as PdfRun | undefined;
     const pictures = keptPictures(draft, fresh?.pictures, previous?.pictures);

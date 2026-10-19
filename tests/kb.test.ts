@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {fold, nameForms, defaultAliases, buildIndex, findCharacters, transliterate} from '../src/lib/kb/names';
-import {planImport, applyPlan, detect, spanishDate, slug, type ImportFile} from '../src/lib/kb/import';
+import {planImport, applyPlan, detect, refsWithFiles, spanishDate, slug, type ImportFile} from '../src/lib/kb/import';
 import {changeEntry, restoreEntry, mergeEntries, mergeProjects, setStatus} from '../src/lib/kb/versions';
 import {knownUntil, knownText} from '../src/lib/kb/progress';
-import {entrySchema, projectSchema, KB_FORMAT, type KbEntry, type KbProject} from '../src/lib/kb/model';
+import {entrySchema, exportSchema, projectSchema, KB_FORMAT, type KbEntry, type KbProject} from '../src/lib/kb/model';
 import crypto from 'node:crypto';
 import {syncKinds, firstKinds} from '../src/lib/sync/kinds';
 import {changeSchema} from '../src/lib/sync/server';
@@ -13,7 +13,7 @@ import {bookBlock, bookSchema, withBook, BOOK_NOTE} from '../src/lib/kb/prompt';
 import {personalInput, systemForPersonal, messagesForPersonal} from '../src/lib/personal-chat/input';
 import {PERSONAL_SYSTEM} from '../src/lib/personal-chat/state';
 import {approvedRefs, bookPicturePrompt, castOfBook, defaultPicks, pictureWarnings, plannedRefs} from '../src/lib/kb/picture';
-import {ageIn, ageInEnglish, ageOf, withAge} from '../src/lib/kb/characters';
+import {ageIn, ageInEnglish, ageOf, bookLook, withAge} from '../src/lib/kb/characters';
 import {BOOK_PDF_NOTE} from '../src/lib/kb/prompt';
 import {imageModels} from '../src/lib/ai/models';
 import type {EntryOf, KbRef} from '../src/lib/kb/model';
@@ -439,4 +439,37 @@ test('Nano Banana 2.1 takes up to 10 reference images, as its documentation says
   const nano = imageModels.find(m => m.id === 'nano-banana-2-1')!;
   assert.equal(nano.options.maxReferences, 10);
   assert.equal(nano.options.fields.images, 'image_input');
+});
+
+test('an export brings its pictures as they were; a picture whose file nobody has is left out, and its main with it', () => {
+  const pic = ref(7, 'approved', {verified: 'unlisted'});
+  const big = ref(9, 'approved', {chunks: ['b'.repeat(64)]});
+  const gone = ref(8);
+  const character = (id: string, title: string, refs: KbRef[], more = {}) => ({id, kind: 'character', title, status: 'observed', data: {nameRu: title, aliases: [title], distinct: [], relations: [], refs, mainRef: refs[0].hash, ...more}});
+  const file: ImportFile = {name: 'contexto.json', text: JSON.stringify({format: KB_FORMAT, entries: [
+    character('char.kolya', 'Коля', [pic, big], {age: '12 años', look: 'About 12 years old; short dark hair.'}),
+    character('char.lena', 'Лена', [gone]),
+  ], files: [{hash: pic.hash, mime: 'image/png', name: pic.name, data: 'AAAA'}]})};
+  assert.equal(detect(file), 'export');
+  const p = planImport([file], []);
+  assert.equal(p.assets.length, 1);
+  // Here the large file is kept in two parts: the reference says so, whatever the export said.
+  const {patches, left} = refsWithFiles(p.patches, new Map([[pic.hash, {}], [big.hash, {chunks: ['c'.repeat(64), 'd'.repeat(64)]}]]));
+  assert.deepEqual(left, [gone.name]);
+  const r = applyPlan('p1', new Map(), patches, 1000);
+  const kolya = r.entries.find(e => e.id === 'char.kolya') as EntryOf<'character'>;
+  const lena = r.entries.find(e => e.id === 'char.lena') as EntryOf<'character'>;
+  assert.equal(kolya.status, 'observed');
+  assert.equal(kolya.data.refs[0].review, 'approved');
+  assert.equal(kolya.data.mainRef, pic.hash);
+  assert.deepEqual(kolya.data.refs[1].chunks, ['c'.repeat(64), 'd'.repeat(64)]);
+  assert.equal(kolya.data.age, '12 años');
+  assert.deepEqual(lena.data.refs, []);
+  assert.equal(lena.data.mainRef, undefined);
+  const member = castOfBook(['Коля'], r.entries)['Коля'];
+  assert.equal(member.hash, pic.hash);
+  // In a /pdf-generator draft, the book's look replaces what the text model wrote; without one, only the age is fixed.
+  assert.equal(bookLook('a boy of 9 with long blond hair', member), 'About 12 years old; short dark hair.');
+  assert.equal(bookLook('a boy of 9 with long blond hair', {age: '12 años'}), '12 years old; a boy with long blond hair');
+  assert.ok(!exportSchema.safeParse({format: KB_FORMAT, entries: [], files: [{hash: 'x', mime: 'image/png', name: 'a', data: ''}]}).success, 'a file without its hash is refused');
 });
