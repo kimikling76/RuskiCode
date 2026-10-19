@@ -31,6 +31,14 @@ Una unidad pertenece a un solo libro.
 ## 2. Cómo empezar
 
 1. **Creá el proyecto** (viene con el nombre «Русский код»).
+
+   **La forma rápida, con un solo archivo:** «Importar archivos» también acepta un paquete `.json` de hasta 64 MB que trae todos los datos **y las imágenes de los personajes** (el mismo formato que baja «Exportar»).
+   - La vista previa dice cuántos datos y cuántas imágenes entran, y avisa que es una base exportada: **trae los estados que tenía**, así que lo que venía aprobado entra aprobado (por ejemplo, la imagen principal de cada personaje).
+   - Cada imagen se comprueba con su huella (sha256) antes de guardarla. Una que no coincide, o que el archivo nombra pero no trae, no se agrega.
+   - Las imágenes se guardan en este navegador y se suben a la cuenta con los datos, así que aparecen en las otras computadoras.
+   - Importalo solo si lo exportaste vos o sabés de dónde viene.
+
+   Si no tenés el paquete, seguí con los pasos 2 a 4.
 2. **«Importar archivos»:** elegí juntos los archivos de texto del paquete:
    - `CONTEXTO_DEL_LIBRO.md`, `personajes.json`, `fuentes-documentales.json`;
    - `REGLAS_EDITORIALES_RECUPERADAS.md`, `FUENTES_Y_LIMITES.md`;
@@ -54,6 +62,8 @@ Una unidad pertenece a un solo libro.
    - Marcá «Editor del libro de ruso», u otro asistente, para que traiga el contexto.
 
 ## 3. Cómo se guarda cada dato
+
+**«Exportar»** baja la base completa en un `.json`, con las imágenes de los personajes adentro. Sirve de copia de seguridad y para llevar el libro a otra cuenta: se importa con «Importar archivos». Si alguna imagen no está en este navegador ni en la cuenta, se exporta sin ella y se avisa cuál.
 
 - **Estados:**
   - **aprobado:** canon;
@@ -175,6 +185,7 @@ Se abren desde un personaje («Ilustración con este personaje…») o desde la 
 **`/pdf-generator` con el libro** (el botón «Contexto del libro» activado o una unidad del libro):
 - El modelo de texto recibe el reparto y la orden de usar **los personajes del libro con su nombre ruso**, sin inventar otra familia.
 - La descripción de cada personaje empieza por **su edad**, en inglés para el modelo de imagen («14 years old», «about 70 years old»). Si el modelo de texto puso otra edad, el estudio la corrige con la del libro.
+- Si el personaje tiene **descripción confirmada** en la base, esa reemplaza la que escribió el modelo de texto (que a veces inventa otro pelo o otra ropa). Así el texto del prompt y la imagen de referencia dicen lo mismo. En la tarjeta se puede cambiar antes de generar.
 - Los personajes del libro van con su **imagen aprobada** de la biblioteca como referencia, en vez de un retrato nuevo. La tarjeta lo muestra: «Del libro: dima.png (aprobada) · 14 años».
 - Los que no tienen imagen aprobada no reciben un rostro inventado. Los que no son del libro (una vendedora, un médico) siguen con su retrato.
 - La confirmación dice qué imágenes del libro van, y la tarea guarda qué personajes y qué archivos se usaron.
@@ -222,13 +233,13 @@ Los modelos de texto nunca reciben las imágenes de la biblioteca: **reciben sol
 ## 9. Qué se probó y cómo
 
 - **Pruebas automáticas:**
-  - 166 en total, todas bien;
-  - 20 del libro, con **datos inventados**: el repositorio es público y no contiene nada del libro;
+  - 167 en total, todas bien;
+  - 21 del libro, con **datos inventados**: el repositorio es público y no contiene nada del libro;
   - más typecheck y build.
 - **Recorridos en el navegador** con tus archivos, en una copia local:
   - base de datos local y dos navegadores como dos computadoras;
   - **Kie simulado**: no se gastó ningún crédito;
-  - 21 de 21 controles en las etapas 1 y 2, 27 de 27 en las etapas 3 y 4, y 18 de 18 en el botón del Chat y `/pdf-generator` con los personajes del libro;
+  - 21 de 21 controles en las etapas 1 y 2, 27 de 27 en las etapas 3 y 4, 18 de 18 en el botón del Chat y `/pdf-generator` con los personajes del libro, y 23 de 23 con el paquete de un solo archivo (145 datos y 21 imágenes: importar, ver las fichas, otra computadora, `/pdf-generator` con las fichas y exportar de nuevo);
   - accesibilidad (axe) sin problemas.
 - **No probado con Kie real:**
   - la calidad de las respuestas del modelo con el contexto;

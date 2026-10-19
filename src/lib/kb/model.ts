@@ -216,11 +216,21 @@ export const exportEntrySchema = z.object({
   tags: z.array(short(60)).max(30).default([]),
 }).strict();
 export type ExportEntry = z.infer<typeof exportEntrySchema>;
+/** A picture or sheet of a character carried in the export, in base64, so another browser or account gets it too. */
+export const packageFileSchema = z.object({
+  hash: sha,
+  mime: refSchema.shape.mime,
+  name: short(300),
+  data: z.string().max(22_000_000),
+}).strict();
+export type PackageFile = z.infer<typeof packageFileSchema>;
 export const exportSchema = z.object({
   format: z.literal(KB_FORMAT),
   project: short(200).optional(),
   exported: short(40).optional(),
   entries: z.array(exportEntrySchema).max(5000),
+  /** The files of the characters' references, by hash. Without them, only this browser and account have the pictures. */
+  files: z.array(packageFileSchema).max(400).optional(),
 }).strict();
 
 /** Empty data for a kind, so an entry can be created before its fields are known. */

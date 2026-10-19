@@ -1,8 +1,9 @@
 'use client';
 import {localStore} from '@/lib/books/local-store';
 import {libraryEvents} from '@/lib/books/library';
-import {entrySchema, projectSchema, type KbEntry, type KbProject} from './model';
-import {applyPlan, planImport, type ImportFile, type ImportReport} from './import';
+import {entrySchema, projectSchema, type KbEntry, type KbProject, type KbRef} from './model';
+import {applyPlan, planImport, refsWithFiles, type ImportFile, type ImportReport} from './import';
+import {refBytes, storeUnpacked, unpackFiles} from './files';
 import {changeEntry, restoreEntry, type EntryChange} from './versions';
 
 // Book projects and their knowledge base in this browser (IndexedDB), synced to the account as one record per
@@ -102,20 +103,36 @@ export async function removeSyncedEntry(key: string) {
 
 // ---------- Importing files ----------
 
+/** Pictures of an import: the ones its files bring, the ones named but missing, and the ones that are not what they say. */
+export type ImportPictures = {added: number; approved: number; left: string[]; bad: string[]};
+
 /** What importing these files would do, without saving anything. */
 export async function previewImport(project: KbProject, files: ImportFile[]) {
   const existing = await listEntries(project.id);
   const known = existing.flatMap(e => e.kind === 'character' ? [{id: e.id.replace(/^char\./, ''), nameRu: e.data.nameRu || e.title, aliases: e.data.aliases}] : []);
   const unitPages = new Map(existing.flatMap(e => e.kind === 'unit' && e.data.pages ? [[e.data.number, e.data.pages] as [number, [number, number]]] : []));
   const plan = planImport(files, known, unitPages);
-  const {entries, report} = applyPlan(project.id, new Map(existing.map(e => [e.id, e])), plan.patches, Date.now());
-  return {plan, entries, report};
+  // An export's pictures: the files it carries, or the ones this browser or the account already has.
+  const {ok, bad} = await unpackFiles(plan.assets);
+  const stored = new Map<string, {chunks?: string[]}>([...ok].map(([hash, f]) => [hash, f.chunks ? {chunks: f.chunks} : {}]));
+  for (const p of plan.patches) if (p.kind === 'character' && Array.isArray(p.set?.refs)) for (const r of p.set.refs as KbRef[]) {
+    if (typeof r?.hash !== 'string' || stored.has(r.hash)) continue;
+    const ref = {hash: r.hash, chunks: Array.isArray(r.chunks) ? r.chunks : undefined};
+    if (await refBytes(ref).catch(() => null)) stored.set(r.hash, ref.chunks ? {chunks: ref.chunks} : {});
+  }
+  const {patches, left} = refsWithFiles(plan.patches, stored);
+  const {entries, report} = applyPlan(project.id, new Map(existing.map(e => [e.id, e])), patches, Date.now());
+  const brought = new Map(entries.flatMap(e => e.kind === 'character' ? e.data.refs.filter(r => ok.has(r.hash)).map(r => [r.hash, r] as const) : []));
+  const pictures: ImportPictures = {added: brought.size, approved: [...brought.values()].filter(r => r.review === 'approved').length, left, bad};
+  return {plan, entries, report, pictures, files: [...brought.keys()].map(h => ok.get(h)!)};
 }
 
-export async function commitImport(project: KbProject, files: ImportFile[]): Promise<{report: ImportReport; saved: number}> {
-  const {plan, entries, report} = await previewImport(project, files);
+export async function commitImport(project: KbProject, files: ImportFile[]): Promise<{report: ImportReport; saved: number; pictures: ImportPictures}> {
+  const {plan, entries, report, pictures, files: pictureFiles} = await previewImport(project, files);
+  // The files first: an entry is never saved pointing to a picture this browser does not have.
+  await storeUnpacked(pictureFiles);
   await writeEntries(entries);
   const at = Date.now();
   await saveProject({...project, imports: [...project.imports, ...plan.files.map(f => ({file: f.name.slice(0, 300), at, entries: f.patches}))].slice(-200)});
-  return {report, saved: entries.length};
+  return {report, saved: entries.length, pictures};
 }

@@ -2,7 +2,7 @@ import {canonical} from '@/lib/sync/canonical';
 import {buildIndex, defaultAliases, findCharacters, fold, transliterate, words, type NamedCharacter} from './names';
 import {
   contentOf, dataSchemas, emptyData, entrySchema, exportSchema, KB_FORMAT, kbKinds, snapshotOf, trimHistory,
-  type KbEntry, type KbKind, type KbSource, type KbStatus,
+  type KbEntry, type KbKind, type KbRef, type KbSource, type KbStatus, type PackageFile,
 } from './model';
 
 // Turning the author's files into entries of the knowledge base.
@@ -40,7 +40,8 @@ export const fileKindName: Record<FileKind, string> = {
   context: 'Contexto del libro', rules: 'Reglas editoriales', manifest: 'Manifiesto de personajes', sources: 'Fuentes documentales',
   'unit-text': 'Texto de una unidad', export: 'Base exportada o decisiones', note: 'Documento de referencia', unknown: 'No reconocido',
 };
-export type ImportPlan = {patches: Patch[]; files: {name: string; kind: FileKind; patches: number}[]; warnings: string[]};
+/** `assets`: the pictures an export carries, still in base64 and not checked against their hash. */
+export type ImportPlan = {patches: Patch[]; files: {name: string; kind: FileKind; patches: number}[]; warnings: string[]; assets: PackageFile[]};
 
 // ---------- Small helpers ----------
 
@@ -339,11 +340,12 @@ function readUnitText(file: ImportFile, ctx: Context): {patches: Patch[]; warnin
 }
 
 /** An export of a base (or decisions prepared in the same format): entries as they are, with their status. */
-function readExport(file: ImportFile, value: unknown): {patches: Patch[]; warnings: string[]} {
+function readExport(file: ImportFile, value: unknown): {patches: Patch[]; warnings: string[]; assets: PackageFile[]} {
   const parsed = exportSchema.safeParse(value);
-  if (!parsed.success) return {patches: [], warnings: ['«' + file.name + '» no tiene el formato ' + KB_FORMAT + '.']};
+  if (!parsed.success) return {patches: [], warnings: ['«' + file.name + '» no tiene el formato ' + KB_FORMAT + '.'], assets: []};
   return {
     warnings: [],
+    assets: parsed.data.files || [],
     patches: parsed.data.entries.map(e => ({
       id: e.id, kind: e.kind, title: e.title, body: e.body, status: e.status, setStatus: true,
       set: e.data && typeof e.data === 'object' ? e.data as Record<string, unknown> : {},
@@ -377,7 +379,7 @@ export function planImport(files: ImportFile[], known: NamedCharacter[], unitPag
   const order: FileKind[] = ['sources', 'manifest', 'export', 'context', 'rules', 'unit-text', 'note', 'unknown'];
   kinds.sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
   const ctx: Context = {characters: [...known], index: buildIndex(known), dates: new Map(), unitPages: new Map(unitPages)};
-  const plan: ImportPlan = {patches: [], files: [], warnings: []};
+  const plan: ImportPlan = {patches: [], files: [], warnings: [], assets: []};
   const learn = (patches: Patch[]) => {
     for (const p of patches) if (p.kind === 'character' && p.title) {
       const id = p.id.slice(5);
@@ -397,7 +399,7 @@ export function planImport(files: ImportFile[], known: NamedCharacter[], unitPag
       if (list.length) patches.push({id: 'note.' + slug(file.name.replace(/\.json$/i, '')), kind: 'note', title: 'Archivos de unidades consultados', body: list.join('\n'), status: 'observed', sources: [{kind: 'file', label: file.name, file: file.name}], note: 'Importado de ' + file.name});
     } else if (kind === 'export') {
       const r = readExport(file, JSON.parse(file.text));
-      patches = r.patches; plan.warnings.push(...r.warnings);
+      patches = r.patches; plan.warnings.push(...r.warnings); plan.assets.push(...r.assets);
     } else if (kind === 'context') patches = readContext(file, ctx);
     else if (kind === 'rules') patches = readRules(file);
     else if (kind === 'unit-text') {
@@ -415,6 +417,27 @@ export function planImport(files: ImportFile[], known: NamedCharacter[], unitPag
     plan.warnings.push('No hay personajes en la base: importá también el manifiesto de personajes para reconocerlos en las páginas.');
   }
   return plan;
+}
+
+/**
+ * The pictures an export names, kept only when their file is stored or comes in the export (`stored`, by hash, with
+ * the parts a large file is kept in): a reference to a file nobody has is left out, and so is a main picture without it.
+ */
+export function refsWithFiles(patches: Patch[], stored: Map<string, {chunks?: string[]}>) {
+  const left: string[] = [];
+  const out = patches.map(p => {
+    if (p.kind !== 'character' || !Array.isArray(p.set?.refs)) return p;
+    const refs = (p.set.refs as KbRef[]).flatMap(r => {
+      const file = r && typeof r.hash === 'string' ? stored.get(r.hash) : undefined;
+      if (!file) { left.push(typeof r?.name === 'string' ? r.name : '?'); return []; }
+      const {chunks: _, ...rest} = r;
+      return [{...rest, ...(file.chunks ? {chunks: file.chunks} : {})}];
+    });
+    const set: Record<string, unknown> = {...p.set, refs};
+    if (typeof set.mainRef === 'string' && !refs.some(r => r.hash === set.mainRef && r.review === 'approved')) delete set.mainRef;
+    return {...p, set};
+  });
+  return {patches: out, left};
 }
 
 // ---------- Applying a plan ----------

@@ -27,6 +27,11 @@ export function ageInEnglish(age: string | undefined) {
 
 const statedAge = /\b(?:about |around |aged )?\d{1,3}(?:[- ]years?[- ]old|[- ]year-old)\b|\baged \d{1,3}\b|\bof (?:about |around )?\d{1,3}\b/gi;
 
+/** The look of a book character in a /pdf-generator draft: the confirmed one when there is one, always with its age. */
+export function bookLook(draftLook: string, member: {look?: string; age?: string}) {
+  return withAge(member.look?.trim() ? member.look.trim().slice(0, 600) : draftLook, member.age);
+}
+
 /** A look that states the book's age: a different age the text model wrote is taken out, and the right one goes first. */
 export function withAge(look: string, age: string | undefined) {
   const en = ageInEnglish(age);

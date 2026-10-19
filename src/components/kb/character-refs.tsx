@@ -97,6 +97,7 @@ export function CharacterRefs({entry}: {entry: EntryOf<'character'>}) {
                 <strong>{r.hash === d.mainRef ? <><Star aria-hidden="true" />Principal · </> : null}{r.name}</strong>
                 <span className="rc-hint">{reviewNames[r.review]} · {mb(r.size)}{r.chunks ? ' · guardado en ' + r.chunks.length + ' partes' : ''}</span>
                 <span className="rc-hint" data-verified={r.verified}>{verifiedNames[r.verified]} · sha256 {r.hash.slice(0, 12)}…</span>
+                {r.note ? <span className="rc-hint">{r.note}</span> : null}
                 <label className="rc-kb-ref-kind"><span className="sr-only">Tipo de referencia</span>
                   <select className="rc-input" value={r.kind} onChange={e => update(r.hash, {kind: e.target.value as KbRef['kind']}, 'Tipo de «' + r.name + '»: ' + kindNames[e.target.value as KbRef['kind']])}>
                     {Object.entries(kindNames).map(([k, n]) => <option key={k} value={k}>{n}</option>)}

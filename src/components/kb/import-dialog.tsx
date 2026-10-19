@@ -3,18 +3,20 @@ import {useEffect, useState} from 'react';
 import {toast} from 'sonner';
 import {Upload} from 'lucide-react';
 import {Dialog} from '@/components/ui/dialog';
-import {commitImport, previewImport} from '@/lib/kb/store';
+import {commitImport, previewImport, type ImportPictures} from '@/lib/kb/store';
 import {fileKindName, type ImportFile, type ImportPlan, type ImportReport} from '@/lib/kb/import';
 import {kindName, statusName, type KbEntry, type KbProject} from '@/lib/kb/model';
 
 const MAX_FILE = 2_000_000;
-type Preview = {plan: ImportPlan; entries: KbEntry[]; report: ImportReport};
+/** An export of the base carries its pictures, so it may be much larger than a text file. */
+const MAX_PACKAGE = 64_000_000;
+type Preview = {plan: ImportPlan; entries: KbEntry[]; report: ImportReport; pictures: ImportPictures};
 
 async function readFiles(list: FileList | File[]) {
   const files: ImportFile[] = [];
   const skipped: string[] = [];
   for (const f of [...list]) {
-    if (!/\.(md|txt|json)$/i.test(f.name) || f.size > MAX_FILE) { skipped.push(f.name); continue; }
+    if (!/\.(md|txt|json)$/i.test(f.name) || f.size > (/\.json$/i.test(f.name) ? MAX_PACKAGE : MAX_FILE)) { skipped.push(f.name); continue; }
     files.push({name: f.name, text: await f.text()});
   }
   return {files, skipped};
@@ -40,7 +42,7 @@ export function ImportButton({project}: {project: KbProject}) {
     if (!list?.length) return;
     const r = await readFiles(list);
     setSkipped(r.skipped);
-    if (!r.files.length) { toast('Elegí archivos .md, .json o .txt del paquete del libro (hasta 2 MB cada uno).'); return; }
+    if (!r.files.length) { toast('Elegí archivos .md, .txt (hasta 2 MB) o .json (hasta 64 MB) del paquete del libro.'); return; }
     setFiles(r.files);
   }
 
@@ -48,8 +50,8 @@ export function ImportButton({project}: {project: KbProject}) {
     if (!files) return;
     setBusy(true);
     try {
-      const {report, saved} = await commitImport(project, files);
-      toast(saved ? 'Importado: ' + count(report.created.length, 'dato nuevo', 'datos nuevos') + ', ' + count(report.updated.length, 'actualizado', 'actualizados') + '.' : 'Nada para cambiar: la base ya tenía todo eso.', {duration: 8000});
+      const {report, saved, pictures} = await commitImport(project, files);
+      toast(saved ? 'Importado: ' + count(report.created.length, 'dato nuevo', 'datos nuevos') + ', ' + count(report.updated.length, 'actualizado', 'actualizados') + (pictures.added ? ', ' + count(pictures.added, 'imagen', 'imágenes') : '') + '.' : 'Nada para cambiar: la base ya tenía todo eso.', {duration: 8000});
       setFiles(null);
     } catch {
       toast('No se pudo guardar la importación en este navegador.');
@@ -74,13 +76,17 @@ export function ImportButton({project}: {project: KbProject}) {
                 {preview.plan.files.map(f => (
                   <li key={f.name}><strong>{f.name}</strong><span className="rc-hint">{fileKindName[f.kind]} · {count(f.patches, 'dato', 'datos')}</span></li>
                 ))}
-                {skipped.map(n => <li key={n}><strong>{n}</strong><span className="rc-hint">No se importa: solo .md, .json o .txt de hasta 2 MB. Las imágenes y los PDF se agregan en cada personaje.</span></li>)}
+                {skipped.map(n => <li key={n}><strong>{n}</strong><span className="rc-hint">No se importa: solo .md o .txt de hasta 2 MB y .json de hasta 64 MB. Las imágenes y los PDF sueltos se agregan en cada personaje.</span></li>)}
               </ul>
               <p className="rc-kb-import-sum">
                 {count(preview.report.created.length, 'dato nuevo', 'datos nuevos')} · {count(preview.report.updated.length, 'actualizado (con versión nueva)', 'actualizados (con versión nueva)')} · {count(preview.report.unchanged.length, 'sin cambios', 'sin cambios')}
               </p>
               {byKind.length ? <p className="rc-hint">{byKind.map(([k, n]) => kindName[k as KbEntry['kind']] + ': ' + n).join(' · ')}</p> : null}
               {byStatus.length ? <p className="rc-hint">Los nuevos entran como: {byStatus.map(([s, n]) => statusName[s as KbEntry['status']].toLowerCase() + ' ' + n).join(' · ')}.</p> : null}
+              {preview.plan.files.some(f => f.kind === 'export') ? <p className="rc-hint rc-kb-warning">Este archivo es una base exportada: trae los estados que tenía (lo aprobado entra aprobado){preview.pictures.approved ? ' y ' + count(preview.pictures.approved, 'imagen aprobada', 'imágenes aprobadas') : ''}. Importalo solo si lo exportaste vos o sabés de dónde viene.</p> : null}
+              {preview.pictures.added ? <p className="rc-hint">Imágenes de personajes: {preview.pictures.added} ({preview.pictures.approved} aprobadas). Se guardan en este navegador y se suben a tu cuenta con los datos.</p> : null}
+              {preview.pictures.left.length ? <p className="rc-hint rc-kb-warning">No vienen en el archivo ni están en este navegador o tu cuenta, así que no se agregan: {preview.pictures.left.join(', ')}.</p> : null}
+              {preview.pictures.bad.length ? <p className="rc-form-error">No coinciden con su huella (archivo dañado o cambiado) y no se importan: {preview.pictures.bad.join(', ')}.</p> : null}
               {preview.report.kept.length ? (
                 <div className="rc-kb-import-kept">
                   <strong>Aprobados que el archivo contradice (no se cambian)</strong>
