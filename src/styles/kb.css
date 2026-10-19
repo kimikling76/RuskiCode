@@ -182,3 +182,7 @@
 @media (max-width: 640px) {
   .rc-kb-parts, .rc-kb-result { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Chat: «Contexto del libro» */
+.rc-book-active svg:first-child { width: 13px; height: 13px; color: var(--accent); }
+.rc-book-btn svg { width: 17px; height: 17px; }

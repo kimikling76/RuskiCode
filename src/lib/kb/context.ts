@@ -1,12 +1,12 @@
 'use client';
-import {listEntries, projectOfAssistant, projectOfUnit} from './store';
+import {getProject, listEntries, projectOfAssistant, projectOfUnit} from './store';
 import {retrieve, type BookContext, type BookTask} from './retrieve';
 import type {BookPayload} from './prompt';
 import type {KbProject} from './model';
 
 // The book data of a request, made in this browser from the base of the project the request belongs to. A unit
-// belongs to a project only when the author linked it; an assistant brings a project only when the author chose so.
-// Anything else (the neutral Chat, other units, other projects) gets nothing.
+// belongs to a project only when the author linked it; an assistant brings a project only when the author chose so; a
+// chat brings one only when the person turned on «Contexto del libro» in it. Anything else gets nothing.
 
 export type BookRequest = {project: KbProject; context: BookContext; payload: BookPayload};
 
@@ -32,4 +32,9 @@ export async function bookForUnit(unitId: string, task: BookTask) {
 /** For a saved assistant the person chose: the book it brings, if any. */
 export async function bookForAssistant(assistantId: string, task: BookTask) {
   return build(await projectOfAssistant(assistantId).catch(() => null), task);
+}
+
+/** For a chat where the person turned on «Contexto del libro» for this book. */
+export async function bookForProject(projectId: string, task: BookTask) {
+  return build((await getProject(projectId).catch(() => undefined)) || null, task);
 }

@@ -88,10 +88,17 @@ Sale de dos cosas: el texto de las páginas importadas y la descripción de cada
 **Cuándo recibe el contexto:**
 - en la pestaña **«Libro» del editor**, cuando la unidad es del libro;
 - en **`/pdf-generator` y `/revisar-ruso`**, cuando la unidad es del libro;
-- en el **Chat**, solo si elegís a propósito un asistente marcado para el libro.
+- en el **Chat**, si activás el botón **«Contexto del libro»** (el ícono del libro, al lado del de búsqueda web) o si elegís un asistente marcado para el libro.
+
+**El botón «Contexto del libro» del Chat:**
+- Empieza apagado en cada chat nuevo. Activado, arriba del mensaje aparece «Contexto del libro: «Русский код»», con una X para apagarlo.
+- Queda guardado en ese chat: si volvés a abrirlo, sigue activado.
+- Con más de un libro, el botón abre un menú para elegir cuál.
+- Activado, cada mensaje lleva los datos del libro y el **reparto completo**: cada personaje con su nombre ruso, su edad, quién es, su aspecto confirmado y si tiene imagen aprobada. Así el modelo sabe a quién usar aunque no lo nombres.
+- También lo usan `/pdf-generator` y `/revisar-ruso` en ese chat, aunque la unidad no esté vinculada.
 
 **Cuándo no recibe nada:**
-- en el Chat sin asistente;
+- en el Chat con el botón apagado y sin asistente del libro;
 - en las unidades que no son del libro;
 - en otros proyectos.
 
@@ -165,16 +172,24 @@ Se abren desde un personaje («Ilustración con este personaje…») o desde la 
 - un modelo que no recibe imágenes;
 - que **ningún modelo garantiza el mismo rostro**.
 
-**`/pdf-generator` en una unidad del libro:**
-- Los personajes del libro van con su imagen aprobada de la biblioteca, en vez de un retrato nuevo.
-- Los que no tienen imagen aprobada no reciben un rostro inventado.
+**`/pdf-generator` con el libro** (el botón «Contexto del libro» activado o una unidad del libro):
+- El modelo de texto recibe el reparto y la orden de usar **los personajes del libro con su nombre ruso**, sin inventar otra familia.
+- La descripción de cada personaje empieza por **su edad**, en inglés para el modelo de imagen («14 years old», «about 70 years old»). Si el modelo de texto puso otra edad, el estudio la corrige con la del libro.
+- Los personajes del libro van con su **imagen aprobada** de la biblioteca como referencia, en vez de un retrato nuevo. La tarjeta lo muestra: «Del libro: dima.png (aprobada) · 14 años».
+- Los que no tienen imagen aprobada no reciben un rostro inventado. Los que no son del libro (una vendedora, un médico) siguen con su retrato.
+- La confirmación dice qué imágenes del libro van, y la tarea guarda qué personajes y qué archivos se usaron.
+- Si no elegiste otra, la plantilla es una unidad vinculada a ese libro.
+
+**La edad de cada personaje:**
+- Se lee de las fuentes («14 años», «unos 70 años», «bebé») y la ficha la muestra como «según las fuentes, sin confirmar».
+- Para fijarla, escribila en «Edad» al editar el personaje. La que escribas manda sobre la de los archivos.
 
 ### Qué modelos reciben imágenes
 
 | | Cantidad |
 |---|---|
 | Modelos de imagen en el catálogo | 65 |
-| Aceptan imágenes de referencia según su documentación | 30 (el límite va de 1 a 16 según el modelo; Nano Banana 2.1, el probado, acepta 4) |
+| Aceptan imágenes de referencia según su documentación | 30 (el límite va de 1 a 16 según el modelo; Nano Banana 2.1, el probado, acepta 10, como dice su documentación) |
 | Modelos de texto que aceptan imágenes | 28 de 41 |
 
 Los modelos de imagen que aceptan referencias las reciben como enlaces temporales de Kie. El servidor sube a Kie el archivo guardado en tu cuenta, nunca un nombre ni un gen_id.
@@ -199,17 +214,21 @@ Los modelos de texto nunca reciben las imágenes de la biblioteca: **reciben sol
 9. **Chat neutro y asistente del libro:**
    - En el Chat sin asistente, preguntá «¿Quién es Ольга?». No aparece «Con el contexto de…».
    - Con «Editor del libro de ruso», sí aparece.
+10. **El botón del Chat y `/pdf-generator`:**
+    - En un chat nuevo, activá «Contexto del libro» y pedí `/pdf-generator` «una página sobre una visita a la casa de la abuela».
+    - En «Personajes», los del libro dicen «Del libro: … (aprobada) · edad» y su descripción empieza por la edad.
+    - En la confirmación aparece «Imágenes del libro».
 
 ## 9. Qué se probó y cómo
 
 - **Pruebas automáticas:**
-  - 163 en total, todas bien;
-  - 17 nuevas del libro, con **datos inventados**: el repositorio es público y no contiene nada del libro;
+  - 166 en total, todas bien;
+  - 20 del libro, con **datos inventados**: el repositorio es público y no contiene nada del libro;
   - más typecheck y build.
 - **Recorridos en el navegador** con tus archivos, en una copia local:
   - base de datos local y dos navegadores como dos computadoras;
   - **Kie simulado**: no se gastó ningún crédito;
-  - 21 de 21 controles en las etapas 1 y 2, y 27 de 27 en las etapas 3 y 4;
+  - 21 de 21 controles en las etapas 1 y 2, 27 de 27 en las etapas 3 y 4, y 18 de 18 en el botón del Chat y `/pdf-generator` con los personajes del libro;
   - accesibilidad (axe) sin problemas.
 - **No probado con Kie real:**
   - la calidad de las respuestas del modelo con el contexto;

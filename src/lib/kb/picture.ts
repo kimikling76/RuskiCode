@@ -1,4 +1,5 @@
 import {buildIndex, findCharacters} from './names';
+import {ageOf} from './characters';
 import type {EntryOf, KbEntry, KbRef} from './model';
 
 // A picture of the book's characters: which reference files go to the image model, and the prompt that names them.
@@ -83,13 +84,14 @@ export function pictureWarnings(chars: EntryOf<'character'>[], sent: PlannedRef[
 export function castOfBook(names: string[], entries: KbEntry[]) {
   const chars = entries.filter((e): e is EntryOf<'character'> => e.kind === 'character' && e.status !== 'superseded');
   const index = buildIndex(chars.map(c => ({id: c.id, nameRu: c.data.nameRu || c.title, aliases: c.data.aliases})));
-  const out: Record<string, {id: string; title: string; hash?: string; file?: string}> = {};
+  const out: Record<string, {id: string; title: string; hash?: string; file?: string; age?: string}> = {};
   for (const name of names) {
     const found = findCharacters(name, index);
     if (found.ids.length !== 1 || found.ambiguous.length) continue;
     const c = chars.find(x => x.id === found.ids[0])!;
     const main = approvedRefs(c).find(r => r.hash === c.data.mainRef && !r.chunks);
-    out[name] = {id: c.id, title: c.title, ...(main ? {hash: main.hash, file: main.name} : {})};
+    const age = ageOf(c);
+    out[name] = {id: c.id, title: c.title, ...(main ? {hash: main.hash, file: main.name} : {}), ...(age ? {age} : {})};
   }
   return out;
 }

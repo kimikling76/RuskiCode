@@ -41,3 +41,11 @@ export const BOOK_NOTE = [
 
 /** The last message with the book data before the author's words. */
 export const withBook = (book: BookPayload, request: string) => bookBlock(book) + '\n\n<author_request>\n' + safe(request) + '\n</author_request>';
+
+/** For /pdf-generator inside a book: the draft's characters are the book's, with their names, ages and looks. */
+export const BOOK_PDF_NOTE = [
+  'Pictures of this book show its own characters (see «Reparto del libro» and the character entries in <book_data>).',
+  'When the request is about the book\'s people (a family, a visit, the school), use those characters, with their Russian names written exactly as in the cast list, in "characters" and in each picture\'s "characters"; do not invent new named characters or another family.',
+  'For each book character, "look" is one English sentence made only from the book data: first the age (for example «14 years old», «about 70 years old», «a baby about one year old»), then the confirmed look; when there is no confirmed look, use only features the book data states and keep it short. Never change a character\'s age, sex, family role or species (a cat stays a cat, a parakeet stays a parakeet).',
+  'Children look their age, parents look like adults of their age, grandparents look elderly. Keep each family together as the book data says. A character without a verified picture still has no canonical face: describe it only from the book data.',
+].join(' ');
