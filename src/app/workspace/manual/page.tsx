@@ -7,7 +7,7 @@ export const metadata = {title: 'Unidad del manual · PDF Studio · Russian Code
 export default function ManualUnitPage() {
   return (
     <Suspense>
-      <StudioShell view="pdf"><ManualEditor /></StudioShell>
+      <StudioShell view="pdf" editor><ManualEditor /></StudioShell>
     </Suspense>
   );
 }

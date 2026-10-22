@@ -5,7 +5,7 @@ import {useSearchParams} from 'next/navigation';
 import * as Tabs from '@radix-ui/react-tabs';
 import type {PDFDocumentProxy} from 'pdfjs-dist';
 import {toast} from 'sonner';
-import {BookOpen, ChevronLeft, ChevronRight, Columns2, Download, Minus, MoreHorizontal, Plus, Redo2, ScanSearch, Undo2} from 'lucide-react';
+import {BookOpen, ChevronLeft, ChevronRight, Columns2, Download, MoreHorizontal, Redo2, ScanSearch, Undo2} from 'lucide-react';
 import {fetchEditorFonts, type EditorFonts} from '@/lib/manual/fonts';
 import {renderUnit, type RenderResult} from '@/lib/manual/render';
 import {getAsset, getUnit, listVersions, markUnitOpen, saveUnit, saveVersion, type ManualVersion} from '@/lib/manual/store';
@@ -20,11 +20,11 @@ import {Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger} from '@/compone
 import {Tip} from '@/components/ui/tooltip';
 import {DocThumbs} from '@/components/pdf/doc-view';
 import {ManualPage, type CompareMode, type Selection, type Zoom} from './manual-page';
+import {InspectorTabs, SaveStatus, ZoomControl} from '@/components/pdf/editor-parts';
 import {AddPanel, PagesPanel, SelectionPanel, VersionsPanel, type ManualApi} from './manual-inspector';
 import {EditorBookPanel} from '@/components/kb/editor-book-panel';
 
 type Tab = 'selection' | 'add' | 'pages' | 'versions' | 'book';
-const zoomSteps = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const none: Selection = {block: null, element: null};
 const MAX_UNDO = 100;
 
@@ -267,7 +267,6 @@ export function ManualEditor() {
   }
 
   const count = unit?.pages.length || 0;
-  const zoomIndex = zoom === 'fit' ? -1 : zoomSteps.indexOf(zoom);
   const shown = pageRender && page && pageRender.index === unit?.pages.indexOf(page) ? pageRender : null;
   const canCompare = Boolean(original && page?.sourcePage !== undefined);
   const h = history.current;
@@ -283,15 +282,11 @@ export function ManualEditor() {
           <span className="rc-crumb-current" title={unit?.title}>{unit?.title || 'Unidad'}</span>
           <span className="rc-pdf-source">Manual{unit?.number ? ' · unidad ' + unit.number : ''}</span>
         </div>
-        <span className={'rc-pdf-save' + (save === 'error' ? ' is-error' : '')} role="status" aria-live="polite">{!unit ? 'Abriendo…' : save === 'saving' ? 'Guardando…' : save === 'error' ? 'Sin guardar' : 'Guardado'}</span>
+        <SaveStatus state={!unit ? 'opening' : save === 'saving' ? 'saving' : save === 'error' ? 'error' : 'saved'} />
         <div className="rc-topbar-actions">
           <Tip label="Deshacer" shortcut="⌘Z"><button type="button" className="rc-icon-btn" aria-label="Deshacer" disabled={!h.past.length} onClick={undo}><Undo2 /></button></Tip>
           <Tip label="Rehacer" shortcut="⇧⌘Z"><button type="button" className="rc-icon-btn" aria-label="Rehacer" disabled={!h.future.length} onClick={redo}><Redo2 /></button></Tip>
-          <div className="rc-doc-zoom" role="group" aria-label="Zoom">
-            <button type="button" className="rc-icon-btn" aria-label="Alejar" disabled={zoomIndex === 0} onClick={() => setZoom(zoomIndex <= 0 ? 0.75 : zoomSteps[zoomIndex - 1])}><Minus /></button>
-            <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm" aria-pressed={zoom === 'fit'} onClick={() => setZoom(zoom === 'fit' ? 1 : 'fit')}>{zoom === 'fit' ? 'Ajustar' : Math.round(zoom * 100) + '%'}</button>
-            <button type="button" className="rc-icon-btn" aria-label="Acercar" disabled={zoomIndex === zoomSteps.length - 1} onClick={() => setZoom(zoomIndex < 0 ? 1.25 : zoomSteps[zoomIndex + 1])}><Plus /></button>
-          </div>
+          <ZoomControl zoom={zoom} onChange={setZoom} />
           <Menu>
             <MenuTrigger asChild>
               <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm" aria-pressed={compare !== 'off'} disabled={!canCompare} aria-label="Comparar con el original"><Columns2 aria-hidden="true" /><span>Comparar</span></button>
@@ -351,9 +346,9 @@ export function ManualEditor() {
         </section>
 
         <Tabs.Root className="rc-pdf-inspector" value={tab} onValueChange={v => setTab(v as Tab)}>
-          <Tabs.List className="rc-pdf-tabs" aria-label="Panel">
-            {([['selection', 'Selección'], ['add', 'Agregar'], ['pages', 'Páginas'], ['versions', 'Versiones'], ['book', 'Libro']] as const).map(([v, label]) => <Tabs.Trigger key={v} value={v} className="rc-tab">{label}</Tabs.Trigger>)}
-          </Tabs.List>
+          <InspectorTabs<Tab> label="Inspector" value={tab} onChange={setTab}
+            tabs={[['selection', 'Selección'], ['add', 'Agregar'], ['pages', 'Páginas']]}
+            more={[['book', 'Libro'], ['versions', 'Versiones']]} />
           <Tabs.Content value="selection" className="rc-pdf-panel">{api ? <SelectionPanel key={page?.id + ':' + (selection.block || '') + ':' + (selection.element || '')} api={api} /> : null}</Tabs.Content>
           <Tabs.Content value="add" className="rc-pdf-panel">{api ? <AddPanel api={api} /> : null}</Tabs.Content>
           <Tabs.Content value="pages" className="rc-pdf-panel">{api ? <PagesPanel api={api} /> : null}</Tabs.Content>

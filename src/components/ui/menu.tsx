@@ -6,10 +6,10 @@ import type {ReactNode} from 'react';
 export const Menu = RadixMenu.Root;
 export const MenuTrigger = RadixMenu.Trigger;
 
-export function MenuContent({children, align = 'end', side = 'bottom'}: {children: ReactNode; align?: 'start' | 'center' | 'end'; side?: 'top' | 'bottom' | 'left' | 'right'}) {
+export function MenuContent({children, align = 'end', side = 'bottom', onCloseAutoFocus}: {children: ReactNode; align?: 'start' | 'center' | 'end'; side?: 'top' | 'bottom' | 'left' | 'right'; onCloseAutoFocus?: (event: Event) => void}) {
   return (
     <RadixMenu.Portal>
-      <RadixMenu.Content className="rc-menu rc-layer" align={align} side={side} sideOffset={6} collisionPadding={12}>
+      <RadixMenu.Content className="rc-menu rc-layer" align={align} side={side} sideOffset={6} collisionPadding={12} onCloseAutoFocus={onCloseAutoFocus}>
         {children}
       </RadixMenu.Content>
     </RadixMenu.Portal>
