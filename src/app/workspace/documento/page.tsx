@@ -7,7 +7,7 @@ export const metadata = {title: 'PDF importado · PDF Studio · Russian Code'};
 export default function OriginalPdfPage() {
   return (
     <Suspense>
-      <StudioShell view="pdf"><DocumentRoute /></StudioShell>
+      <StudioShell view="pdf" editor><DocumentRoute /></StudioShell>
     </Suspense>
   );
 }

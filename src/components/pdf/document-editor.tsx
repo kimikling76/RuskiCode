@@ -5,7 +5,7 @@ import {useRouter, useSearchParams} from 'next/navigation';
 import * as Tabs from '@radix-ui/react-tabs';
 import type {PDFDocumentProxy} from 'pdfjs-dist';
 import {toast} from 'sonner';
-import {BookOpen, ChevronLeft, ChevronRight, Download, Minus, MoreHorizontal, Plus, Redo2, ScanText, Sparkles, Undo2} from 'lucide-react';
+import {BookOpen, ChevronLeft, ChevronRight, Download, MoreHorizontal, Redo2, ScanText, Sparkles, Undo2} from 'lucide-react';
 import {
   commitVersion, createOriginal, fileSize, getOriginal, listVersions, loadOriginalData, markOriginalOpen, neighbours, showVersion,
   type OriginalPdf, type PdfVersion,
@@ -22,6 +22,7 @@ import {NavTrigger} from '@/components/studio/sidebar';
 import {Menu, MenuContent, MenuItem, MenuLink, MenuSeparator, MenuTrigger} from '@/components/ui/menu';
 import {Tip} from '@/components/ui/tooltip';
 import {DocPage, DocThumbs, type Zoom} from './doc-view';
+import {InspectorTabs, SaveStatus, ZoomControl} from './editor-parts';
 import {DocTools, type ToolRequest} from './doc-tools';
 import {DocVersions} from './doc-versions';
 import {PreviewDialog, type Preview} from './doc-preview';
@@ -31,7 +32,6 @@ import {ImportDialog} from './import-dialog';
 
 type Tab = 'tools' | 'assistant' | 'versions';
 type Pending = Preview & {commit: () => Promise<void>; discard?: () => void};
-const zoomSteps = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 function download(bytes: ArrayBuffer, name: string, type = 'application/pdf') {
   const url = URL.createObjectURL(new Blob([bytes], {type}));
@@ -338,7 +338,6 @@ export function DocumentEditor() {
     );
   }
 
-  const zoomIndex = zoom === 'fit' ? -1 : zoomSteps.indexOf(zoom);
   const contextLabel = 'Página ' + (active + 1) + (selection ? ' · texto elegido: «' + selection.slice(0, 40) + (selection.length > 40 ? '…' : '') + '»' : '');
 
   return (
@@ -352,15 +351,11 @@ export function DocumentEditor() {
           <span className="rc-crumb-current" title={meta?.name}>{meta?.name || 'PDF'}</span>
           <span className="rc-pdf-source">PDF importado{bytes ? ' · ' + fileSize(bytes.byteLength) : ''}</span>
         </div>
-        <span className="rc-pdf-save" role="status" aria-live="polite">{busy ? busy + '…' : meta ? 'Guardado' : 'Abriendo…'}</span>
+        <SaveStatus state={busy ? 'saving' : meta ? 'saved' : 'opening'} saving={busy + '…'} />
         <div className="rc-topbar-actions">
           <Tip label="Deshacer" shortcut="⌘Z"><button type="button" className="rc-icon-btn" aria-label="Deshacer" disabled={!back || Boolean(busy)} onClick={() => void move(back, 'Deshecho')}><Undo2 /></button></Tip>
           <Tip label="Rehacer" shortcut="⇧⌘Z"><button type="button" className="rc-icon-btn" aria-label="Rehacer" disabled={!forward || Boolean(busy)} onClick={() => void move(forward, 'Rehecho')}><Redo2 /></button></Tip>
-          <div className="rc-doc-zoom" role="group" aria-label="Zoom">
-            <button type="button" className="rc-icon-btn" aria-label="Alejar" disabled={zoomIndex === 0} onClick={() => setZoom(zoomIndex <= 0 ? 0.75 : zoomSteps[zoomIndex - 1])}><Minus /></button>
-            <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm" aria-pressed={zoom === 'fit'} onClick={() => setZoom(zoom === 'fit' ? 1 : 'fit')}>{zoom === 'fit' ? 'Ajustar' : Math.round(zoom * 100) + '%'}</button>
-            <button type="button" className="rc-icon-btn" aria-label="Acercar" disabled={zoomIndex === zoomSteps.length - 1} onClick={() => setZoom(zoomIndex < 0 ? 1.25 : zoomSteps[zoomIndex + 1])}><Plus /></button>
-          </div>
+          <ZoomControl zoom={zoom} onChange={setZoom} />
           <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm" aria-pressed={chat} aria-label="Crear con IA" onClick={() => setChat(c => !c)}><Sparkles aria-hidden="true" /><span>Crear con IA</span></button>
           <button type="button" className="rc-btn rc-btn--primary rc-btn--sm" disabled={!bytes} onClick={() => bytes && meta && download(bytes, meta.name + '.pdf')} aria-label="Descargar PDF"><Download aria-hidden="true" /><span>Descargar PDF</span></button>
           <Menu>
@@ -402,9 +397,7 @@ export function DocumentEditor() {
         </section>
 
         <Tabs.Root className="rc-pdf-inspector" value={tab} onValueChange={v => setTab(v as Tab)}>
-          <Tabs.List className="rc-pdf-tabs" aria-label="Panel">
-            {([['tools', 'Herramientas'], ['assistant', 'Asistente'], ['versions', 'Versiones']] as const).map(([v, label]) => <Tabs.Trigger key={v} value={v} className="rc-tab">{label}</Tabs.Trigger>)}
-          </Tabs.List>
+          <InspectorTabs<Tab> label="Inspector" value={tab} onChange={setTab} tabs={[['tools', 'Herramientas'], ['assistant', 'Asistente'], ['versions', 'Versiones']]} />
           <Tabs.Content value="tools" className="rc-pdf-panel">
             <DocTools count={count} active={active} selected={selected} busy={Boolean(busy)} unavailable={unavailable} run={r => void run(r)} />
           </Tabs.Content>

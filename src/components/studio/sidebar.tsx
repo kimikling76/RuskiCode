@@ -56,10 +56,11 @@ export function NavTrigger() {
   );
 }
 
-export function StudioSidebar({view, onNavigate, onNew}: {view: StudioView | null; onNavigate: (v: StudioView) => void; onNew: () => void}) {
+/** `editor`: an editor is open, so the navigation uses its own folded or unfolded choice (folded at first). */
+export function StudioSidebar({view, editor, onNavigate, onNew}: {view: StudioView | null; editor?: boolean; onNavigate: (v: StudioView) => void; onNew: () => void}) {
   const drawer = useShell(s => s.drawer);
   const setDrawer = useShell(s => s.setDrawer);
-  const collapsed = useShell(s => s.collapsed);
+  const collapsed = useShell(s => editor ? s.editorCollapsed : s.collapsed);
   const restore = useShell(s => s.restore);
   const [help, setHelp] = useState(false);
 
@@ -96,7 +97,7 @@ export function StudioSidebar({view, onNavigate, onNew}: {view: StudioView | nul
         <div className="rc-dialog-body rc-help">
           <p><strong>Chat.</strong> Conversaciones personales con los modelos de Kie. No asume que estés trabajando en un libro.</p>
           <p><strong>PDF Studio.</strong> Libros y materiales que se editan por bloques, con páginas reales, y se exportan a PDF.</p>
-          <p><strong>Cinema Studio.</strong> Imágenes con Kie: crear, editar, planificar planos y guardar en la galería. El video todavía no está conectado.</p>
+          <p><strong>Cinema Studio.</strong> Imágenes y videos con Kie: crear, editar, planificar planos y guardar en la galería.</p>
           <p>Para llevar una conversación a un estudio, usá «Convertir en proyecto». El chat original se conserva.</p>
           <p>Lo que hacés se guarda en tu cuenta y aparece en tus otras computadoras. Abajo a la izquierda ves si está guardado y el saldo de Kie.</p>
         </div>

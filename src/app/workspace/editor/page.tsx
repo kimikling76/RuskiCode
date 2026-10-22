@@ -7,7 +7,7 @@ export const metadata = {title: 'Editor · PDF Studio · Russian Code'};
 export default function EditorPage() {
   return (
     <Suspense>
-      <StudioShell view="pdf"><BookEditor /></StudioShell>
+      <StudioShell view="pdf" editor><BookEditor /></StudioShell>
     </Suspense>
   );
 }

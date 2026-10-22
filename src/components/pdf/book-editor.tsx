@@ -20,6 +20,7 @@ import {Menu, MenuTrigger, MenuContent, MenuItem, MenuLink, MenuSeparator} from 
 import {Tip} from '@/components/ui/tooltip';
 import {PageCanvas, type CanvasHandle, type LayoutState, type PageInfo} from './page-canvas';
 import {PageRail, issueText} from './page-rail';
+import {InspectorTabs, SaveStatus, ZoomControl, type Zoom} from './editor-parts';
 import {BlockForm} from './block-form';
 import {ChapterPanel} from './chapter-panel';
 import {BookPanel} from './book-panel';
@@ -101,7 +102,7 @@ export function BookEditor() {
   const [tab, setTab] = useState<Tab>('chapter');
   const [layout, setLayout] = useState<LayoutState>({status: 'working', pages: [], css: '', pageSize: {w: 794, h: 1123}, missingImages: 0});
   const [visiblePage, setVisiblePage] = useState(0);
-  const [zoom, setZoom] = useState<'fit' | number>('fit');
+  const [zoom, setZoom] = useState<Zoom>('fit');
   const [exportConfirm, setExportConfirm] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -414,7 +415,8 @@ export function BookEditor() {
 
   const selectedBlock = book.chapters[selection.chapter]?.blocks.find(b => b.id === selection.blockId);
   const sourceLabel = source.kind === 'local' ? (syncing ? 'En tu cuenta' : 'En este navegador') : source.kind === 'server' ? 'Compositor · revisión ' + revision : 'Muestra';
-  const saveLabel = saveState === 'saving' ? 'Guardando…' : saveState === 'saved' ? (source.kind === 'local' ? 'Guardado' : 'Borrador guardado') : saveState === 'error' ? 'No se pudo guardar' : '';
+  // A book of this browser that has not changed since it opened is saved; a sample or a server book says so only for its draft.
+  const saveShown = saveState === 'idle' && source.kind === 'local' ? 'saved' : saveState;
   const issues = layout.pages.flatMap(p => p.issues.map(code => ({page: p.index + 1, code})));
   const localId = source.kind === 'local' ? source.id : null;
   const chatKey = docKey('book', source.kind === 'demo' ? 'demo' : source.kind + ':' + source.id);
@@ -514,15 +516,11 @@ export function BookEditor() {
           <span className="rc-crumb-current" title={book.spec.title}>{book.spec.title || 'Sin título'}</span>
           <span className="rc-pdf-source">{sourceLabel}</span>
         </div>
-        <span className={'rc-pdf-save' + (saveState === 'error' ? ' is-error' : '')} role="status">{saveLabel}</span>
+        <SaveStatus state={saveShown} saved={source.kind === 'local' ? 'Guardado' : 'Borrador guardado'} error="No se pudo guardar" />
         <div className="rc-topbar-actions">
           <Tip label="Deshacer" shortcut="⌘Z"><button type="button" className="rc-icon-btn" aria-label="Deshacer" disabled={!past.current.length} onClick={undo}><Undo2 /></button></Tip>
           <Tip label="Rehacer" shortcut="⇧⌘Z"><button type="button" className="rc-icon-btn" aria-label="Rehacer" disabled={!future.current.length} onClick={redo}><Redo2 /></button></Tip>
-          <div className="rc-segmented rc-segmented--compact rc-pdf-zoom" role="radiogroup" aria-label="Zoom">
-            {([['fit', 'Ajustar'], [1, '100%']] as const).map(([v, label]) => (
-              <label key={String(v)}><input type="radio" name="zoom" checked={zoom === v} onChange={() => setZoom(v)} /><strong>{label}</strong></label>
-            ))}
-          </div>
+          <ZoomControl zoom={zoom} onChange={setZoom} />
           <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm" aria-pressed={chat} aria-label="Crear con IA" onClick={() => setChat(c => !c)}><Sparkles aria-hidden="true" /><span>Crear con IA</span></button>
           <Tip label="Se abre el diálogo de impresión: elegí «Guardar como PDF».">
             <button type="button" className="rc-btn rc-btn--primary rc-btn--sm rc-pdf-export" aria-label="Exportar PDF" disabled={layout.status !== 'ready'} onClick={exportPdf}><Download aria-hidden="true" /><span>Exportar PDF</span></button>
@@ -589,11 +587,9 @@ export function BookEditor() {
         </section>
 
         <Tabs.Root className="rc-pdf-inspector" value={tab} onValueChange={v => setTab(v as Tab)}>
-          <Tabs.List className="rc-pdf-tabs" aria-label="Inspector">
-            {([['block', 'Bloque'], ['chapter', 'Capítulo'], ['book', 'Libro'], ['assistant', 'Asistente'], ['versions', 'Versiones'], ['notes', 'Notas']] as const).map(([id, label]) => (
-              <Tabs.Trigger key={id} value={id} className="rc-tab">{label}</Tabs.Trigger>
-            ))}
-          </Tabs.List>
+          <InspectorTabs<Tab> label="Inspector" value={tab} onChange={setTab}
+            tabs={[['block', 'Bloque'], ['chapter', 'Capítulo'], ['assistant', 'Asistente']]}
+            more={[['book', 'Libro'], ['versions', 'Versiones'], ['notes', 'Notas']]} />
           <Tabs.Content value="block" className="rc-pdf-panel">
             {selectedBlock ? <BlockForm key={selectedBlock.id} api={api} block={selectedBlock} /> : (
               <div className="rc-pdf-form">
