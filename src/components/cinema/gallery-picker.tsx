@@ -7,7 +7,8 @@ import {Dialog} from '@/components/ui/dialog';
 /** Choose images that already live in the gallery (Kie-hosted, so Kie can read them as references). */
 export function GalleryPicker({open, onClose, max, onChoose, title, initial = []}: {open: boolean; onClose: () => void; max: number; onChoose: (urls: string[]) => void; title: string; initial?: string[]}) {
   const all = useCinema(s => s.data.jobs);
-  const jobs = useMemo(() => all.filter(isDone), [all]);
+  // Only pictures: a video cannot be a reference or a starting image.
+  const jobs = useMemo(() => all.filter(j => isDone(j) && j.mode !== 'video'), [all]);
   const [picked, setPicked] = useState<string[]>(initial);
   useEffect(() => { if (open) setPicked(initial); }, [open]); // reset on every opening
 

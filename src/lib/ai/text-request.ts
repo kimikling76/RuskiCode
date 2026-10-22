@@ -5,11 +5,12 @@ import type {Assistant} from '@/store/assistants';
 import type {Source} from './types';
 import type {BookPayload} from '@/lib/kb/prompt';
 
-export type TextPurpose = 'storyboard' | 'prompt' | 'book-review' | 'book-exercises' | 'book-rewrite' | 'pdf-generator' | 'russian-review' | 'book-assist' | 'book-exercise';
+export type TextPurpose = 'storyboard' | 'prompt' | 'video-prompt' | 'book-review' | 'book-exercises' | 'book-rewrite' | 'pdf-generator' | 'russian-review' | 'book-assist' | 'book-exercise';
 
 const usageLabels: Record<TextPurpose, {studio: 'chat' | 'cinema' | 'pdf'; label: string}> = {
   storyboard: {studio: 'cinema', label: 'Plan de planos'},
   prompt: {studio: 'cinema', label: 'Ayuda con el prompt'},
+  'video-prompt': {studio: 'cinema', label: 'Ayuda con el prompt de video'},
   'book-review': {studio: 'pdf', label: 'Revisión pedagógica'},
   'book-exercises': {studio: 'pdf', label: 'Ejercicios propuestos'},
   'book-rewrite': {studio: 'pdf', label: 'Mejora de un bloque'},

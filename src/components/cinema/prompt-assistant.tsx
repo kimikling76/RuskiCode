@@ -7,8 +7,8 @@ import {errorDetail} from '@/lib/cinema/errors';
 import {AssistantSelect} from '@/components/studio/assistant-chooser';
 import {useAssistants, type Assistant} from '@/store/assistants';
 
-/** Turns a rough idea into one concrete prompt with the chat model. It never generates an image. */
-export function PromptAssistant({open, onClose, initial, onUse}: {open: boolean; onClose: () => void; initial: string; onUse: (prompt: string) => void}) {
+/** Turns a rough idea into one concrete prompt with the chat model. It never generates an image or a video. */
+export function PromptAssistant({open, onClose, initial, onUse, video}: {open: boolean; onClose: () => void; initial: string; onUse: (prompt: string) => void; video?: boolean}) {
   const [idea, setIdea] = useState(initial);
   const [result, setResult] = useState('');
   const [busy, setBusy] = useState(false);
@@ -27,7 +27,7 @@ export function PromptAssistant({open, onClose, initial, onUse}: {open: boolean;
     const controller = new AbortController();
     abort.current = controller;
     try {
-      setResult(await textRequest('prompt', idea.trim(), controller.signal, assistant));
+      setResult(await textRequest(video ? 'video-prompt' : 'prompt', idea.trim(), controller.signal, assistant));
     } catch (e) {
       if (!controller.signal.aborted) setError(e instanceof Error ? e.message : 'PROVIDER_UNAVAILABLE');
     } finally {
@@ -39,11 +39,11 @@ export function PromptAssistant({open, onClose, initial, onUse}: {open: boolean;
   function close() { abort.current?.abort(); onClose(); }
 
   return (
-    <Dialog open={open} onClose={close} title="Ayuda con el prompt" description="Contá la idea con tus palabras. El modelo de chat propone un prompt concreto; vos lo revisás. No genera imágenes.">
+    <Dialog open={open} onClose={close} title="Ayuda con el prompt" description={'Contá la idea con tus palabras. El modelo de chat propone un prompt concreto; vos lo revisás. No genera ' + (video ? 'videos.' : 'imágenes.')}>
       <div className="rc-dialog-body">
         <label className="rc-field">
           <span>Idea</span>
-          <TextareaAutosize className="rc-textarea" minRows={3} maxRows={8} value={idea} disabled={busy} onChange={e => setIdea(e.target.value)} placeholder="Una calle de Moscú en invierno, de noche, con una panadería iluminada" />
+          <TextareaAutosize className="rc-textarea" minRows={3} maxRows={8} value={idea} disabled={busy} onChange={e => setIdea(e.target.value)} placeholder={video ? 'Nieva de noche en una calle de Moscú; la cámara avanza despacio hacia una panadería iluminada' : 'Una calle de Moscú en invierno, de noche, con una panadería iluminada'} />
         </label>
         <div className="rc-step-inline">
           <AssistantSelect scope="cinema" value={assistant?.id || null} onChange={setAssistant} />
