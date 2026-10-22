@@ -10,6 +10,13 @@ import {useKbProjects} from './use-kb';
  * «Contexto del libro» in the Chat composer: off by default; turned on, every message of this chat (and its
  * /pdf-generator and /revisar-ruso) carries the chosen book's data. With several books, a menu picks one.
  */
+/** Turns on the only book there is, or says how to make one. */
+export function turnOnBook(projects: {id: string; name: string}[] | null | undefined, onChange: (book: ChatBook) => void) {
+  const p = projects?.[0];
+  if (!p) { toast('Todavía no hay un libro: crealo en PDF Studio → «Contexto del libro».', {action: {label: 'Ir', onClick: () => { window.location.href = '/workspace/libro'; }}}); return; }
+  onChange({project: p.id, name: p.name});
+}
+
 export function BookToggle({value, onChange, disabled}: {value: ChatBook | null; onChange: (book: ChatBook | null) => void; disabled?: boolean}) {
   const projects = useKbProjects();
   const on = Boolean(value);
@@ -20,12 +27,7 @@ export function BookToggle({value, onChange, disabled}: {value: ChatBook | null;
   if (!projects || projects.length <= 1) {
     return (
       <Tip label={label}>
-        {button({onClick: () => {
-          if (on) { onChange(null); return; }
-          const p = projects?.[0];
-          if (!p) { toast('Todavía no hay un libro: crealo en PDF Studio → «Contexto del libro».', {action: {label: 'Ir', onClick: () => { window.location.href = '/workspace/libro'; }}}); return; }
-          onChange({project: p.id, name: p.name});
-        }})}
+        {button({onClick: () => on ? onChange(null) : turnOnBook(projects, onChange)})}
       </Tip>
     );
   }

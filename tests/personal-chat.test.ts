@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {emptyData,confirmConversion,scheduleDelete,undoDelete,purgeExpired,deleteAllChats,deleteMessage,PERSONAL_SYSTEM,type PersonalData,type ConversionDraft} from '../src/lib/personal-chat/state';
+import {emptyData,shortTitle,confirmConversion,scheduleDelete,undoDelete,purgeExpired,deleteAllChats,deleteMessage,PERSONAL_SYSTEM,type PersonalData,type ConversionDraft} from '../src/lib/personal-chat/state';
 import {personalInput,systemForPersonal} from '../src/lib/personal-chat/input';
 import {GET,POST} from '../src/app/api/personal-chat/route';
 function sample():PersonalData{return {...emptyData(),chats:[{id:'chat1',title:'Un viaje',model:'auto',createdAt:'2026-10-15',conversions:[],messages:[{id:'u1',role:'user',content:'Quiero planear un viaje.'},{id:'a1',role:'assistant',content:'¿A dónde?'}]}],usage:[{id:'charged',credits:2}]};}
@@ -52,4 +52,13 @@ test('persisted storage removes expired text, preserves converted projects and c
  usePersonal.getState().remove('chat1');const expired=usePersonal.getState().data;expired.pending[0].deadline=0;usePersonal.getState().purge();const saved=JSON.parse(values.get('estudio-personal-v2')!);assert.equal(saved.chats.length,0);assert.equal(saved.pending.length,0);assert.equal(saved.projects.length,1);
  assert.ok(usePersonal.getState().clear());assert.equal(usePersonal.getState().data.projects.length,1);usePersonal.getState().removeProject(project!.id);assert.equal(values.get('estudio-personal-v2')!.includes('Quiero planear un viaje'),false);
  }finally{usePersonal.getState().clear();if(previousStorage)Object.defineProperty(globalThis,'localStorage',previousStorage);else Reflect.deleteProperty(globalThis,'localStorage');if(previousWindow)Object.defineProperty(globalThis,'window',previousWindow);else Reflect.deleteProperty(globalThis,'window');}
+});
+
+test('a long first message becomes a title cut at a word, with «…»',()=>{
+ assert.equal(shortTitle('  Hola,   ¿cómo estás?  '),'Hola, ¿cómo estás?');
+ const long='Necesito ideas para la portada de un libro de cocina rusa para principiantes. ¿Qué opciones tengo?';
+ const t=shortTitle(long);
+ assert.equal(t,'Necesito ideas para la portada de un libro de cocina rusa…');
+ assert.ok(t.length<=61);
+ assert.equal(shortTitle('a'.repeat(80)),'a'.repeat(60)+'…');
 });

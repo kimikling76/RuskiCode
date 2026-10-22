@@ -21,6 +21,8 @@ function CodeBlock({children}: {children: ReactNode}) {
   const [copied, setCopied] = useState(false);
   const [failed, setFailed] = useState(false);
   const language = codeLanguage(children);
+  // Prose and prompts wrap so they read without sliding sideways; real code keeps its lines.
+  const wrap = !language || /^(text|txt|plain|plaintext|prompt|markdown|md)$/i.test(language);
 
   async function copy() {
     try {
@@ -34,7 +36,7 @@ function CodeBlock({children}: {children: ReactNode}) {
   }
 
   return (
-    <div className="rc-code">
+    <div className={'rc-code' + (wrap ? ' rc-code--wrap' : '')}>
       <div className="rc-code-bar">
         <span>{language || 'código'}</span>
         <button type="button" className="rc-code-copy" onClick={copy} aria-label={copied ? 'Código copiado' : 'Copiar código'}>

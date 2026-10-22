@@ -26,6 +26,7 @@ import {MessageSources, mergeSources} from './chat-sources';
 import {bookForAssistant, bookForProject, usedOf} from '@/lib/kb/context';
 import {BookUsedNote} from '@/components/kb/book-used';
 import {BookChip, BookToggle} from '@/components/kb/book-toggle';
+import {ComposerMore} from './composer-more';
 import type {ChatBook} from '@/lib/personal-chat/state';
 
 const MessageMarkdown = dynamic(() => import('./message-markdown').then(m => m.MessageMarkdown), {
@@ -542,7 +543,6 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
         >
           {!hasMessages ? (
             <div className="rc-chat-empty">
-              <span className="rc-chat-glyph" aria-hidden="true">Ж</span>
               <h2>¿En qué estás pensando?</h2>
               <div className="rc-chat-mode">
                 {pendingAssistant ? (
@@ -769,21 +769,34 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
               }}
             />
             <div className="rc-composer-bar">
-              <Tip label="Adjuntar imágenes o archivos">
-                <button type="button" className="rc-icon-btn rc-attach-btn" aria-label="Adjuntar imágenes o archivos" disabled={!hydrated} onClick={() => fileInput.current?.click()}><Paperclip /></button>
-              </Tip>
-              <input ref={fileInput} type="file" multiple hidden accept={acceptAttachments} onChange={e => { files.add([...(e.target.files || [])]); e.target.value = ''; }} />
-              <Tip label="Skills: generar imágenes o videos, crear páginas del manual, revisar el ruso">
-                <button type="button" className="rc-icon-btn" aria-label="Elegir una skill" aria-pressed={menu.open} disabled={!hydrated} onClick={() => { setMenu(m => ({open: !m.open, index: 0, dismissed: null})); textarea.current?.focus(); }}><SquareSlash /></button>
-              </Tip>
-              <Tip label={searchOn ? 'Búsqueda web activada: el modelo puede consultar páginas y citarlas' : 'Buscar en la web (solo modelos que digan «busca en la web»)'}>
-                <button type="button" className={'rc-icon-btn rc-search-btn' + (searchOn ? ' is-on' : '')} aria-label="Buscar en la web" aria-pressed={searchOn} disabled={!hydrated} onClick={() => changeSearch(!searchOn)}><Globe /></button>
-              </Tip>
-              <BookToggle value={bookOn} onChange={changeBook} disabled={!hydrated} />
+              {/* On a phone these four share the «+» menu below (see chat.css). */}
+              <div className="rc-composer-tools">
+                <Tip label="Adjuntar imágenes o archivos">
+                  <button type="button" className="rc-icon-btn rc-attach-btn" aria-label="Adjuntar imágenes o archivos" disabled={!hydrated} onClick={() => fileInput.current?.click()}><Paperclip /></button>
+                </Tip>
+                <input ref={fileInput} type="file" multiple hidden accept={acceptAttachments} onChange={e => { files.add([...(e.target.files || [])]); e.target.value = ''; }} />
+                <Tip label="Skills: generar imágenes o videos, crear páginas del manual, revisar el ruso">
+                  <button type="button" className="rc-icon-btn" aria-label="Elegir una skill" aria-pressed={menu.open} disabled={!hydrated} onClick={() => { setMenu(m => ({open: !m.open, index: 0, dismissed: null})); textarea.current?.focus(); }}><SquareSlash /></button>
+                </Tip>
+                <Tip label={searchOn ? 'Búsqueda web activada: el modelo puede consultar páginas y citarlas' : 'Buscar en la web (solo modelos que digan «busca en la web»)'}>
+                  <button type="button" className={'rc-icon-btn rc-search-btn' + (searchOn ? ' is-on' : '')} aria-label="Buscar en la web" aria-pressed={searchOn} disabled={!hydrated} onClick={() => changeSearch(!searchOn)}><Globe /></button>
+                </Tip>
+                <BookToggle value={bookOn} onChange={changeBook} disabled={!hydrated} />
+              </div>
+              <ComposerMore
+                disabled={!hydrated}
+                onAttach={() => fileInput.current?.click()}
+                onSkills={() => { setMenu({open: true, index: 0, dismissed: null}); textarea.current?.focus(); }}
+                searchOn={searchOn}
+                onSearch={changeSearch}
+                book={bookOn}
+                onBook={changeBook}
+              />
               <ChatModelPicker models={allModels} value={selectedModel} onChange={chooseModel} disabled={busy || !models.length} />
               <div className="rc-composer-spacer" />
               <label className="rc-ask" htmlFor="ask-first">
-                <span className="rc-ask-label">Preguntar antes</span>
+                {/* On a phone it reads «Preguntar»; its name stays «Preguntar antes». */}
+                <span className="rc-ask-label">Preguntar<span className="rc-ask-more"> antes</span></span>
                 <Switch id="ask-first" checked={askFirst} onCheckedChange={changeAskFirst} />
               </label>
               {busy ? (
