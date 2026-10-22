@@ -170,11 +170,11 @@
 .rc-job-failed p { margin: 0; font-size: var(--fs-14); color: var(--fg-1); }
 .rc-job-failed .rc-msg-error-details { justify-self: stretch; text-align: left; }
 .rc-job-failed .rc-msg-error-details summary { margin: 0 auto; }
-.rc-job-foot { display: grid; gap: var(--sp-2); padding: 10px 10px 8px 12px; border-top: 1px solid var(--line); }
+.rc-job-foot { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-2); padding: 10px 10px 8px 12px; border-top: 1px solid var(--line); }
 .rc-job-prompt { display: -webkit-box; margin: 0; overflow: hidden; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: var(--fs-13); line-height: 1.45; color: var(--fg-2); overflow-wrap: anywhere; }
 .rc-job-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); min-height: var(--control-28); }
-.rc-job-meta { font: 400 11.5px/1.3 var(--font-code); color: var(--fg-3); font-variant-numeric: tabular-nums; }
-.rc-job-actions { display: flex; gap: 2px; margin-right: -4px; }
+.rc-job-meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 400 var(--fs-12)/1.3 var(--font-code); color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.rc-job-actions { display: flex; flex-shrink: 0; gap: 2px; margin-right: -4px; }
 
 /* ---------- Large viewer ---------- */
 .rc-viewer {
@@ -336,6 +336,65 @@
 }
 .rc-selection-bar > span { margin-right: var(--sp-3); white-space: nowrap; }
 
+/* «Preguntar antes» decides whether Kie charges without asking: its label stays visible, also on a phone. */
+.rc-cine-generate .rc-ask-label, .rc-gen .rc-ask-label { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
+
+/* ---------- Image: results above, the request written below (the Chat's composer, with setting chips) ---------- */
+.rc-cine-work { display: flex; flex-direction: column; flex: 1; min-height: 0; background: var(--stage); }
+.rc-cine-results {
+  flex: 1;
+  min-height: 0;
+  padding: var(--sp-6) var(--sp-7) var(--sp-5);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--bg-4) transparent;
+}
+.rc-app .rc-cine-results:focus-visible { outline-offset: -2px; }
+.rc-job-grid--large { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); max-width: 1680px; margin: 0 auto; }
+.rc-gen-zone { flex-shrink: 0; padding: 0 var(--sp-7) calc(var(--sp-5) + env(safe-area-inset-bottom)); }
+.rc-gen-column { width: min(100%, 960px); margin: 0 auto; }
+.rc-gen { gap: var(--sp-3); }
+.rc-gen-prompt { font-size: var(--fs-15); }
+.rc-gen-refs { display: flex; flex-wrap: wrap; gap: var(--sp-3); padding-top: var(--sp-1); }
+.rc-gen-refs .rc-ref { width: 52px; height: 52px; }
+.rc-gen-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3) var(--sp-4); }
+.rc-gen-chips { display: flex; align-items: center; gap: var(--sp-2); flex: 1 1 auto; min-width: 0; }
+.rc-gen-actions { display: flex; align-items: center; gap: var(--sp-4); margin-left: auto; }
+.rc-gen-submit { display: inline-flex; }
+.rc-gen .rc-icon-btn { position: relative; flex-shrink: 0; }
+.rc-gen-count { position: absolute; top: 1px; right: 1px; min-width: 15px; height: 15px; padding: 0 3px; border-radius: var(--radius-full); background: var(--fg-1); color: var(--bg-0); font: 600 10px/15px var(--font-ui); text-align: center; }
+.rc-gen .rc-model-trigger { flex-shrink: 1; min-width: 0; max-width: 220px; margin-left: 0; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius-8); color: var(--fg-1); }
+.rc-chip-setting {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  height: var(--control-32);
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-8);
+  background: transparent;
+  color: var(--fg-1);
+  font: 500 var(--fs-13)/1 var(--font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.rc-chip-setting:hover:not(:disabled),
+.rc-chip-setting[data-state='open'],
+.rc-gen .rc-model-trigger:hover,
+.rc-gen .rc-model-trigger[data-state='open'] { background: var(--bg-3); border-color: var(--line-strong); }
+.rc-chip-setting strong { font-weight: 500; font-variant-numeric: tabular-nums; }
+.rc-chip-setting-label { font-weight: 400; color: var(--fg-3); }
+.rc-chip-setting svg { width: 14px; height: 14px; color: var(--fg-3); }
+.rc-chip-pop { display: grid; gap: var(--sp-4); width: min(280px, calc(100vw - 24px)); padding: var(--sp-4); }
+.rc-chip-pop--wide { width: min(340px, calc(100vw - 24px)); }
+.rc-chip-pop-title { margin: 0; font-size: var(--fs-12); font-weight: 500; color: var(--fg-3); }
+.rc-chip-pop .rc-hint { margin: 0; }
+.rc-chip-pop .rc-aspects { grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); }
+@media (max-width: 1279px) { .rc-chip-setting-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 1023px) {
   .rc-cine-layout { grid-template-columns: 300px minmax(0, 1fr); }
@@ -369,6 +428,28 @@
   .rc-gallery-search { width: 100%; }
   .rc-gallery-count { margin-left: 0; }
   .rc-variants { grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
+  .rc-cine-results { padding: var(--sp-4) var(--sp-3); }
+  .rc-job-grid--large { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-3); }
+  .rc-gen-zone { padding: 0 var(--sp-3) calc(var(--sp-3) + env(safe-area-inset-bottom)); }
+  /* The chips scroll sideways on one line; «Preguntar antes» and the action get their own line. */
+  .rc-gen-chips {
+    flex-basis: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+    /* Room for the focus ring, which the scrolling row would otherwise cut. */
+    margin: -5px calc(-1 * var(--sp-1));
+    padding: 5px var(--sp-6) 5px var(--sp-1);
+    /* A soft edge says the row goes on when it does not fit. */
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  }
+  .rc-gen-chips::-webkit-scrollbar { display: none; }
+  .rc-gen-actions { flex-basis: 100%; justify-content: space-between; }
+  .rc-gen .rc-icon-btn { width: var(--control-44); height: var(--control-44); }
+  .rc-chip-setting, .rc-gen .rc-model-trigger { height: var(--control-44); }
+  .rc-gen .rc-model-trigger { flex-shrink: 0; max-width: 180px; }
+  .rc-gen .rc-ask { min-height: var(--control-44); }
+  .rc-gen-submit .rc-btn { height: var(--control-44); }
   .rc-selection-bar { left: var(--sp-3); right: var(--sp-3); transform: none; flex-wrap: wrap; }
 }
 
@@ -384,4 +465,5 @@
 .rc-video-pending { list-style: none; display: grid; gap: var(--sp-4); width: min(100%, 520px); margin: var(--sp-6) auto; padding: 0; text-align: left; }
 .rc-video-pending li { padding: var(--sp-4); border: 1px solid var(--line); border-radius: var(--radius-12); background: var(--bg-1); }
 .rc-video-pending p { margin: var(--sp-2) 0; }
-.rc-cine-model-picker .rc-model-trigger { width: 100%; justify-content: space-between; height: var(--control-36); border: 1px solid var(--line-strong); }
+.rc-cine-model-picker .rc-model-trigger { width: 100%; max-width: 100%; margin-left: 0; justify-content: space-between; height: var(--control-36); border: 1px solid var(--line-strong); }
+

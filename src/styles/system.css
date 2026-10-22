@@ -48,6 +48,8 @@
 }
 .rc-btn:disabled { opacity: 0.45; }
 .rc-btn--primary { background: var(--accent); color: var(--on-accent); }
+/* Unavailable reads as unavailable: neutral, not a faded accent. */
+.rc-btn--primary:disabled { opacity: 1; background: var(--bg-3); color: var(--fg-3); }
 .rc-btn--primary:hover:not(:disabled) { background: var(--accent-hover); }
 .rc-btn--primary:active:not(:disabled) { background: var(--accent-press); }
 .rc-btn--secondary { background: var(--bg-3); border-color: var(--line-strong); box-shadow: var(--shadow-raise); }
