@@ -1,13 +1,13 @@
 'use client';
-import {useEffect, useState} from 'react';
+import {useEffect, useMemo, useState, type ReactNode} from 'react';
 import Link from 'next/link';
 import {useRouter} from 'next/navigation';
 import {toast} from 'sonner';
-import {BookOpen, ChevronRight, FileText, Plus, Trash2, Upload} from 'lucide-react';
+import {BookOpen, ChevronDown, ChevronRight, Plus, Search, Upload} from 'lucide-react';
 import type {EditableBook} from '@/lib/books/editable';
 import {acceptedFiles, kindOf, ImportError} from '@/lib/books/import/browser';
 import {ImportDialog} from './import-dialog';
-import {createOriginal, deleteOriginal, fileSize, listOriginals, restoreOriginal, type OriginalPdf} from '@/lib/books/originals';
+import {createOriginal, deleteOriginal, fileSize, listOriginals, loadOriginalData, restoreOriginal, type OriginalPdf} from '@/lib/books/originals';
 import {OperationError, runStirling} from '@/lib/stirling/client';
 import {MAX_PDF_BYTES} from '@/lib/stirling/operations';
 import {ConfirmDialog} from '@/components/ui/dialog';
@@ -15,13 +15,23 @@ import {editableBookSchema} from '@/lib/books/editable';
 import type {BookSpec} from '@/lib/books/spec';
 import {newBook} from '@/lib/books/templates';
 import {composerBooks, createLocalBook, editorHref, listLocalBooks, libraryEvents, type LocalBook} from '@/lib/books/library';
+import {getAsset, listUnits} from '@/lib/manual/store';
+import type {Unit} from '@/lib/manual/model';
 import {Dialog} from '@/components/ui/dialog';
+import {Menu, MenuContent, MenuItem, MenuTrigger} from '@/components/ui/menu';
 import {Segmented} from '@/components/cinema/controls';
-import {ManualSection} from '@/components/manual/manual-home';
-import {BookSection} from '@/components/kb/book-section';
+import {NewUnitDialog, designModels, removeUnit, useManualImport} from '@/components/manual/manual-home';
+import {BookStrip} from '@/components/kb/book-section';
+import {BookCover, FirstPage, LibraryCard, type CardKind} from './library-card';
 
 type Project = {id: string; name: string; brief: string};
 const dateFormat = new Intl.DateTimeFormat('es-AR', {day: 'numeric', month: 'short', year: 'numeric'});
+const plural = (n: number, one: string, many: string) => n + ' ' + (n === 1 ? one : many);
+// Searching ignores case and accents: «tipografica» finds «Tipográfica».
+const plain = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+type Filter = 'all' | 'book' | 'pdf' | 'unit';
+type Item = {key: string; kind: CardKind; title: string; meta: string; href?: string; at: number; picture: ReactNode; onDelete?: () => void; deleteLabel?: string};
 
 export function PdfHome({projects, legacy, onOpenProject, onOpenLegacy}: {projects: Project[]; legacy: {id: string; brief: string}[]; onOpenProject: (id: string) => void; onOpenLegacy: (id: string) => void}) {
   const router = useRouter();
@@ -33,6 +43,12 @@ export function PdfHome({projects, legacy, onOpenProject, onOpenLegacy}: {projec
   const [dragging, setDragging] = useState(false);
   const [originals, setOriginals] = useState<OriginalPdf[]>([]);
   const [removing, setRemoving] = useState<OriginalPdf | null>(null);
+  const [units, setUnits] = useState<Unit[] | null>(null);
+  const [unitRemoving, setUnitRemoving] = useState<Unit | null>(null);
+  const [newUnit, setNewUnit] = useState(false);
+  const [filter, setFilter] = useState<Filter>('all');
+  const [query, setQuery] = useState('');
+  const manual = useManualImport();
 
   useEffect(() => {
     const load = () => {
@@ -40,10 +56,18 @@ export function PdfHome({projects, legacy, onOpenProject, onOpenLegacy}: {projec
       listLocalBooks().then(setBooks).catch(() => { setBooks([]); setStorageError(true); });
       listOriginals().then(setOriginals).catch(() => setOriginals([]));
     };
+    const loadUnits = () => { listUnits().then(setUnits).catch(() => setUnits([])); };
     load();
-    // Books that arrive from another computer show up without reloading.
+    loadUnits();
+    // What arrives from another computer shows up without reloading.
     libraryEvents?.addEventListener('synced', load);
-    return () => libraryEvents?.removeEventListener('synced', load);
+    libraryEvents?.addEventListener('synced', loadUnits);
+    libraryEvents?.addEventListener('change', loadUnits);
+    return () => {
+      libraryEvents?.removeEventListener('synced', load);
+      libraryEvents?.removeEventListener('synced', loadUnits);
+      libraryEvents?.removeEventListener('change', loadUnits);
+    };
   }, []);
 
   async function importEditable(file: File) {
@@ -110,81 +134,108 @@ export function PdfHome({projects, legacy, onOpenProject, onOpenLegacy}: {projec
     }
   }
 
+  const models = designModels(units || []);
+  // Everything in one list, the last touched first; the sample goes last.
+  const items = useMemo<Item[]>(() => [
+    ...(books || []).map((b): Item => ({
+      key: 'book:' + b.id, kind: 'book', title: b.project.spec.title || 'Sin título', at: b.updatedAt, href: editorHref({kind: 'local', id: b.id}),
+      meta: plural(b.project.chapters.length, 'capítulo', 'capítulos') + ' · ' + dateFormat.format(new Date(b.updatedAt)),
+      picture: <BookCover title={b.project.spec.title} level={b.project.spec.level} language={b.project.spec.language} author={b.project.spec.author} />,
+    })),
+    ...originals.map((p): Item => ({
+      key: 'pdf:' + p.id, kind: 'pdf', title: p.name, at: p.updatedAt, href: p.missing ? undefined : '/workspace/documento?id=' + p.id,
+      meta: p.missing ? 'Quedó en la otra computadora' : fileSize(p.size) + ' · ' + dateFormat.format(new Date(p.updatedAt)),
+      picture: <FirstPage cacheKey={'pdf:' + p.id + ':' + p.updatedAt} load={() => loadOriginalData(p.id)} missing={p.missing ? 'Más de 4 MB: está en la otra computadora' : undefined} />,
+      onDelete: () => setRemoving(p), deleteLabel: 'Borrar PDF',
+    })),
+    ...(units || []).map((u): Item => ({
+      key: 'unit:' + u.id, kind: 'unit', title: u.title, at: u.updatedAt, href: '/workspace/manual?id=' + u.id,
+      meta: plural(u.pages.length, 'página', 'páginas') + ' · ' + dateFormat.format(new Date(u.updatedAt)),
+      // The first page of the PDF it was imported from; a unit made from a design has no PDF of its own.
+      picture: u.source ? <FirstPage cacheKey={'unit:' + u.source.asset} load={() => getAsset(u.source!.asset)} /> : <BookCover title={u.title} level={u.number ? 'Unidad ' + u.number : undefined} />,
+      onDelete: () => setUnitRemoving(u), deleteLabel: 'Borrar unidad',
+    })),
+  ].sort((a, b) => b.at - a.at).concat({
+    key: 'sample', kind: 'sample', title: 'Русский код · A1', at: 0, href: editorHref({kind: 'demo'}), meta: 'Para probar el editor',
+    picture: <BookCover title="Русский код" level="A1" language="ru" />,
+  }), [books, originals, units]);
+  const counts = {all: items.length, book: items.filter(i => i.kind === 'book' || i.kind === 'sample').length, pdf: items.filter(i => i.kind === 'pdf').length, unit: items.filter(i => i.kind === 'unit').length};
+  const wanted = plain(query.trim());
+  const shown = items.filter(i => (filter === 'all' || i.kind === filter || (filter === 'book' && i.kind === 'sample')) && (!wanted || plain(i.title).includes(wanted)));
+  const loading = books === null || units === null;
+  const own = items.length - 1;
+  const filters: [Filter, string][] = [['all', 'Todo'], ['book', 'Libros'], ['pdf', 'PDF'], ['unit', 'Manual']];
+  const importInput = (describedBy?: string) => (
+    <input type="file" accept={acceptedFiles} className="sr-only" aria-describedby={describedBy} onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; importFile(f); }} />
+  );
+
   return (
     <section
-      className="rc-studio-page rc-pdf-home"
+      className="rc-studio-page rc-pdf-home rc-lib"
       data-dragging={dragging ? 'true' : undefined}
       onDragOver={e => { if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDragging(true); } }}
       onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false); }}
       onDrop={e => { if (!e.dataTransfer.files.length) return; e.preventDefault(); setDragging(false); importFile(e.dataTransfer.files[0]); }}
     >
       {dragging ? <div className="rc-pdf-drop" aria-hidden="true"><Upload />Soltá el archivo para importarlo</div> : null}
-      <h1 className="rc-page-title"><BookOpen className="rc-page-icon" aria-hidden="true" />PDF Studio</h1>
-      <p className="rc-page-lead">Libros, documentos y materiales. Se editan por bloques y se exportan a PDF.</p>
-      <div className="rc-pdf-home-actions">
-        <button type="button" className="rc-btn rc-btn--primary" onClick={() => setCreating({})}><Plus aria-hidden="true" />Nuevo libro</button>
-        <label className="rc-btn rc-btn--secondary">
-          <Upload aria-hidden="true" />Importar archivo
-          <input type="file" accept={acceptedFiles} className="sr-only" aria-describedby="pdf-import-hint" onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; importFile(f); }} />
+      <header className="rc-lib-head">
+        <div className="rc-lib-title">
+          <h1 className="rc-page-title"><BookOpen className="rc-page-icon" aria-hidden="true" />PDF Studio</h1>
+          <p id="pdf-import-hint" className="rc-page-lead">Libros, PDF y unidades del manual. Importá un PDF, un Word, un texto o un editable (.json), o arrastralo hasta acá.</p>
+        </div>
+        <div className="rc-lib-actions">
+          <label className="rc-btn rc-btn--secondary"><Upload aria-hidden="true" />Importar{importInput('pdf-import-hint')}</label>
+          <Menu>
+            <MenuTrigger asChild>
+              <button type="button" className="rc-btn rc-btn--primary"><Plus aria-hidden="true" />Nuevo<span className="sr-only"> libro o unidad</span><ChevronDown aria-hidden="true" /></button>
+            </MenuTrigger>
+            <MenuContent align="end">
+              <MenuItem onSelect={() => setCreating({})}>Libro</MenuItem>
+              <MenuItem disabled={!models.length} onSelect={() => setNewUnit(true)}>{models.length ? 'Unidad con el diseño del manual' : 'Unidad del manual (importá una primero)'}</MenuItem>
+            </MenuContent>
+          </Menu>
+        </div>
+      </header>
+      {storageError ? <p className="rc-form-error" role="alert">Este navegador no permite guardar libros (almacenamiento bloqueado o modo privado).</p> : null}
+      {manual.busy ? <p className="rc-notice" role="status"><span className="rc-dot" aria-hidden="true" />{manual.busy}</p> : null}
+
+      <BookStrip />
+
+      <div className="rc-lib-bar">
+        <div className="rc-lib-filters" role="group" aria-label="Mostrar">
+          {filters.map(([id, name]) => (
+            <button key={id} type="button" className="rc-chip" aria-pressed={filter === id} onClick={() => setFilter(id)}>
+              {name}<span className="rc-lib-count">{counts[id]}</span>
+            </button>
+          ))}
+        </div>
+        <label className="rc-lib-search">
+          <Search aria-hidden="true" />
+          <span className="sr-only">Buscar en la biblioteca</span>
+          <input type="search" className="rc-input" placeholder="Buscar" value={query} onChange={e => setQuery(e.target.value)} />
         </label>
       </div>
-      <p id="pdf-import-hint" className="rc-hint rc-pdf-home-note">PDF, Word (.docx), texto, Markdown, HTML o un editable (.json). También podés arrastrarlo hasta acá. Un PDF se puede editar tal cual o convertir en bloques.</p>
-      {storageError ? <p className="rc-form-error" role="alert">Este navegador no permite guardar libros (almacenamiento bloqueado o modo privado).</p> : null}
 
-      <BookSection />
-
-      <ManualSection />
-
-      <section className="rc-page-section">
-        <h2>Tus libros</h2>
-        {books === null ? (
-          <div className="rc-history-loading" role="status" aria-label="Cargando libros"><span className="rc-skeleton" /><span className="rc-skeleton" /></div>
-        ) : books.length ? (
-          <ul className="rc-project-list">
-            {books.map(b => (
-              <li key={b.id}>
-                <Link href={editorHref({kind: 'local', id: b.id})} className="rc-project-row">
-                  <span className="rc-project-name">{b.project.spec.title}</span>
-                  <span className="rc-project-type">{b.project.chapters.length} {b.project.chapters.length === 1 ? 'capítulo' : 'capítulos'} · {dateFormat.format(new Date(b.updatedAt))}</span>
-                  <ChevronRight aria-hidden="true" />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <div className="rc-empty">
-            <p className="rc-empty-title">Todavía no hay libros propios.</p>
-            <p className="rc-hint">Creá uno nuevo, importá un PDF o un Word, o duplicá la muestra.</p>
-          </div>
-        )}
-        <p className="rc-hint rc-pdf-home-note">Se guardan en tu cuenta y aparecen en tus otras computadoras. También podés descargar el editable (.json) como copia.</p>
-      </section>
-
-      {originals.length ? (
-        <section className="rc-page-section">
-          <h2>PDF importados</h2>
-          <ul className="rc-project-list">
-            {originals.map(p => (
-              <li key={p.id} className="rc-pdf-project-row">
-                {p.missing ? (
-                  <span className="rc-project-row" aria-disabled="true">
-                    <span className="rc-project-name"><FileText aria-hidden="true" />{p.name}</span>
-                    <span className="rc-project-type">Más de 4 MB: quedó en la otra computadora</span>
-                  </span>
-                ) : (
-                  <Link href={'/workspace/documento?id=' + p.id} className="rc-project-row">
-                    <span className="rc-project-name"><FileText aria-hidden="true" />{p.name}</span>
-                    <span className="rc-project-type">{fileSize(p.size)} · {dateFormat.format(new Date(p.updatedAt))}</span>
-                    <ChevronRight aria-hidden="true" />
-                  </Link>
-                )}
-                <button type="button" className="rc-icon-btn" aria-label={'Borrar ' + p.name} onClick={() => setRemoving(p)}><Trash2 aria-hidden="true" /></button>
-              </li>
-            ))}
-          </ul>
-          <p className="rc-hint rc-pdf-home-note">Se editan tal cual: páginas, notas y texto con Stirling PDF, y cada cambio queda como versión. Los de hasta 4 MB se guardan en tu cuenta (con sus versiones) y aparecen en tus otras computadoras.</p>
-        </section>
-      ) : null}
+      {loading ? (
+        <div className="rc-history-loading" role="status" aria-label="Cargando la biblioteca"><span className="rc-skeleton" /><span className="rc-skeleton" /></div>
+      ) : shown.length || (!own && filter === 'all' && !wanted) ? (
+        <ul className="rc-lib-grid" aria-label="Biblioteca">
+          {/* With nothing of your own yet, the first card is where to start. */}
+          {!own && filter === 'all' && !wanted ? (
+            <li className="rc-lib-card rc-lib-start">
+              <label className="rc-lib-open">
+                <span className="rc-lib-thumb"><span className="rc-lib-page rc-lib-drop"><Upload aria-hidden="true" />Importar un archivo</span></span>
+                <span className="rc-lib-text"><strong>Tu primer libro o PDF</strong><span>PDF, Word, texto o un editable, o arrastralo hasta acá</span></span>
+                {importInput()}
+              </label>
+            </li>
+          ) : null}
+          {shown.map(i => <LibraryCard key={i.key} kind={i.kind} title={i.title} meta={i.meta} href={i.href} picture={i.picture} onDelete={i.onDelete} deleteLabel={i.deleteLabel} />)}
+        </ul>
+      ) : (
+        <p className="rc-lib-none" role="status">{wanted ? 'Nada coincide con «' + query.trim() + '».' : filter === 'pdf' ? 'Todavía no hay PDF importados.' : filter === 'unit' ? 'Todavía no hay unidades del manual: importá el PDF de una unidad y elegí «Importar como unidad del manual».' : 'Todavía no hay libros propios.'}</p>
+      )}
+      <p className="rc-hint rc-lib-note">Todo se guarda en tu cuenta y aparece en tus otras computadoras. Los PDF de más de 4 MB quedan solo en la computadora donde los importaste.</p>
 
       {composer.length ? (
         <section className="rc-page-section">
@@ -202,19 +253,6 @@ export function PdfHome({projects, legacy, onOpenProject, onOpenLegacy}: {projec
           </ul>
         </section>
       ) : null}
-
-      <section className="rc-page-section">
-        <h2>Muestra</h2>
-        <ul className="rc-project-list">
-          <li>
-            <Link href={editorHref({kind: 'demo'})} className="rc-project-row">
-              <span className="rc-project-name">Русский код · A1</span>
-              <span className="rc-project-type">Muestra para probar el editor</span>
-              <ChevronRight aria-hidden="true" />
-            </Link>
-          </li>
-        </ul>
-      </section>
 
       {projects.length ? (
         <section className="rc-page-section">
@@ -250,7 +288,7 @@ export function PdfHome({projects, legacy, onOpenProject, onOpenLegacy}: {projec
       ) : null}
 
       {/* A new dialog per file, so it never shows the previous file's summary. */}
-      <ImportDialog key={importing ? importing.name + importing.size + importing.lastModified : 'closed'} file={importing} onClose={() => setImporting(null)} onCreate={createImported} onEditOriginal={editOriginal} onWordToPdf={wordToPdf} />
+      <ImportDialog key={importing ? importing.name + importing.size + importing.lastModified : 'closed'} file={importing} onClose={() => setImporting(null)} onCreate={createImported} onEditOriginal={editOriginal} onWordToPdf={wordToPdf} onManualUnit={manual.importUnit} />
       <ConfirmDialog
         open={Boolean(removing)}
         onClose={() => setRemoving(null)}
@@ -260,6 +298,16 @@ export function PdfHome({projects, legacy, onOpenProject, onOpenLegacy}: {projec
         confirmLabel="Borrar PDF"
         tone="danger"
       />
+      <ConfirmDialog
+        open={Boolean(unitRemoving)}
+        onClose={() => setUnitRemoving(null)}
+        onConfirm={() => { const u = unitRemoving; setUnitRemoving(null); if (u) void removeUnit(u); }}
+        title={'¿Borrar «' + (unitRemoving?.title || '') + '»?'}
+        description="Se borra de tu cuenta con sus versiones, también en tus otras computadoras. Si querés conservarla, exportá el PDF antes."
+        confirmLabel="Borrar unidad"
+        tone="danger"
+      />
+      <NewUnitDialog open={newUnit} models={models} onClose={() => setNewUnit(false)} onCreated={id => router.push('/workspace/manual?id=' + id)} />
       <NewBookDialog open={Boolean(creating)} from={creating?.from} onClose={() => setCreating(null)} onCreate={id => router.push(editorHref({kind: 'local', id}))} />
     </section>
   );

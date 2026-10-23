@@ -1,6 +1,6 @@
 'use client';
 import {useEffect, useMemo, useRef, useState} from 'react';
-import {AlertTriangle, Blocks, FilePen, FileText} from 'lucide-react';
+import {AlertTriangle, Blocks, FilePen, FileText, LayoutTemplate} from 'lucide-react';
 import type {BookSpec} from '@/lib/books/spec';
 import type {EditableBook} from '@/lib/books/editable';
 import {buildBook, suggestions, type ImportedDoc} from '@/lib/books/import/model';
@@ -23,8 +23,9 @@ const count = (n: number, one: string, many: string) => n + ' ' + (n === 1 ? one
  */
 const fileKind = (file: File | null) => { try { return file ? kindOf(file) : null; } catch { return null; } };
 
-export function ImportDialog({file, onClose, onCreate, onEditOriginal, onWordToPdf}: {file: File | null; onClose: () => void; onCreate: (book: EditableBook) => Promise<void>; onEditOriginal?: (file: File) => Promise<void>; onWordToPdf?: (file: File) => Promise<void>}) {
-  // A PDF can be edited as it is or converted into blocks; a Word file can become a PDF (Stirling) or blocks.
+export function ImportDialog({file, onClose, onCreate, onEditOriginal, onWordToPdf, onManualUnit}: {file: File | null; onClose: () => void; onCreate: (book: EditableBook) => Promise<void>; onEditOriginal?: (file: File) => Promise<void>; onWordToPdf?: (file: File) => Promise<void>; onManualUnit?: (file: File) => Promise<void>}) {
+  // A PDF can be edited as it is, imported as a unit of the manual (keeping its design) or converted into blocks;
+  // a Word file can become a PDF (Stirling) or blocks.
   const kind = fileKind(file);
   const [mode, setMode] = useState<'choose' | 'convert'>(() => (kind === 'pdf' && onEditOriginal) || (kind === 'docx' && onWordToPdf) ? 'choose' : 'convert');
   const [state, setState] = useState<State>(mode === 'choose' ? {phase: 'choose'} : {phase: 'reading', progress: {stage: 'loading'}});
@@ -32,6 +33,7 @@ export function ImportDialog({file, onClose, onCreate, onEditOriginal, onWordToP
   const [language, setLanguage] = useState<BookSpec['language']>('ru');
   const [format, setFormat] = useState<BookSpec['pageFormat']>('A4');
   const [busy, setBusy] = useState(false);
+  const [readingUnit, setReadingUnit] = useState(false);
   const abort = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -71,6 +73,13 @@ export function ImportDialog({file, onClose, onCreate, onEditOriginal, onWordToP
     try { await action(file); } finally { setBusy(false); }
   }
 
+  async function manualUnit() {
+    if (!file || !onManualUnit || busy) return;
+    setBusy(true);
+    setReadingUnit(true);
+    try { await onManualUnit(file); } finally { setBusy(false); setReadingUnit(false); }
+  }
+
   async function create() {
     if (!preview || busy) return;
     setBusy(true);
@@ -108,6 +117,15 @@ export function ImportDialog({file, onClose, onCreate, onEditOriginal, onWordToP
                 </span>
               </button>
             )}
+            {kind === 'pdf' && onManualUnit ? (
+              <button type="button" className="rc-import-option" disabled={busy} onClick={() => void manualUnit()}>
+                <LayoutTemplate aria-hidden="true" />
+                <span>
+                  <strong>{readingUnit ? 'Leyendo la unidad…' : 'Importar como unidad del manual'}</strong>
+                  <span className="rc-hint">Para las unidades del libro: conserva su diseño. Corregís el texto, movés y reemplazás imágenes, y agregás ejercicios con el mismo diseño. Las páginas que no tocás se exportan iguales.</span>
+                </span>
+              </button>
+            ) : null}
             <button type="button" className="rc-import-option" disabled={busy} onClick={() => setMode('convert')}>
               <Blocks aria-hidden="true" />
               <span>

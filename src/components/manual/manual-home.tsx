@@ -1,16 +1,13 @@
 'use client';
 import {useEffect, useState} from 'react';
-import Link from 'next/link';
 import {useRouter} from 'next/navigation';
 import {toast} from 'sonner';
-import {ChevronRight, LayoutTemplate, Plus, Trash2, Upload} from 'lucide-react';
-import {createUnitFrom, deleteUnit, importUnitPdf, listUnits, restoreUnit} from '@/lib/manual/store';
+import {Plus} from 'lucide-react';
+import {createUnitFrom, deleteUnit, importUnitPdf, restoreUnit} from '@/lib/manual/store';
 import type {ImportReport} from '@/lib/manual/segment';
 import type {Unit} from '@/lib/manual/model';
-import {libraryEvents} from '@/lib/books/library';
-import {ConfirmDialog, Dialog} from '@/components/ui/dialog';
+import {Dialog} from '@/components/ui/dialog';
 
-const dateFormat = new Intl.DateTimeFormat('es-AR', {day: 'numeric', month: 'short', year: 'numeric'});
 const plural = (n: number, one: string, many: string) => n + ' ' + (n === 1 ? one : many);
 
 /** What the import did, in words. */
@@ -22,24 +19,11 @@ export function importSummary(r: ImportReport) {
   return parts.join(' · ');
 }
 
-/** The «Manual» section of PDF Studio: units of the book, imported keeping their design or made from one. */
-export function ManualSection() {
+/** Imports a unit's PDF keeping its design, then opens it. `busy` says what is being read. */
+export function useManualImport() {
   const router = useRouter();
-  const [units, setUnits] = useState<Unit[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [removing, setRemoving] = useState<Unit | null>(null);
-
-  useEffect(() => {
-    const load = () => { listUnits().then(setUnits).catch(() => setUnits([])); };
-    load();
-    libraryEvents?.addEventListener('synced', load);
-    libraryEvents?.addEventListener('change', load);
-    return () => { libraryEvents?.removeEventListener('synced', load); libraryEvents?.removeEventListener('change', load); };
-  }, []);
-
-  async function importFile(file?: File) {
-    if (!file) return;
+  async function importUnit(file: File) {
     if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') { toast('Elegí un PDF de la unidad.'); return; }
     setBusy('Leyendo «' + file.name + '»…');
     try {
@@ -51,55 +35,19 @@ export function ManualSection() {
       toast(/password|encrypt/i.test(code) ? 'Ese PDF tiene contraseña. Guardalo sin contraseña e importalo de nuevo.' : 'No se pudo leer ese PDF como unidad del manual.', {duration: 9000});
     } finally { setBusy(null); }
   }
-
-  async function confirmRemove() {
-    if (!removing) return;
-    const saved = await deleteUnit(removing.id);
-    setRemoving(null);
-    if (saved) toast('Unidad borrada', {action: {label: 'Deshacer', onClick: () => { void restoreUnit(saved); }}, duration: 8000});
-  }
-
-  const models = (units || []).filter(u => u.template.exerciseHeader);
-
-  return (
-    <section className="rc-page-section rc-man-home">
-      <h2>Manual</h2>
-      <p className="rc-hint rc-pdf-home-note">Las unidades del libro con su diseño intacto. Corregís el texto, movés y reemplazás imágenes, y agregás ejercicios que salen con el mismo diseño de la unidad. Las páginas que no tocás se exportan iguales al original.</p>
-      <div className="rc-pdf-home-actions">
-        <label className="rc-btn rc-btn--secondary" aria-disabled={Boolean(busy)}>
-          <Upload aria-hidden="true" />{busy ? 'Importando…' : 'Importar unidad (PDF)'}
-          <input type="file" accept="application/pdf,.pdf" className="sr-only" disabled={Boolean(busy)} onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; void importFile(f); }} />
-        </label>
-        <button type="button" className="rc-btn rc-btn--ghost" disabled={!models.length} onClick={() => setCreating(true)}><LayoutTemplate aria-hidden="true" />Nueva unidad con el diseño</button>
-      </div>
-      {busy ? <p className="rc-hint" role="status">{busy}</p> : null}
-      {!models.length && units?.length === 0 ? <p className="rc-hint">Para crear unidades nuevas con el diseño del manual, primero importá una unidad: su diseño es la plantilla.</p> : null}
-      {units === null ? (
-        <div className="rc-history-loading" role="status" aria-label="Cargando unidades"><span className="rc-skeleton" /></div>
-      ) : units.length ? (
-        <ul className="rc-project-list">
-          {units.map(u => (
-            <li key={u.id} className="rc-pdf-project-row">
-              <Link href={'/workspace/manual?id=' + u.id} className="rc-project-row">
-                <span className="rc-project-name">{u.title}</span>
-                <span className="rc-project-type">{plural(u.pages.length, 'página', 'páginas')} · {dateFormat.format(new Date(u.updatedAt))}</span>
-                <ChevronRight aria-hidden="true" />
-              </Link>
-              <button type="button" className="rc-icon-btn" aria-label={'Borrar ' + u.title} onClick={() => setRemoving(u)}><Trash2 aria-hidden="true" /></button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      <NewUnitDialog open={creating} models={models} onClose={() => setCreating(false)} onCreated={id => router.push('/workspace/manual?id=' + id)} />
-      <ConfirmDialog
-        open={Boolean(removing)} onClose={() => setRemoving(null)} onConfirm={() => void confirmRemove()} tone="danger" confirmLabel="Borrar unidad"
-        title={'¿Borrar «' + (removing?.title || '') + '»?'} description="Se borra de tu cuenta con sus versiones, también en tus otras computadoras. Si querés conservarla, exportá el PDF antes."
-      />
-    </section>
-  );
+  return {busy, importUnit};
 }
 
-function NewUnitDialog({open, models, onClose, onCreated}: {open: boolean; models: Unit[]; onClose: () => void; onCreated: (id: string) => void}) {
+/** Units that can lend their design to a new one: the ones with an exercise header. */
+export const designModels = (units: Unit[]) => units.filter(u => u.template.exerciseHeader);
+
+/** Deletes a unit with a short undo. */
+export async function removeUnit(unit: Unit) {
+  const saved = await deleteUnit(unit.id);
+  if (saved) toast('Unidad borrada', {action: {label: 'Deshacer', onClick: () => { void restoreUnit(saved); }}, duration: 8000});
+}
+
+export function NewUnitDialog({open, models, onClose, onCreated}: {open: boolean; models: Unit[]; onClose: () => void; onCreated: (id: string) => void}) {
   const [model, setModel] = useState('');
   const [title, setTitle] = useState('');
   const [number, setNumber] = useState('');
