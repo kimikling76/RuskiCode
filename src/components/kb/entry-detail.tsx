@@ -14,8 +14,9 @@ const when = new Intl.DateTimeFormat('es-AR', {day: 'numeric', month: 'short', y
 const lines = (v: string) => v.split('\n').map(x => x.trim()).filter(Boolean);
 const list = (v: string) => v.split(',').map(x => x.trim()).filter(Boolean);
 
+/** A state is a colored dot and its name: the accent stays for actions, focus and selection. */
 export function StatusBadge({status}: {status: KbStatus}) {
-  return <span className="rc-kb-status" data-status={status}>{statusName[status]}</span>;
+  return <span className="rc-kb-status" data-status={status}><span className="rc-kb-dot" aria-hidden="true" />{statusName[status]}</span>;
 }
 
 /** Name of a character id, for relations and look-alikes. */
