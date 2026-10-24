@@ -135,3 +135,26 @@ Ahora el generador del catálogo (`scripts/kie-catalog.mjs`) también lee esos r
   - en la pestaña Video, con Grok Imagine y 20 segundos, recibió `duration: 20`.
   - con 30 segundos en Seedance 2.5, al pasar a Seedance 2.0 Mini (hasta 15) quedó en 5, su valor por defecto.
 - **Accesibilidad:** axe sin hallazgos.
+
+## Textos más largos: el límite de cada modelo
+
+Antes, el cuadro de texto cortaba en 3.600 caracteres en el Estudio y en 4.000 en las pestañas de Cinema, sin importar el modelo. Ahora cada modelo deja escribir **todo lo que Kie documenta para él** (el campo `maxLength` del prompt en su página):
+
+| Ejemplos | Caracteres |
+|---|---|
+| Nano Banana 2.1 (y la pestaña Editar, que lo usa) | 20.000 |
+| Seedance 2.0 (y Fast y Mini), Wan 3.0, Vidu Q4 y Gemini Omni | 20.000 |
+| Kling 4.0 | 8.000 |
+| La mayoría de los modelos | 5.000 |
+| Hailuo 02 Pro | 1.500 |
+| Sin límite documentado (Veo 3.1, GPT Image, Flux Kontext…) | 4.000, como antes |
+
+- **El catálogo** guarda ese límite en cada modelo (`promptMax`). El generador lo lee de la página, y solo se agregó ese dato: el resto del catálogo quedó igual.
+- **Cerca del límite** (desde el 80 %) aparece un contador, por ejemplo «4.200 / 5.000 caracteres».
+- **Si el texto se pasa**, por ejemplo al cambiar a un modelo con un límite más chico, un aviso dice cuántos caracteres hay y cuántos acepta, y Generar queda apagado hasta acortarlo. En el Estudio se cuenta el texto que realmente se envía, con los personajes y el estilo.
+- **El servidor** comprueba lo mismo antes de pedirle nada a Kie, así que un texto demasiado largo nunca gasta créditos.
+
+**Cómo se probó** (con una Kie de prueba):
+- Un texto de 13.600 caracteres con Nano Banana llegó entero a Kie.
+- Al pasar a Hailuo 02 Pro, el aviso apareció y Generar quedó apagado.
+- Un pedido de 1.501 caracteres directo al servidor para Hailuo fue rechazado, sin crear ninguna tarea.

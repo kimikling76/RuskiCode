@@ -75,6 +75,8 @@ export type MediaOptions = {
   /** What the «resolution» field really is for this model (Calidad, Tamaño); «Resolución» when absent. */
   resolutionLabel?: string;
   durations: readonly string[];
+  /** The longest prompt Kie accepts for this model, in characters, as its page states it. */
+  promptMax?: number;
   /** The duration the page gives as default, when it is not the first one offered. */
   durationDefault?: string;
   outputFormat?: string;
@@ -121,7 +123,7 @@ const tested: CatalogModel[] = [
     options: {
       fields: {prompt: 'prompt', images: 'image_input', aspect: 'aspect_ratio', resolution: 'resolution', format: 'output_format'},
       // Same values as src/lib/cinema/capabilities.ts, where their sources are listed.
-      aspectRatios: nanoRatios, resolutions: nanoResolutions, durations: [], outputFormat: nanoFormat, maxReferences: nanoRefs, maxVariants: nanoVariants, modes: ['create', 'edit'],
+      aspectRatios: nanoRatios, resolutions: nanoResolutions, durations: [], outputFormat: nanoFormat, promptMax: 20000, maxReferences: nanoRefs, maxVariants: nanoVariants, modes: ['create', 'edit'],
     },
   },
 ];
@@ -148,6 +150,11 @@ export const catalog: CatalogModel[] = [...textModels, ...imageModels, ...videoM
 export const findModel = (id: string) => catalog.find(m => m.id === id);
 export {usableStatus};
 export const enabledStatus = (m: CatalogModel) => usableStatus(m.status);
+
+/** Used when a model's page does not state a prompt limit: the limit the studio has always used. */
+export const defaultPromptMax = 4000;
+/** The longest prompt the studio sends to this model. */
+export const promptLimit = (o?: Pick<MediaOptions, 'promptMax'>) => o?.promptMax || defaultPromptMax;
 
 /** The view the browser gets: no endpoints, only what the pickers need. */
 export type PublicModel = {

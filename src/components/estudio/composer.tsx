@@ -3,11 +3,11 @@ import {useMemo, useRef, useState, type KeyboardEvent, type ReactNode} from 'rea
 import TextareaAutosize from 'react-textarea-autosize';
 import * as Popover from '@radix-ui/react-popover';
 import {AtSign, Check, Clapperboard, Clock, Gem, Image as ImageIcon, Loader2, MapPin, Minus, Plus, RectangleHorizontal, ScanLine, Sparkles, User, Video, X} from 'lucide-react';
-import {imageModels, videoModels, enabledStatus, publicModel} from '@/lib/ai/models';
+import {imageModels, videoModels, enabledStatus, publicModel, promptLimit} from '@/lib/ai/models';
 import {startGeneration} from '@/lib/cinema/client';
 import {ChatModelPicker} from '@/components/studio/chat-model-picker';
 import {Tip} from '@/components/ui/tooltip';
-import {AskFirst, AspectPicker, Segmented, SettingChip, aspectName, optionLabel, useGenerateConfirm} from '@/components/cinema/controls';
+import {AskFirst, AspectPicker, PromptCount, Segmented, SettingChip, aspectName, optionLabel, useGenerateConfirm} from '@/components/cinema/controls';
 import {GalleryPicker, refSrc} from '@/components/cinema/gallery-picker';
 import {useRefUrl} from '@/components/kb/character-refs';
 import {composePrompt, lookNames, lookOption, lookOptions, mentioned, mentionQuery, referencesFor, type LookKey} from '@/lib/cinema/studio-looks';
@@ -67,7 +67,7 @@ export function EstudioComposer({project}: {project?: string}) {
   const left = called.filter(m => m.reference && !references.includes(m.reference));
   const editsOnly = Boolean(o && !o.modes.includes('create'));
   const needsImage = editsOnly && !references.length;
-  const ready = Boolean(model && d.prompt.trim()) && !needsImage;
+  const limit = promptLimit(o);
   const target = project ?? d.project;
   // The pictures sent, named in order «@image1», «@image2»… (the server turns them into each model's own names).
   const sentCount = o?.fields.images ? (o.fields.imagesSingle ? Math.min(1, references.length) : references.length) : 0;
@@ -78,6 +78,9 @@ export function EstudioComposer({project}: {project?: string}) {
     return numbered && k >= 0 && k < sentCount ? numbered.replace('{n}', String(k + 1)) : null;
   };
   const prompt = composePrompt(d.prompt, d.looks, called, pictureOf);
+  // Kie refuses a prompt longer than the model's documented limit: what is sent (with the cast and the style) must fit.
+  const sentText = prompt && o ? mentionPrompt(prompt, o, o.fields.images ? (o.fields.imagesSingle ? Math.min(1, references.length) : references.length) : 0) : '';
+  const ready = Boolean(model && d.prompt.trim()) && !needsImage && sentText.length <= limit;
   const estimate = model?.price ? model.price.credits * count : null;
   // The button's second line: the catalog's estimate when Kie publishes a price, otherwise the real Kie balance.
   const balance = useBalance().data?.credits;
@@ -255,7 +258,7 @@ export function EstudioComposer({project}: {project?: string}) {
                 className="rc-es-prompt"
                 minRows={2}
                 maxRows={9}
-                maxLength={3600}
+                maxLength={limit}
                 value={d.prompt}
                 placeholder="Describí la escena; usá @ para sumar imágenes, personajes y lugares"
                 aria-autocomplete="list"
@@ -280,6 +283,7 @@ export function EstudioComposer({project}: {project?: string}) {
               ) : null}
               <span className="sr-only" role="status">{menu && options.length ? options.length + (options.length === 1 ? ' sugerencia' : ' sugerencias') : ''}</span>
             </div>
+            <PromptCount length={d.prompt.length} sent={sentText.length} limit={limit} model={model.name} />
             {sentCount ? <p className="rc-hint rc-es-refs-hint">Nombralas en la escena como {Array.from({length: Math.min(sentCount, 2)}, (_, i) => authorImageName(i + 1)).join(', ')}{sentCount > 2 ? '…' : ''}, o elegilas con @.</p> : null}
             {unknownImages.length ? <p className="rc-es-note" role="status">No hay {unknownImages.map(authorImageName).join(' ni ')}: {sentCount ? 'elegiste ' + sentCount + (sentCount === 1 ? ' imagen' : ' imágenes') : max ? 'todavía no elegiste ninguna imagen' : model.name + ' no recibe imágenes'}.</p> : null}
             {left.length ? <p className="rc-es-note" role="status">{model.name} recibe hasta {max} {max === 1 ? 'imagen' : 'imágenes'}: {left.map(m => m.name).join(', ')} va{left.length === 1 ? '' : 'n'} solo con su descripción.</p> : null}
@@ -324,7 +328,7 @@ export function EstudioComposer({project}: {project?: string}) {
           </div>
 
           <div className="rc-es-go">
-            <Tip label={ready ? 'Ctrl+Enter' : needsImage ? 'Elegí la imagen' : 'Describí la escena'}>
+            <Tip label={ready ? 'Ctrl+Enter' : needsImage ? 'Elegí la imagen' : sentText.length > limit ? 'Acortá el texto' : 'Describí la escena'}>
               <span className="rc-es-tip">
                 <button type="button" className="rc-es-generate" disabled={!ready || busy} aria-busy={busy || undefined} onClick={generate}>
                   <span>{busy ? 'ENVIANDO…' : label.toUpperCase()}</span>
@@ -353,7 +357,7 @@ export function EstudioComposer({project}: {project?: string}) {
         <details className="rc-es-sent">
           <summary>Ver lo que se envía</summary>
           {/* Exactly what Kie receives: the server adds the same image names (`@image_1`…) the model's page asks for. */}
-          <pre>{prompt && o ? mentionPrompt(prompt, o, o.fields.images ? (o.fields.imagesSingle ? Math.min(1, references.length) : references.length) : 0) : 'Todavía nada.'}</pre>
+          <pre>{sentText || 'Todavía nada.'}</pre>
           <p className="rc-hint">{estimate !== null ? 'El costo con ≈ es un estimado del catálogo; el real lo informa Kie al terminar y se descuenta de tu saldo en Kie.' : 'Kie no publicó un precio para este modelo: el costo real aparece cuando Kie lo informa al terminar.'}</p>
         </details>
       </div>

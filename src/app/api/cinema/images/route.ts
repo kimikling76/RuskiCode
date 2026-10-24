@@ -1,8 +1,8 @@
 import {createHash} from 'node:crypto';
 import {z} from 'zod';
 import {authorized, sameOrigin, limit} from '@/lib/ai/security';
-import {findModel, enabledStatus} from '@/lib/ai/models';
-import {createJob, imageJobStatus, CinemaError} from '@/lib/cinema/kie-jobs';
+import {findModel, enabledStatus, promptLimit} from '@/lib/ai/models';
+import {createJob, imageJobStatus, jobInput, CinemaError} from '@/lib/cinema/kie-jobs';
 import {beginRequest, recordRequest} from '@/lib/cinema/ledger';
 import {studioSession} from '@/lib/auth/server';
 import {approvedAssetURL} from '@/lib/pipeline/asset-url';
@@ -18,7 +18,8 @@ const createInput = z.object({
   mode: z.enum(['create', 'edit', 'shot', 'video']),
   /** Catalog id. Older clients do not send it: they mean the default image model. */
   model: z.string().max(60).default('nano-banana-2-1'),
-  prompt: z.string().trim().min(1).max(4000),
+  /** Each model's own limit is checked in validate(); this only bounds the request. */
+  prompt: z.string().trim().min(1).max(400_000),
   aspect: z.string().max(24).optional(),
   resolution: z.string().max(24).optional(),
   duration: z.string().max(12).optional(),
@@ -40,13 +41,15 @@ function validate(input: z.infer<typeof createInput>) {
   const offered = (value: string | undefined, list: readonly string[]) => list.length ? value !== undefined && list.includes(value) : value === undefined;
   if (!offered(input.aspect, o.aspectRatios) || !offered(input.resolution, o.resolutions) || !offered(input.duration, o.durations)) return {error: 'INVALID_PARAMETERS'} as const;
   if (input.references.length > o.maxReferences || input.count > o.maxVariants) return {error: 'INVALID_PARAMETERS'} as const;
+  // The prompt as Kie gets it (images named in the model's own words) must fit the limit its page documents.
+  if (String(jobInput(model, {prompt: input.prompt, references: input.references})[o.fields.prompt]).length > promptLimit(o)) return {error: 'PROMPT_TOO_LONG'} as const;
   return {model} as const;
 }
 
 const status: Record<string, number> = {
   MODEL_NOT_CONFIGURED: 503, PROVIDER_AUTH_ERROR: 502, INSUFFICIENT_BALANCE: 402, INVALID_PARAMETERS: 422,
   RATE_LIMIT: 429, PROVIDER_UNAVAILABLE: 502, CREATE_UNCERTAIN: 504, STATUS_UNAVAILABLE: 502, TASK_NOT_FOUND: 404, RESULT_INVALID: 502,
-  REFERENCE_MISSING: 422, UPLOAD_FAILED: 502,
+  REFERENCE_MISSING: 422, UPLOAD_FAILED: 502, PROMPT_TOO_LONG: 422,
 };
 const fail = (code: string) => Response.json({error: code}, {status: status[code] || 500, headers: {'Cache-Control': 'no-store'}});
 
@@ -58,7 +61,7 @@ export async function POST(req: Request) {
   let input: z.infer<typeof createInput>;
   try {
     const text = await req.text();
-    if (text.length > 20000) throw Error();
+    if (text.length > 450_000) throw Error();
     input = createInput.parse(JSON.parse(text));
   } catch {
     return Response.json({error: 'INVALID_REQUEST'}, {status: 400});
