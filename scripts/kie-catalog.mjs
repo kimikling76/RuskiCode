@@ -109,6 +109,28 @@ function textEntry(page, s, opPath, op) {
   };
 }
 
+/**
+ * The whole seconds a duration field allows, as [first, last]: from its minimum and maximum, or else from the range
+ * its description states («Video duration in 4-15 seconds or -1», «(6-30)», «within [2, 30]», «Minimum: 6, Maximum: 30»).
+ * Only short ranges of whole seconds: fractions and frames are not offered.
+ */
+function secondsRange(field) {
+  if (!['integer', 'number', 'string'].includes(field.type)) return null;
+  const desc = String(field.description || '');
+  if (/step:\s*(0\.\d+|[2-9])|fraction|decimal/i.test(desc) || /frames/i.test(desc) && !/second/i.test(desc)) return null;
+  let lo = field.minimum, hi = field.maximum;
+  if (!Number.isInteger(lo) || !Number.isInteger(hi)) {
+    const said = desc.match(/minimum:\s*`?(\d+)`?[\s\S]{0,40}?maximum:\s*`?(\d+)`?/i)
+      || desc.match(/\[\s*(\d+)\s*,\s*(\d+)\s*\]/)
+      || desc.match(/\b(\d+)\s*(?:-|–|to)\s*(\d+)\s*(?:seconds|s\b|\))/i);
+    if (!said) return null;
+    [lo, hi] = [Number(said[1]), Number(said[2])];
+  }
+  // A number field whose page does not say whole seconds may take fractions the studio does not offer.
+  if (field.type === 'number' && !/integer|step:\s*1\b/i.test(desc)) return null;
+  return lo >= 1 && hi > lo && hi - lo <= 40 ? [lo, hi] : null;
+}
+
 // The inputs the studio's image and video screens can give a model.
 const arrayImageFields = ['image_input', 'image_urls', 'input_urls', 'reference_image_urls', 'image_url'];
 const singleImageFields = ['image_url', 'first_frame_url'];
@@ -175,16 +197,19 @@ function mediaEntry(page, s, opPath, op, category) {
     if (sizeKey === 'size' || sizeKey === 'image_size') options.resolutionLabel = 'Tamaño';
   }
   if (f('duration')) {
+    const range = secondsRange(f('duration'));
     if (enumOf('duration')?.length) {
       options.fields.duration = 'duration'; options.durations = enumOf('duration'); used.add('duration');
       if (['integer', 'number'].includes(f('duration').type)) options.fields.durationNumber = true;
-    } else if (f('duration').type === 'integer' && Number.isInteger(f('duration').minimum) && Number.isInteger(f('duration').maximum)
-      && f('duration').minimum >= 1 && f('duration').maximum - f('duration').minimum <= 40) {
-      // A documented range of whole seconds («integer from 3 to 30»): every second in it, starting at its default.
-      const {minimum: lo, maximum: hi} = f('duration');
-      options.fields.duration = 'duration'; options.fields.durationNumber = true; used.add('duration');
+    } else if (range) {
+      // A documented range of whole seconds («integer from 3 to 30», «4-15 seconds», «[2, 30]»): every second in it,
+      // starting at its default. Sent as a number unless the page types it as a string.
+      const [lo, hi] = range;
+      options.fields.duration = 'duration'; used.add('duration');
+      if (f('duration').type !== 'string') options.fields.durationNumber = true;
       options.durations = Array.from({length: hi - lo + 1}, (_, i) => String(lo + i));
-      if (Number.isInteger(f('duration').default)) options.durationDefault = String(f('duration').default);
+      const d = f('duration').default;
+      if (Number.isInteger(Number(d)) && Number(d) >= lo && Number(d) <= hi) options.durationDefault = String(Number(d));
     } else if (required.has('duration')) return listed('Pide una duración, pero la documentación no enumera los valores permitidos.');
   }
   const formats = enumOf('output_format');

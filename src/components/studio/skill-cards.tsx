@@ -119,7 +119,7 @@ function MediaCard({chatId, id, run}: {chatId: string; id: string; run: ImageRun
   const o = model.options;
   const pick = (value: string, options: readonly string[]) => options.includes(value) ? value : options[0] || '';
   const aspect = pick(run.aspect, o.aspectRatios), resolution = pick(run.resolution, o.resolutions);
-  const duration = run.skill === 'video-generation' ? pick(run.duration, o.durations) : '';
+  const duration = run.skill === 'video-generation' ? pick(o.durations.includes(run.duration) ? run.duration : o.durationDefault || '', o.durations) : '';
   const count = run.skill === 'image-generation' ? Math.min(run.count, o.maxVariants) : 1;
   const usedRefs = refs.slice(0, o.maxReferences);
   const ignored = refs.length - usedRefs.length;

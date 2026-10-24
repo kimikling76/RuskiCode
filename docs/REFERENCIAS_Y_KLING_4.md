@@ -101,3 +101,37 @@ Cada imagen que se envía tiene un nombre según su orden: **@image1**, **@image
 
 - **Los personajes también:** cada uno llamado con «@» que tiene foto lleva la de su imagen, por ejemplo «Иван (image 2): …», o «(@image_2)» en Kling 4.0.
 - **«Ver lo que se envía» muestra el texto ya traducido**, igual al que recibe Kie.
+
+## Elegir los segundos en los demás modelos de video
+
+Varios modelos de video no dejaban elegir la duración, aunque Kie sí lo permite. El problema estaba en el catálogo: solo entendía la duración cuando Kie la daba como lista fija («5 o 10»). Estos modelos la dan como rango («de 4 a 15 segundos»), a veces escrito solo en la descripción, y quedaban sin el chip «Duración».
+
+Ahora el generador del catálogo (`scripts/kie-catalog.mjs`) también lee esos rangos, y se volvieron a leer las páginas de esos modelos (24 de octubre de 2026):
+
+| Modelo | Segundos | Por defecto |
+|---|---|---|
+| Seedance 2.0, 2.0 Fast y 2.0 Mini | 4 a 15 | 5 |
+| Seedance 2.5 | 4 a 30 | 5 |
+| Wan 3.0 Video y Video Prime | 2 a 30 | 5 |
+| Wan 2.7 Text to Video e Image to Video | 2 a 15 | 5 |
+| Wan 2.7 R2V | 2 a 10 | 5 |
+| HappyHorse y HappyHorse 1.1 (texto e imagen) | 3 a 15 | 5 |
+| Vidu Q4 (imagen y referencias) | 3 a 16 | 5 |
+| Grok Imagine Text to Video e Image to Video | 6 a 30 | 6 (el primero: Kie no indica uno) |
+| Grok Imagine Video 1.5 Preview | 1 a 15 | 8 |
+
+- **Dónde:** en el Estudio, en la pestaña Video de Cinema y en la tarjeta de video del Chat.
+- **Al cambiar de modelo**, se conservan los segundos elegidos si el nuevo modelo los acepta; si no, se usa su duración por defecto.
+- **Grok Imagine Video 1.5 Preview:** su página cambió desde la última lectura. Ahora acepta **una sola** imagen (antes decía 7) y la pide siempre, así que se ofrece como «animar una imagen». También suma los formatos 4:3 y 3:4.
+- **Los modelos sin duración propia** (Hailuo 02 Pro, que hace unos 6 segundos, y Wan 2.2 Turbo) siguen sin el chip: Kie no deja elegir los segundos en ellos.
+- **No se cambió nada más del catálogo**, para no alterar modelos que hoy funcionan. La relectura también encontró modelos nuevos (por ejemplo, PixVerse V6, que ahora se podría habilitar). No se sumaron.
+
+### Cómo se probó
+
+- **Pruebas automáticas:** los rangos de cada modelo, su valor por defecto, y que el pedido lleve la duración como número (o como texto en Grok Imagine Image to Video, que así lo pide).
+- **En el navegador, con una Kie de prueba (sin gastar créditos):**
+  - el chip «Duración» aparece con Seedance, Wan, HappyHorse, Vidu y Grok;
+  - con Seedance 2.0 Fast y 12 segundos, Kie recibió `duration: 12`;
+  - en la pestaña Video, con Grok Imagine y 20 segundos, recibió `duration: 20`.
+  - con 30 segundos en Seedance 2.5, al pasar a Seedance 2.0 Mini (hasta 15) quedó en 5, su valor por defecto.
+- **Accesibilidad:** axe sin hallazgos.

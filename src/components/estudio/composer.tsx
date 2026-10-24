@@ -58,7 +58,8 @@ export function EstudioComposer({project}: {project?: string}) {
   const o = model?.options;
   const aspect = pick(d.aspect, o?.aspectRatios || []);
   const resolution = pick(d.resolution, o?.resolutions || []);
-  const duration = pick(d.duration || o?.durationDefault || '', o?.durations || []);
+  // The chosen seconds while the model accepts them; otherwise its documented default.
+  const duration = pick(o?.durations.includes(d.duration || '') ? d.duration || '' : o?.durationDefault || '', o?.durations || []);
   const count = Math.max(1, Math.min(d.count, o?.maxVariants || 1));
   const max = o?.maxReferences || 0;
   const called = useMemo(() => mentioned(d.prompt, cast || []), [d.prompt, cast]);
