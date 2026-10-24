@@ -19,6 +19,7 @@ export const syncKinds = [
   'manual-version',// saved versions of a manual unit (a whole unit; files shared with it as assets)
   'kb-project',    // book projects: name, manual units and assistants that bring the book's context
   'kb-entry',      // knowledge base of a book project, one record per fact with its sources and history
+  'cinema-project',// Cinema Studio → Estudio: projects, folders and elements (characters and places for «@»)
 ] as const;
 
 export type SyncKind = (typeof syncKinds)[number];

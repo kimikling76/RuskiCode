@@ -21,6 +21,8 @@ export type GenerationRequest = {
   tag?: string;
   /** The book characters and reference files of the picture (kept with the job). */
   book?: JobBook;
+  /** The Estudio project the results go to. */
+  studio?: string;
 };
 
 /**
@@ -46,6 +48,7 @@ export async function startGeneration(request: GenerationRequest) {
     shotId: request.shotId,
     ...(request.tag ? {tag: request.tag} : {}),
     ...(request.book ? {book: request.book} : {}),
+    ...(request.studio ? {studio: {project: request.studio, at: now}} : {}),
     state: 'sending',
     urls: [],
     createdAt: now,
@@ -89,6 +92,8 @@ export function retryJob(job: CinemaJob) {
     references: job.references, count: 1, source: job.source, boardId: job.boardId, shotId: job.shotId,
     // A picture of /pdf-generator stays in its card's batch, in the same slot.
     ...(job.tag ? {tag: job.tag, batchId: job.batchId} : {}),
+    // A retried Estudio picture stays in its project.
+    ...(job.studio?.project ? {studio: job.studio.project} : {}),
   });
 }
 

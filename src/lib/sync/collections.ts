@@ -5,6 +5,7 @@ import {useCinema, isActive, type CinemaJob} from '@/store/cinema';
 import {useNotes, type BookNote} from '@/store/book-notes';
 import {useAssistants, isPristineSeed, type Assistant} from '@/store/assistants';
 import {useFavorites} from '@/store/favorites';
+import {useStudioItems, type StudioItem} from '@/store/cinema-projects';
 import {
   libraryEvents, isBookOpen, listLocalBooks, putSyncedBook, removeSyncedBook, listDrafts, putSyncedDraft, removeSyncedDraft,
   composerBooks, putSyncedComposerBook, type LocalBook, type Draft,
@@ -173,8 +174,10 @@ const jobs: Collection = {
       : (a.finishedAt || 0) !== (b.finishedAt || 0) ? ((a.finishedAt || 0) > (b.finishedAt || 0) ? a : b)
       : {...b, credits: b.credits ?? a.credits};
     const other = pick === a ? b : a;
-    // The author's review and the record of what was sent are kept whichever copy wins.
-    return {...pick, review: pick.review ?? other.review, sent: pick.sent ?? other.sent, book: pick.book ?? other.book};
+    // The author's review, the record of what was sent and the Estudio marks are kept whichever copy wins;
+    // a project or a favorite changed on both computers keeps the newest decision.
+    const newest = <T extends {at: number}>(x?: T, y?: T) => !x ? y : !y ? x : x.at >= y.at ? x : y;
+    return {...pick, review: pick.review ?? other.review, sent: pick.sent ?? other.sent, book: pick.book ?? other.book, studio: newest(a.studio, b.studio), favorite: newest(a.favorite, b.favorite)};
   },
 };
 
@@ -294,6 +297,19 @@ const favorites: Collection = {
   subscribe: cb => useFavorites.subscribe((s, prev) => { if (s.favorites !== prev.favorites) cb(); }),
   label: () => 'Modelo favorito',
   merge: (_local, remote) => remote,
+};
+
+const studioItems: Collection = {
+  kind: 'cinema-project',
+  list: () => useStudioItems.getState().items.map(i => ({key: i.id, data: i})),
+  apply: changes => { useStudioItems.getState().replaceSynced(upsert(useStudioItems.getState().items, changes)); },
+  subscribe: cb => useStudioItems.subscribe((s, prev) => { if (s.items !== prev.items) cb(); }),
+  label: data => {
+    const i = data as StudioItem;
+    return (i.type === 'project' ? 'Proyecto: ' : i.type === 'folder' ? 'Carpeta: ' : 'Elemento: ') + (i.name || '');
+  },
+  // Renamed or moved on both computers: the latest change wins (nothing else lives in the record).
+  merge: (local, remote) => ((local as StudioItem).updatedAt >= (remote as StudioItem).updatedAt ? local : remote),
 };
 
 // The record carries the PDF as an asset reference; files over the limit stay on their computer.
@@ -486,7 +502,7 @@ const kbEntries: Collection = {
   },
 };
 
-export const collections: Collection[] = [chats, projects, usage, jobs, boards, notes, books, drafts, composer, assistants, favorites, originals, versions, bookVersions, docChats, manualUnits, manualVersions, kbProjects, kbEntries];
+export const collections: Collection[] = [chats, projects, usage, jobs, boards, notes, books, drafts, composer, assistants, favorites, originals, versions, bookVersions, docChats, manualUnits, manualVersions, kbProjects, kbEntries, studioItems];
 
 /** Loads every store from this browser before the first sync. */
 export function hydrateAll() {
@@ -495,4 +511,5 @@ export function hydrateAll() {
   useNotes.getState().hydrate();
   useAssistants.getState().hydrate();
   useFavorites.getState().hydrate();
+  useStudioItems.getState().hydrate();
 }
