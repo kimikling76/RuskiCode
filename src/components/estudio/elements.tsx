@@ -51,7 +51,7 @@ function ElementForm({open, item, onClose}: {open: boolean; item: StudioItem | n
         <div className="rc-field"><span>Imagen de referencia (opcional)</span>
           <div className="rc-es-el-image">
             {image ? <span className="rc-ref"><img src={pictureUrl(image)} alt="" /><button type="button" className="rc-ref-remove" aria-label="Quitar la imagen" onClick={() => setImage(undefined)}><X /></button></span> : null}
-            <button type="button" className="rc-btn rc-btn--secondary rc-btn--sm" onClick={() => setPicker(true)}><ImagePlus aria-hidden="true" />{image ? 'Cambiar' : 'Elegir de la galería'}</button>
+            <button type="button" className="rc-btn rc-btn--secondary rc-btn--sm" onClick={() => setPicker(true)}><ImagePlus aria-hidden="true" />{image ? 'Cambiar' : 'Elegir o subir una imagen'}</button>
           </div>
         </div>
         <div className="rc-dialog-footer rc-dialog-footer--end">
@@ -59,7 +59,7 @@ function ElementForm({open, item, onClose}: {open: boolean; item: StudioItem | n
           <button type="submit" className="rc-btn rc-btn--primary" disabled={!name.trim()}>{item ? 'Guardar' : 'Crear'}</button>
         </div>
       </form>
-      <GalleryPicker open={picker} onClose={() => setPicker(false)} max={1} initial={[]} title="Imagen de referencia" onChoose={urls => { if (urls[0]) setImage(lasting(urls[0])); }} />
+      <GalleryPicker open={picker} onClose={() => setPicker(false)} max={1} initial={[]} title="Imagen de referencia" upload onChoose={urls => { if (urls[0]) setImage(lasting(urls[0])); }} />
     </Dialog>
   );
 }

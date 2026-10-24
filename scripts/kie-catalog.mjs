@@ -156,7 +156,13 @@ function mediaEntry(page, s, opPath, op, category) {
     if (singleField) options.fields.imagesSingle = true;
     options.maxReferences = arrayField ? Math.max(1, Number(f(k).maxItems) || 1) : 1;
     options.modes = imagesRequired ? ['edit'] : ['create', 'edit'];
+    // How the prompt names these images, when the page says it: «Mention them in the prompt as `@image_1`, …»
+    // (numbered, kept as `@image_{n}`) or «Mention it in the prompt as `@first_frame`».
+    const said = String(f(k).description || '').match(/mention (?:them|it) in the prompt as `@([A-Za-z_]+?)(\d+)?`/i);
+    if (said) options.mention = '@' + said[1] + (said[2] ? '{n}' : '');
   }
+  // «Every @ mention must match an asset included in this request, otherwise the request is rejected.»
+  if (/every `?@`? mention must match/i.test(String(f('prompt').description || ''))) options.strictMentions = true;
 
   // Shape, size, length and file type: only enumerated values are offered.
   const enumOf = k => f(k)?.enum?.map(String);
@@ -172,6 +178,13 @@ function mediaEntry(page, s, opPath, op, category) {
     if (enumOf('duration')?.length) {
       options.fields.duration = 'duration'; options.durations = enumOf('duration'); used.add('duration');
       if (['integer', 'number'].includes(f('duration').type)) options.fields.durationNumber = true;
+    } else if (f('duration').type === 'integer' && Number.isInteger(f('duration').minimum) && Number.isInteger(f('duration').maximum)
+      && f('duration').minimum >= 1 && f('duration').maximum - f('duration').minimum <= 40) {
+      // A documented range of whole seconds («integer from 3 to 30»): every second in it, starting at its default.
+      const {minimum: lo, maximum: hi} = f('duration');
+      options.fields.duration = 'duration'; options.fields.durationNumber = true; used.add('duration');
+      options.durations = Array.from({length: hi - lo + 1}, (_, i) => String(lo + i));
+      if (Number.isInteger(f('duration').default)) options.durationDefault = String(f('duration').default);
     } else if (required.has('duration')) return listed('Pide una duración, pero la documentación no enumera los valores permitidos.');
   }
   const formats = enumOf('output_format');

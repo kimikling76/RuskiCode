@@ -8,12 +8,13 @@ import {startGeneration} from '@/lib/cinema/client';
 import {ChatModelPicker} from '@/components/studio/chat-model-picker';
 import {Tip} from '@/components/ui/tooltip';
 import {AskFirst, AspectPicker, Segmented, SettingChip, aspectName, optionLabel, useGenerateConfirm} from '@/components/cinema/controls';
-import {GalleryPicker} from '@/components/cinema/gallery-picker';
+import {GalleryPicker, refSrc} from '@/components/cinema/gallery-picker';
 import {useRefUrl} from '@/components/kb/character-refs';
 import {composePrompt, lookNames, lookOption, lookOptions, mentioned, mentionQuery, referencesFor, type LookKey} from '@/lib/cinema/studio-looks';
 import {useStudioItems} from '@/store/cinema-projects';
 import type {JobBook} from '@/store/cinema';
 import {useBalance} from '@/lib/ai/balance';
+import {mentionPrompt} from '@/lib/cinema/mentions';
 import {useCast, useEstudioDraft, type CastMember} from './data';
 import {LookThumb} from './look-thumbs';
 
@@ -57,7 +58,7 @@ export function EstudioComposer({project}: {project?: string}) {
   const o = model?.options;
   const aspect = pick(d.aspect, o?.aspectRatios || []);
   const resolution = pick(d.resolution, o?.resolutions || []);
-  const duration = pick(d.duration, o?.durations || []);
+  const duration = pick(d.duration || o?.durationDefault || '', o?.durations || []);
   const count = Math.max(1, Math.min(d.count, o?.maxVariants || 1));
   const max = o?.maxReferences || 0;
   const called = useMemo(() => mentioned(d.prompt, cast || []), [d.prompt, cast]);
@@ -67,7 +68,9 @@ export function EstudioComposer({project}: {project?: string}) {
   const needsImage = editsOnly && !references.length;
   const ready = Boolean(model && d.prompt.trim()) && !needsImage;
   const target = project ?? d.project;
-  const prompt = composePrompt(d.prompt, d.looks, called);
+  // A model that names its images in the prompt (`@image_{n}`) is told which picture is whose.
+  const numbered = o?.mention?.includes('{n}') ? o.mention : null;
+  const prompt = composePrompt(d.prompt, d.looks, called, numbered ? m => m.reference && references.includes(m.reference) ? numbered.replace('{n}', String(references.indexOf(m.reference) + 1)) : null : undefined);
   const estimate = model?.price ? model.price.credits * count : null;
   // The button's second line: the catalog's estimate when Kie publishes a price, otherwise the real Kie balance.
   const balance = useBalance().data?.credits;
@@ -163,12 +166,12 @@ export function EstudioComposer({project}: {project?: string}) {
           <button type="button" className="rc-es-chip" onClick={() => setPicker('refs')} disabled={!max}>
             {references.length ? (
               <span className="rc-es-chip-pic" aria-hidden="true">
-                {(() => { const member = called.find(m => m.reference === references[0]) as CastMember | undefined; return member ? <CastPicture member={member} /> : <img src={references[0]} alt="" />; })()}
+                {(() => { const member = called.find(m => m.reference === references[0]) as CastMember | undefined; return member ? <CastPicture member={member} /> : <img src={refSrc(references[0])} alt="" />; })()}
                 <span className="rc-es-chip-plus"><Plus /></span>
               </span>
             ) : <span className="rc-es-chip-pic rc-es-chip-pic--plus" aria-hidden="true"><Plus /></span>}
             <span className="rc-es-chip-text"><small>Referencias</small><strong>{references.length}/{max}</strong></span>
-            <span className="sr-only">{max ? '. Agregar de la galería' : '. Este modelo no recibe imágenes'}</span>
+            <span className="sr-only">{max ? '. Agregar de la galería o de tu computadora' : '. Este modelo no recibe imágenes'}</span>
           </button>
           {lookKeys.map(key => {
             const value = lookOption(key, d.looks[key]);
@@ -214,7 +217,7 @@ export function EstudioComposer({project}: {project?: string}) {
                   const member = called.find(m => m.reference === url) as CastMember | undefined;
                   return (
                     <span key={url} className="rc-ref" title={member ? member.name : undefined}>
-                      {member ? <CastPicture member={member} /> : <img src={url} alt="" />}
+                      {member ? <CastPicture member={member} /> : <img src={refSrc(url)} alt="" />}
                       {member ? null : <button type="button" className="rc-ref-remove" aria-label="Quitar referencia" onClick={() => d.patch({references: d.references.filter(u => u !== url)})}><X /></button>}
                     </span>
                   );
@@ -257,8 +260,8 @@ export function EstudioComposer({project}: {project?: string}) {
             {needsImage ? <p className="rc-es-note" role="status">{model.name} {video ? 'anima' : 'edita'} una imagen: elegí una con «+» o con el cuadro.</p> : null}
 
             <div className="rc-es-bar">
-              <Tip label={max ? 'Agregar referencias de la galería' : 'Este modelo no recibe imágenes'}>
-                <span className="rc-es-tip"><button type="button" className="rc-es-pill rc-es-pill--icon" aria-label="Agregar referencias de la galería" disabled={!max} onClick={() => setPicker('refs')}><Plus /></button></span>
+              <Tip label={max ? 'Agregar referencias de la galería o de tu computadora' : 'Este modelo no recibe imágenes'}>
+                <span className="rc-es-tip"><button type="button" className="rc-es-pill rc-es-pill--icon" aria-label="Agregar referencias de la galería o de tu computadora" disabled={!max} onClick={() => setPicker('refs')}><Plus /></button></span>
               </Tip>
               <Tip label="Sumar un personaje o un lugar (@)">
                 <button type="button" className="rc-es-pill rc-es-pill--icon" aria-label="Sumar un personaje o un lugar" onClick={startMention}><AtSign /></button>
@@ -323,7 +326,8 @@ export function EstudioComposer({project}: {project?: string}) {
         <AskFirst id="estudio-ask-first" />
         <details className="rc-es-sent">
           <summary>Ver lo que se envía</summary>
-          <pre>{prompt || 'Todavía nada.'}</pre>
+          {/* Exactly what Kie receives: the server adds the same image names (`@image_1`…) the model's page asks for. */}
+          <pre>{prompt && o ? mentionPrompt(prompt, o, o.fields.images ? (o.fields.imagesSingle ? Math.min(1, references.length) : references.length) : 0) : 'Todavía nada.'}</pre>
           <p className="rc-hint">{estimate !== null ? 'El costo con ≈ es un estimado del catálogo; el real lo informa Kie al terminar y se descuenta de tu saldo en Kie.' : 'Kie no publicó un precio para este modelo: el costo real aparece cuando Kie lo informa al terminar.'}</p>
         </details>
       </div>
@@ -334,6 +338,7 @@ export function EstudioComposer({project}: {project?: string}) {
         max={picker === 'frame' ? 1 : Math.max(1, max - called.filter(m => m.reference).length)}
         initial={picker === 'frame' ? d.references.slice(0, 1) : d.references}
         title={picker === 'frame' ? (video ? 'Imagen inicial' : 'Imagen de partida') : 'Referencias'}
+        upload
         onChoose={urls => d.patch({references: picker === 'frame' ? [...urls, ...d.references.filter(u => !urls.includes(u))].slice(0, max) : urls})}
       />
       {dialog}
