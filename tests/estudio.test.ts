@@ -79,3 +79,29 @@ test('«@image1», «@image2»… name the pictures sent, in each model\'s own w
   // «@image10» is the tenth picture, not «@image1» followed by a zero.
   assert.equal(mentionPrompt('@image10', {}, 10), 'image 10');
 });
+
+test('video models whose seconds Kie gives as a range offer every second, from the documented default', async () => {
+  const {jobInput} = await import('../src/lib/cinema/kie-jobs');
+  const {findModel, videoModels, enabledStatus} = await import('../src/lib/ai/models');
+  const seconds = (lo: number, hi: number) => Array.from({length: hi - lo + 1}, (_, i) => String(lo + i));
+  // «Video duration in 4-15 seconds or -1» (only in the description), «within [2, 30]», «(6-30)», minimum and maximum.
+  for (const [id, lo, hi, def] of [['bytedance-seedance-2', 4, 15, '5'], ['bytedance-seedance-2-5', 4, 30, '5'], ['wan-3-0-video', 2, 30, '5'], ['wan-2-7-text-to-video', 2, 15, '5'],
+    ['happyhorse-1-1-text-to-video', 3, 15, '5'], ['vidu-q4-image-to-video', 3, 16, '5'], ['grok-imagine-text-to-video', 6, 30, undefined], ['grok-imagine-video-1-5-preview', 1, 15, '8']] as const) {
+    const m = findModel(id);
+    assert.ok(m && m.category === 'video', id);
+    assert.deepEqual(m.options.durations, seconds(lo, hi), id);
+    assert.equal(m.options.durationDefault, def, id);
+  }
+  const seedance = findModel('bytedance-seedance-2');
+  assert.ok(seedance && seedance.category === 'video');
+  assert.equal(jobInput(seedance, {prompt: 'Olas', duration: '12', references: []}).duration, 12);
+  // Grok Imagine Image to Video types its duration as a string: it goes as one.
+  const grok = findModel('grok-imagine-image-to-video');
+  assert.ok(grok && grok.category === 'video');
+  assert.equal(jobInput(grok, {prompt: 'Olas', duration: '10', references: []}).duration, '10');
+  // Every enabled video model that sends a duration offers at least one, and its default is one of them.
+  for (const m of videoModels.filter(enabledStatus)) {
+    if (m.options.fields.duration) assert.ok(m.options.durations.length, m.id);
+    if (m.options.durationDefault) assert.ok(m.options.durations.includes(m.options.durationDefault), m.id);
+  }
+});

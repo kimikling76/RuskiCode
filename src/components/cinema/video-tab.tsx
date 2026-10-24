@@ -36,7 +36,8 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
   const pick = (value: string, list: readonly string[]) => list.includes(value) ? value : list[0] || '';
   const aspect = pick(draft.aspect, o?.aspectRatios || []);
   const resolution = pick(draft.resolution, o?.resolutions || []);
-  const duration = pick(draft.duration || o?.durationDefault || '', o?.durations || []);
+  // The chosen seconds while the model accepts them; otherwise its documented default.
+  const duration = pick(o?.durations.includes(draft.duration || '') ? draft.duration || '' : o?.durationDefault || '', o?.durations || []);
   const references = draft.references.slice(0, o?.maxReferences || 0);
   const resolutionLabel = o?.resolutionLabel || 'Resolución';
   // A model that only animates a picture needs its starting image.
