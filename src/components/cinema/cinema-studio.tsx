@@ -1,7 +1,8 @@
 'use client';
 import {useEffect, useState} from 'react';
+import Link from 'next/link';
 import * as Tabs from '@radix-ui/react-tabs';
-import {Clapperboard} from 'lucide-react';
+import {Clapperboard, Sparkles} from 'lucide-react';
 import {useCinema, type CinemaJob} from '@/store/cinema';
 import {useCinemaUi, cinemaTabs, type CinemaTab} from '@/store/cinema-ui';
 import {NavTrigger} from '@/components/studio/sidebar';
@@ -46,6 +47,7 @@ export function CinemaStudio({projects, legacy, onOpenLegacy}: {projects: Cinema
             </Tabs.Trigger>
           ))}
         </Tabs.List>
+        <Link href="/workspace/estudio" className="rc-cinema-estudio-link"><Sparkles aria-hidden="true" /><span>Estudio</span></Link>
       </header>
       {storageError ? <p className="rc-cinema-warning" role="alert">{storageError}</p> : null}
       <Tabs.Content value="image" className="rc-tab-panel"><ImageTab onOpen={setViewing} /></Tabs.Content>

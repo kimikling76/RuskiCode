@@ -1,5 +1,5 @@
 'use client';
-import {useEffect, useState} from 'react';
+import {useEffect, useState, type ReactNode} from 'react';
 import {toast} from 'sonner';
 import {Download, ImagePlus, Wand2, Maximize2, X} from 'lucide-react';
 import {useCinema, isActive, type CinemaJob} from '@/store/cinema';
@@ -63,9 +63,13 @@ export function jobMeta(job: CinemaJob) {
   return [model, job.aspect === 'auto' ? 'Auto' : job.aspect, job.resolution, job.duration ? job.duration + ' s' : null, job.credits !== undefined ? credits(job.credits) : null].filter(Boolean).join(' · ');
 }
 
-export function JobCard({job, onOpen}: {job: CinemaJob; onOpen: (job: CinemaJob) => void}) {
+/**
+ * `extra`: more actions of the place showing the card (the Estudio's favorite and project), before the usual ones.
+ * `uses`: what «Usar como referencia» and «Editar» do (by default they open the image in the Cinema tabs).
+ */
+export function JobCard({job, onOpen, extra, uses}: {job: CinemaJob; onOpen: (job: CinemaJob) => void; extra?: ReactNode; uses?: {addReference: (url: string) => void; editImage: (url: string) => void}}) {
   const removeJobs = useCinema(s => s.removeJobs);
-  const actions = useImageActions();
+  const actions = {...useImageActions(), ...uses};
   const active = isActive(job);
   const failed = job.state === 'error' || job.state === 'fail';
   const url = job.urls[0];
@@ -122,6 +126,7 @@ export function JobCard({job, onOpen}: {job: CinemaJob; onOpen: (job: CinemaJob)
           <span className="rc-job-meta">{jobMeta(job)}</span>
           {url ? (
             <span className="rc-job-actions">
+              {extra}
               <Tip label="Descargar"><button type="button" className="rc-icon-btn rc-icon-btn--sm" aria-label="Descargar" onClick={() => void actions.download(url, job.taskId || job.id)}><Download /></button></Tip>
               {/* A video plays in its card and can only be downloaded: it is not a reference or an image to edit. */}
               {!video ? <>

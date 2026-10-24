@@ -31,7 +31,7 @@ export function EditTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
 
   function generate() {
     if (!draft.source) return;
-    void startGeneration({mode: 'edit', prompt: draft.instruction.trim(), aspect: 'auto', resolution, references: [draft.source], count: draft.count, source: draft.source});
+    return startGeneration({mode: 'edit', prompt: draft.instruction.trim(), aspect: 'auto', resolution, references: [draft.source], count: draft.count, source: draft.source});
   }
 
   const doneInBatch = batch.filter(isDone);

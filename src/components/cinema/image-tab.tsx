@@ -41,9 +41,9 @@ export function ImageTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
   const needsImage = edits && !references.length;
   const ready = Boolean(draft.prompt.trim()) && !needsImage;
 
-  const {request, dialog} = useGenerateConfirm({
+  const {request, dialog, busy} = useGenerateConfirm({
     label,
-    onGenerate: () => void startGeneration({mode: 'create', model: model.id, prompt: draft.prompt.trim(), aspect, resolution, references, count}),
+    onGenerate: () => startGeneration({mode: 'create', model: model.id, prompt: draft.prompt.trim(), aspect, resolution, references, count}),
     facts: [
       ['Modelo', model.name],
       ['Imágenes', String(count)],
@@ -135,7 +135,7 @@ export function ImageTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
                 <AskFirst />
                 <Tip label={ready ? label : needsImage ? 'Elegí la imagen a editar' : 'Escribí el prompt'} shortcut={ready ? 'Ctrl+Enter' : undefined}>
                   <span className="rc-gen-submit">
-                    <button type="submit" className="rc-btn rc-btn--primary" disabled={!ready}>{label}</button>
+                    <button type="submit" className="rc-btn rc-btn--primary" disabled={!ready || busy}>{label}</button>
                   </span>
                 </Tip>
               </div>

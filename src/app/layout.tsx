@@ -6,6 +6,7 @@ import '../styles/system.css';
 import '../styles/shell.css';
 import '../styles/chat.css';
 import '../styles/cinema.css';
+import '../styles/estudio.css';
 import '../styles/pdf.css';
 import '../styles/pdf-doc.css';
 import '../styles/manual.css';

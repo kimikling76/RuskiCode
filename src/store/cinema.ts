@@ -40,6 +40,10 @@ export type CinemaJob = {
   book?: JobBook;
   /** The author's review of the result against the approved looks; never set automatically. */
   review?: 'consistent' | 'changed';
+  /** The Estudio project it belongs to (null: taken out of one), with when that was decided. */
+  studio?: {project: string | null; at: number};
+  /** Marked as a favorite in the Estudio, with when it was marked or unmarked. */
+  favorite?: {on: boolean; at: number};
 };
 
 export type SentRef = {reference: string; url: string; sha256?: string; size?: number; mime?: string};
