@@ -1,30 +1,33 @@
 'use client';
 import Link from 'next/link';
-import {BookMarked, ChevronRight} from 'lucide-react';
+import {BookMarked, ChevronRight, Plus} from 'lucide-react';
 import {useKbProjects} from './use-kb';
 
-/** PDF Studio home: the book projects with their context, or how to start one. */
-export function BookSection() {
+/** PDF Studio's library: one line with each book's context (characters, units, rules), or how to start one. */
+export function BookStrip() {
   const projects = useKbProjects();
+  if (projects === null) return null;
   return (
-    <section className="rc-page-section">
-      <h2>Contexto del libro</h2>
-      <p className="rc-hint rc-pdf-home-note">El canon de personajes, las unidades, las reglas y las decisiones del libro, con su fuente y su estado. Lo usan solo las unidades de ese libro y los asistentes que elijas.</p>
-      {projects === null ? null : projects.length ? (
-        <ul className="rc-project-list">
-          {projects.map(p => (
-            <li key={p.id}>
-              <Link href={'/workspace/libro?p=' + p.id} className="rc-project-row">
-                <span className="rc-project-name">{p.name}</span>
-                <span className="rc-project-type">{Object.keys(p.units).length} {Object.keys(p.units).length === 1 ? 'unidad vinculada' : 'unidades vinculadas'}</span>
-                <ChevronRight aria-hidden="true" />
-              </Link>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <div className="rc-pdf-home-actions"><Link href="/workspace/libro" className="rc-btn rc-btn--secondary"><BookMarked aria-hidden="true" />Crear el contexto del libro</Link></div>
-      )}
+    <section className="rc-lib-context" aria-labelledby="lib-context-title">
+      <BookMarked className="rc-lib-context-icon" aria-hidden="true" />
+      <div className="rc-lib-context-text">
+        <h2 id="lib-context-title">Contexto del libro</h2>
+        <p className="rc-hint">Personajes, unidades y reglas que usan el asistente y las ilustraciones.</p>
+      </div>
+      <div className="rc-lib-context-links">
+        {projects.length ? projects.map(p => {
+          const units = Object.keys(p.units).length;
+          return (
+            <Link key={p.id} href={'/workspace/libro?p=' + p.id} className="rc-btn rc-btn--secondary rc-btn--sm">
+              <span>{p.name}</span>
+              <span className="rc-lib-context-count">{units} {units === 1 ? 'unidad' : 'unidades'}</span>
+              <ChevronRight aria-hidden="true" />
+            </Link>
+          );
+        }) : (
+          <Link href="/workspace/libro" className="rc-btn rc-btn--secondary rc-btn--sm"><Plus aria-hidden="true" />Crear el contexto</Link>
+        )}
+      </div>
     </section>
   );
 }

@@ -123,9 +123,12 @@ export function JobCard({job, onOpen}: {job: CinemaJob; onOpen: (job: CinemaJob)
           {url ? (
             <span className="rc-job-actions">
               <Tip label="Descargar"><button type="button" className="rc-icon-btn rc-icon-btn--sm" aria-label="Descargar" onClick={() => void actions.download(url, job.taskId || job.id)}><Download /></button></Tip>
-              <Tip label="Usar como referencia"><button type="button" className="rc-icon-btn rc-icon-btn--sm" aria-label="Usar como referencia" onClick={() => actions.addReference(url)}><ImagePlus /></button></Tip>
-              <Tip label="Editar"><button type="button" className="rc-icon-btn rc-icon-btn--sm" aria-label="Editar esta imagen" onClick={() => actions.editImage(url)}><Wand2 /></button></Tip>
-              <Tip label="Ver"><button type="button" className="rc-icon-btn rc-icon-btn--sm" aria-label="Ver en grande" onClick={() => onOpen(job)}><Maximize2 /></button></Tip>
+              {/* A video plays in its card and can only be downloaded: it is not a reference or an image to edit. */}
+              {!video ? <>
+                <Tip label="Usar como referencia"><button type="button" className="rc-icon-btn rc-icon-btn--sm" aria-label="Usar como referencia" onClick={() => actions.addReference(url)}><ImagePlus /></button></Tip>
+                <Tip label="Editar"><button type="button" className="rc-icon-btn rc-icon-btn--sm" aria-label="Editar esta imagen" onClick={() => actions.editImage(url)}><Wand2 /></button></Tip>
+              </> : null}
+              <Tip label="Ver"><button type="button" className="rc-icon-btn rc-icon-btn--sm" aria-label={video ? 'Ver el video en grande' : 'Ver en grande'} onClick={() => onOpen(job)}><Maximize2 /></button></Tip>
             </span>
           ) : failed ? (
             <Tip label="Quitar"><button type="button" className="rc-icon-btn rc-icon-btn--sm" aria-label="Quitar esta tarjeta" onClick={() => removeJobs([job.id])}><X /></button></Tip>

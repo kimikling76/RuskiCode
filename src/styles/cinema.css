@@ -191,7 +191,7 @@
   animation: rc-fade-in var(--dur-slow) var(--ease-out);
 }
 .rc-viewer-stage { display: grid; place-items: center; min-height: 0; padding: var(--sp-6); background: var(--stage); }
-.rc-viewer-stage img { max-width: 100%; max-height: calc(100dvh - 96px); object-fit: contain; border-radius: var(--radius-4); }
+.rc-viewer-stage img, .rc-viewer-stage video { max-width: 100%; max-height: calc(100dvh - 96px); object-fit: contain; border-radius: var(--radius-4); }
 .rc-viewer-side { position: relative; display: flex; flex-direction: column; gap: var(--sp-6); padding: var(--sp-7); overflow-y: auto; }
 .rc-viewer-title { margin: 0; font-size: var(--fs-13); font-weight: 500; color: var(--fg-3); }
 .rc-viewer-prompt { margin: 0; font-size: var(--fs-15); line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -339,7 +339,7 @@
 /* «Preguntar antes» decides whether Kie charges without asking: its label stays visible, also on a phone. */
 .rc-cine-generate .rc-ask-label, .rc-gen .rc-ask-label { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
 
-/* ---------- Image: results above, the request written below (the Chat's composer, with setting chips) ---------- */
+/* ---------- Image and Video: results above, the request written below (the Chat's composer, with setting chips) ---------- */
 .rc-cine-work { display: flex; flex-direction: column; flex: 1; min-height: 0; background: var(--stage); }
 .rc-cine-results {
   flex: 1;
@@ -353,7 +353,7 @@
 .rc-app .rc-cine-results:focus-visible { outline-offset: -2px; }
 .rc-job-grid--large { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); max-width: 1680px; margin: 0 auto; }
 .rc-gen-zone { flex-shrink: 0; padding: 0 var(--sp-7) calc(var(--sp-5) + env(safe-area-inset-bottom)); }
-.rc-gen-column { width: min(100%, 960px); margin: 0 auto; }
+.rc-gen-column { width: min(100%, 1040px); margin: 0 auto; }
 .rc-gen { gap: var(--sp-3); }
 .rc-gen-prompt { font-size: var(--fs-15); }
 .rc-gen-refs { display: flex; flex-wrap: wrap; gap: var(--sp-3); padding-top: var(--sp-1); }
@@ -393,6 +393,8 @@
 .rc-chip-pop-title { margin: 0; font-size: var(--fs-12); font-weight: 500; color: var(--fg-3); }
 .rc-chip-pop .rc-hint { margin: 0; }
 .rc-chip-pop .rc-aspects { grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); }
+/* Many options (a video model can offer 3 to 15 seconds) wrap in rows instead of squeezing into one. */
+.rc-chip-pop .rc-segmented:has(> label:nth-child(6)) { grid-auto-flow: row; grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); }
 @media (max-width: 1279px) { .rc-chip-setting-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
 
 /* ---------- Responsive ---------- */
@@ -416,7 +418,7 @@
   .rc-viewer { inset: 0; grid-template-columns: 1fr; grid-template-rows: minmax(0, 55%) 1fr; border-radius: 0; border: 0; }
   .rc-viewer-side { padding: var(--sp-5) var(--sp-5) calc(var(--sp-6) + env(safe-area-inset-bottom)); }
   .rc-viewer-stage { padding: var(--sp-3); }
-  .rc-viewer-stage img { max-height: 100%; }
+  .rc-viewer-stage img, .rc-viewer-stage video { max-height: 100%; }
   .rc-board { padding: var(--sp-6) var(--sp-5) var(--sp-10); }
   .rc-shot { grid-template-columns: 32px minmax(0, 1fr); gap: var(--sp-4); }
   .rc-shot-frame { grid-column: 2; }
@@ -462,6 +464,8 @@
 /* ---------- Video ---------- */
 .rc-job-media--video { display: block; background: var(--stage); }
 .rc-job-media--video video { display: block; width: 100%; height: auto; }
+/* A vertical video stays inside the card's reach instead of making it twice as tall as the rest. */
+.rc-job-grid--large .rc-job-media--video video { max-height: min(60vh, 520px); object-fit: contain; background: #000; }
 .rc-video-pending { list-style: none; display: grid; gap: var(--sp-4); width: min(100%, 520px); margin: var(--sp-6) auto; padding: 0; text-align: left; }
 .rc-video-pending li { padding: var(--sp-4); border: 1px solid var(--line); border-radius: var(--radius-12); background: var(--bg-1); }
 .rc-video-pending p { margin: var(--sp-2) 0; }

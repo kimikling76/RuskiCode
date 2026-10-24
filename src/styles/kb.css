@@ -3,26 +3,38 @@
 .rc-settings-page.rc-kb { width: min(100%, 1120px); }
 .rc-kb-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-5); }
 .rc-kb-head .rc-page-lead { max-width: 70ch; }
-.rc-kb-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); margin-top: var(--sp-7); }
-.rc-kb-project select { min-width: 200px; }
-.rc-kb-project-name { margin-right: var(--sp-3); font-size: var(--fs-16); font-weight: 500; }
-.rc-kb-counts { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin: var(--sp-5) 0 var(--sp-2); }
-.rc-kb-counts .rc-chip { height: auto; min-height: 30px; padding: 4px 10px 4px 4px; }
 
-.rc-kb-status {
-  display: inline-flex; align-items: center; padding: 2px 8px; border-radius: var(--radius-full);
-  font-size: var(--fs-12); line-height: 1.4; white-space: nowrap; color: var(--fg-2); background: var(--bg-3);
-}
-.rc-kb-status[data-status='approved'] { color: var(--on-accent); background: var(--accent); }
-.rc-kb-status[data-status='pending'] { color: #1b1404; background: var(--warning); }
-.rc-kb-status[data-status='proposed'] { color: var(--fg-1); background: rgba(196, 235, 92, 0.16); }
-.rc-kb-status[data-status='superseded'] { color: var(--fg-3); background: transparent; border: 1px solid var(--line-strong); text-decoration: line-through; }
+/* The head is one block: the title with the book, and its actions; the data start right under it. */
+.rc-kb-top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--sp-4) var(--sp-6); }
+.rc-kb-top-title { min-width: 0; flex: 1 1 360px; }
+.rc-kb-top-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-4); margin-top: var(--sp-3); }
+.rc-kb-top-line .rc-hint { margin: 0; }
+.rc-kb-top-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.rc-kb-project select { min-width: 200px; height: var(--control-32); }
+.rc-kb-project-name { font-size: var(--fs-15); font-weight: 500; color: var(--fg-1); }
+.rc-kb-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-3) var(--sp-5); margin-top: var(--sp-6); }
+.rc-kb-counts { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin: 0; }
+.rc-kb-counts .rc-chip { gap: var(--sp-2); height: var(--control-32); padding: 0 12px; }
+.rc-kb-count { margin-left: 2px; color: var(--fg-3); font-size: var(--fs-12); font-variant-numeric: tabular-nums; }
+.rc-kb-counts .rc-kb-count { margin-left: 0; color: var(--fg-1); }
+.rc-kb-todo { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4); margin: 0; font-size: var(--fs-13); }
+
+/* States: one dot and the name. Green approved, amber pending, blue proposed, hollow observed, dashed superseded. */
+.rc-kb-status { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-12); line-height: 1.4; white-space: nowrap; color: var(--fg-2); }
+.rc-kb-dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: var(--radius-full); background: var(--fg-3); }
+.rc-kb-status[data-status='approved'] .rc-kb-dot { background: var(--success); }
+.rc-kb-status[data-status='pending'] .rc-kb-dot { background: var(--warning); }
+.rc-kb-status[data-status='proposed'] .rc-kb-dot { background: var(--info); }
+.rc-kb-status[data-status='observed'] .rc-kb-dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--fg-3); }
+.rc-kb-status[data-status='superseded'] { color: var(--fg-3); text-decoration: line-through; }
+.rc-kb-status[data-status='superseded'] .rc-kb-dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--fg-3); opacity: 0.6; }
 
 .rc-kb-link { padding: 0; border: 0; background: none; color: var(--fg-1); font: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; cursor: pointer; }
 .rc-kb-link:hover { text-decoration-color: var(--accent); }
 .rc-kb-link + .rc-kb-link, .rc-kb-field .rc-kb-link + span, .rc-kb-field span + .rc-kb-link { margin-left: var(--sp-3); }
 
-.rc-kb-tabs { display: flex; gap: var(--sp-1); margin: var(--sp-6) 0 var(--sp-5); border-bottom: 1px solid var(--line); overflow-x: auto; }
+.rc-kb-tabs { display: flex; gap: var(--sp-1); margin: var(--sp-5) 0 var(--sp-5); border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.rc-kb-tabs::-webkit-scrollbar { display: none; }
 .rc-kb-tab { flex: none; min-height: 40px; padding: 0 var(--sp-4); border: 0; border-bottom: 2px solid transparent; background: none; color: var(--fg-2); font: inherit; font-size: var(--fs-14); cursor: pointer; }
 .rc-kb-tab:hover { color: var(--fg-1); }
 .rc-kb-tab[aria-selected='true'] { color: var(--fg-1); border-bottom-color: var(--accent); }
@@ -41,6 +53,39 @@
 .rc-kb-row-title { font-size: var(--fs-14); overflow-wrap: anywhere; }
 .rc-kb-row-meta { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
 .rc-kb-back { display: none; }
+.rc-kb-back.rc-kb-back--always { display: inline-flex; margin-bottom: var(--sp-3); }
+
+/* ---------- Personajes: the cast as faces ---------- */
+.rc-kb-people { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: var(--sp-5); margin: 0; padding: 0; }
+.rc-kb-person { display: grid; gap: var(--sp-3); width: 100%; padding: 0; border: 0; border-radius: var(--radius-12); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.rc-kb-portrait { position: relative; display: grid; place-items: center; aspect-ratio: 4 / 5; border-radius: var(--radius-12); background: var(--bg-2); box-shadow: 0 0 0 1px var(--line); overflow: hidden; transition: box-shadow var(--dur-fast) var(--ease-out); }
+.rc-kb-portrait img { width: 100%; height: 100%; object-fit: cover; object-position: center 18%; }
+.rc-kb-portrait[data-state='loading'] { background: linear-gradient(100deg, var(--bg-2) 30%, var(--bg-3) 50%, var(--bg-2) 70%) 0 0 / 300% 100%; animation: rc-kb-shine 1.4s linear infinite; }
+@keyframes rc-kb-shine { to { background-position: -300% 0; } }
+.rc-kb-initial { font: 500 40px/1 var(--font-display); color: var(--fg-3); }
+.rc-kb-person:hover .rc-kb-portrait { box-shadow: 0 0 0 1px var(--line-strong); }
+.rc-kb-person[aria-current='true'] .rc-kb-portrait { box-shadow: 0 0 0 2px var(--accent); }
+.rc-app .rc-kb-person:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.rc-kb-person-text { display: grid; gap: 4px; min-width: 0; }
+.rc-kb-person-text strong { display: flex; align-items: center; gap: 6px; font-size: var(--fs-16); font-weight: 500; line-height: 1.3; color: var(--fg-1); overflow-wrap: anywhere; }
+.rc-kb-person-summary { display: -webkit-box; font-size: var(--fs-13); line-height: 1.45; color: var(--fg-2); overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.rc-kb-person-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px var(--sp-3); }
+.rc-kb-person-note { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-12); color: var(--warning); }
+.rc-kb-person-note svg { width: 13px; height: 13px; }
+
+/* With one open: a compact column of the cast beside its detail. */
+.rc-kb-grid--people { grid-template-columns: minmax(220px, 260px) minmax(0, 1fr); }
+.rc-kb-people--compact { grid-template-columns: minmax(0, 1fr); gap: 2px; max-height: min(78vh, 980px); overflow: auto; padding: 2px; }
+.rc-kb-people--compact .rc-kb-person { grid-template-columns: 44px minmax(0, 1fr); align-items: center; gap: var(--sp-3); padding: 6px; border-radius: var(--radius-8); }
+.rc-kb-people--compact .rc-kb-person:hover { background: rgba(255, 255, 255, 0.025); }
+.rc-kb-people--compact .rc-kb-person[aria-current='true'] { background: var(--bg-3); }
+.rc-kb-people--compact .rc-kb-person[aria-current='true'] .rc-kb-portrait { box-shadow: 0 0 0 1px var(--line); }
+.rc-app .rc-kb-people--compact .rc-kb-person:focus-visible { outline-offset: -2px; }
+.rc-kb-portrait--small { width: 44px; height: 44px; aspect-ratio: auto; border-radius: var(--radius-full); }
+.rc-kb-portrait--small .rc-kb-initial { font-size: 17px; }
+.rc-kb-people--compact .rc-kb-person-text { gap: 2px; }
+.rc-kb-people--compact .rc-kb-person-text strong { font-size: var(--fs-14); }
+@media (prefers-reduced-motion: reduce) { .rc-kb-portrait[data-state='loading'] { animation: none; } }
 .rc-kb-pick { margin-top: var(--sp-6); }
 
 .rc-kb-detail { display: grid; gap: var(--sp-5); min-width: 0; }
@@ -124,12 +169,26 @@
   .rc-kb-grid:not([data-open]) .rc-kb-detail-col { display: none; }
   .rc-kb-back { display: inline-flex; margin-bottom: var(--sp-3); }
   .rc-kb-list { max-height: none; }
+  .rc-kb-grid--people { grid-template-columns: minmax(0, 1fr); }
+  .rc-kb-people--compact { max-height: none; }
 }
 @media (max-width: 640px) {
   .rc-kb-field { grid-template-columns: minmax(0, 1fr); gap: 2px; }
   .rc-kb-ref { grid-template-columns: 88px minmax(0, 1fr); }
   .rc-kb-thumb { width: 88px; height: 88px; }
   .rc-kb-bar .rc-btn { flex: 1 1 auto; }
+  /* The title is in the top bar on a phone; the page keeps its heading for screen readers. */
+  .rc-kb .rc-settings-title { display: block; position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .rc-kb-top-actions { display: grid; grid-template-columns: 1fr 1fr var(--control-44); width: 100%; }
+  .rc-kb-top-actions .rc-btn { justify-content: center; min-height: var(--control-44); }
+  .rc-kb-top-actions .rc-icon-btn { width: var(--control-44); height: var(--control-44); }
+  .rc-kb-counts { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding: 3px; margin: -3px; }
+  .rc-kb-counts .rc-chip { flex-shrink: 0; height: var(--control-44); }
+  .rc-kb-tab { min-height: var(--control-44); }
+  .rc-kb-people { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-5) var(--sp-4); }
+  .rc-kb-person-text strong { font-size: var(--fs-15); }
+  .rc-kb-todo .rc-kb-link { display: inline-flex; align-items: center; min-height: var(--control-44); }
+  .rc-kb-ref-kind select { height: var(--control-44); }
 }
 
 /* The book data that went with an answer */

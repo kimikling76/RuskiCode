@@ -189,12 +189,16 @@
 .rc-code-copy svg { width: 13px; height: 13px; }
 .rc-code pre { margin: 0; padding: 14px 16px; overflow-x: auto; font: 400 13.5px/1.6 var(--font-code); color: var(--fg-1); tab-size: 2; }
 .rc-code pre code { font: inherit; }
+.rc-code--wrap pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .rc-code-note { margin: 0; padding: 8px 14px; border-top: 1px solid var(--line); font-size: var(--fs-12); color: var(--fg-2); }
 
 .rc-md-table { margin: 0 0 1em; max-width: 100%; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-8); }
 .rc-md-table table { width: 100%; border-collapse: collapse; font-size: var(--fs-14); line-height: 1.5; }
 .rc-md-table th,
 .rc-md-table td { padding: 8px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+/* Columns never get so narrow that words break in half: a wide table slides sideways inside its box. */
+.rc-md-table th,
+.rc-md-table td { min-width: 7.5em; overflow-wrap: normal; word-break: normal; hyphens: manual; }
 .rc-md-table th { font-weight: 500; color: var(--fg-2); background: var(--bg-1); white-space: nowrap; }
 .rc-md-table tr:last-child td { border-bottom: 0; }
 
@@ -203,28 +207,12 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+  justify-content: center;
   width: min(100%, 560px);
   min-height: 100%;
   margin: 0 auto;
   padding: var(--sp-10) var(--sp-7) var(--sp-7);
 }
-.rc-chat-glyph {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  z-index: 0;
-  font-family: var(--font-display);
-  font-size: min(46vh, 380px);
-  font-weight: 300;
-  line-height: 1;
-  color: var(--fg-1);
-  opacity: 0.035;
-  transform: translate(-50%, -58%);
-  pointer-events: none;
-  user-select: none;
-}
-.rc-chat-empty > :not(.rc-chat-glyph) { position: relative; z-index: 1; }
 .rc-chat-empty h2 {
   margin: 0 0 var(--sp-6);
   font-family: var(--font-display);
@@ -373,9 +361,23 @@
 .rc-send--stop svg { width: 12px; height: 12px; fill: currentColor; }
 
 /* ---------- Model picker (cmdk inside a Radix popover or sheet) ---------- */
-.rc-model-popover { width: 360px; }
+.rc-model-popover { width: min(420px, calc(100vw - 24px)); }
 .rc-model-picker { display: flex; flex-direction: column; min-width: 0; }
-.rc-model-filters { display: flex; flex-wrap: wrap; gap: var(--sp-1); padding: var(--sp-3) var(--sp-3) var(--sp-2); border-bottom: 1px solid var(--line); }
+/* The filters come after the search, on one row that slides sideways; the fade says there is more. */
+.rc-model-filters {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--sp-1);
+  padding: var(--sp-3) var(--sp-3);
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+}
+.rc-model-filters::-webkit-scrollbar { display: none; }
+.rc-model-filters .rc-chip { flex-shrink: 0; }
+.rc-model-filters:has(:focus-visible) { -webkit-mask-image: none; mask-image: none; }
 .rc-chip {
   display: inline-flex;
   align-items: center;
@@ -403,7 +405,7 @@
 .rc-model-row[data-disabled='true'] { cursor: not-allowed; }
 .rc-model-row[data-disabled='true'] .rc-model-text strong { color: var(--fg-2); }
 .rc-model-row[data-disabled='true'] .rc-model-text small { white-space: normal; }
-.rc-model-hint { margin: 0; padding: var(--sp-2) 14px var(--sp-3); border-top: 1px solid var(--line); font-size: 11.5px; color: var(--fg-3); }
+.rc-model-hint { margin: 0; padding: var(--sp-2) 14px var(--sp-3); border-top: 1px solid var(--line); font-size: var(--fs-12); color: var(--fg-3); }
 @media (pointer: coarse) { .rc-model-star { opacity: 1; width: 36px; height: 36px; } .rc-model-hint { display: none; } }
 .rc-command { display: flex; flex-direction: column; }
 .rc-command-input {
@@ -417,7 +419,7 @@
 }
 .rc-command-input::placeholder { color: var(--fg-3); }
 .rc-layer .rc-command-input:focus-visible { outline: none; }
-.rc-command-list { max-height: min(360px, 50vh); overflow-y: auto; padding: var(--sp-2); overscroll-behavior: contain; }
+.rc-command-list { max-height: min(400px, 52vh); overflow-y: auto; padding: var(--sp-2); overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--bg-4) transparent; }
 .rc-command-group [cmdk-group-heading] { padding: var(--sp-3) 10px var(--sp-2); font-size: var(--fs-12); color: var(--fg-3); }
 .rc-command-empty { padding: var(--sp-5) 10px; font-size: var(--fs-13); color: var(--fg-3); }
 .rc-model-row {
@@ -446,7 +448,8 @@
 .rc-model-icon svg { width: 14px; height: 14px; }
 .rc-model-text { display: grid; min-width: 0; line-height: 1.35; }
 .rc-model-text strong { font-size: var(--fs-14); font-weight: 500; color: var(--fg-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rc-model-text small { font-size: var(--fs-12); color: var(--fg-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* What the model does reads in full, in up to two lines. */
+.rc-model-text small { display: -webkit-box; font-size: var(--fs-12); color: var(--fg-3); overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 /* --fg-3 is 4.3:1 on the highlighted row's --bg-3; --fg-2 keeps it above 4.5:1. */
 .rc-model-row[data-selected='true'] .rc-model-text small { color: var(--fg-2); }
 .rc-model-check { width: 15px; height: 15px; color: var(--accent); }
@@ -481,10 +484,20 @@
   .rc-step-row { grid-template-columns: 1fr; }
   .rc-chat-title-edit { display: none; }
 }
-/* On a phone the composer keeps its buttons on one line: «Preguntar antes» stays as the switch alone (it keeps its name). */
+/* The composer's tools: in a row on a computer, in the «+» menu on a phone. */
+.rc-composer-tools { display: contents; }
+.rc-composer-more { position: relative; display: none; }
+.rc-composer-more-dot { position: absolute; top: 7px; right: 7px; width: 7px; height: 7px; border-radius: var(--radius-full); background: var(--accent); box-shadow: 0 0 0 2px var(--bg-2); }
+/* On a phone the buttons stay on one line and «Preguntar» keeps its visible label (its name is «Preguntar antes»). */
 @media (max-width: 460px) {
-  .rc-ask-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .rc-composer-bar { gap: var(--sp-2); }
+  .rc-composer-tools { display: none; }
+  .rc-composer-more { display: grid; }
+  .rc-ask-more { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .rc-composer-bar { gap: var(--sp-1); }
+  /* Everything here is a 44 px touch target; a long model name shortens with «…». */
+  .rc-composer-more, .rc-composer-bar .rc-send { width: var(--control-44); height: var(--control-44); }
+  .rc-composer-bar .rc-model-trigger { flex-shrink: 1; min-width: 0; height: var(--control-44); }
+  .rc-composer-bar .rc-ask { height: var(--control-44); }
 }
 
 @media (prefers-reduced-motion: reduce) {

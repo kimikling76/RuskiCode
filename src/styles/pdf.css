@@ -142,6 +142,89 @@ a.rc-project-row { text-decoration: none; color: inherit; }
 .rc-pdf-drop { position: absolute; inset: var(--sp-3); z-index: 2; display: grid; place-content: center; justify-items: center; gap: var(--sp-3); border: 1.5px dashed var(--accent); border-radius: var(--radius-12); background: rgba(11, 12, 14, 0.88); color: var(--fg-1); font-size: var(--fs-14); pointer-events: none; }
 .rc-pdf-drop svg { width: 24px; height: 24px; color: var(--accent); }
 
+/* ---------- PDF Studio library: everything as cards, the last touched first ---------- */
+.rc-studio-page.rc-lib { width: min(100%, 1180px); }
+.rc-lib-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--sp-5) var(--sp-7); }
+.rc-lib-title { min-width: 0; flex: 1 1 420px; }
+.rc-lib-title .rc-page-lead { max-width: 62ch; }
+.rc-lib-actions { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
+.rc-lib-actions .rc-btn svg:last-child:not(:first-child) { width: 14px; height: 14px; margin-left: -2px; }
+.rc-lib-head + .rc-notice, .rc-lib-head + .rc-form-error { margin-top: var(--sp-5); }
+
+/* «Contexto del libro», one line under the title. */
+.rc-lib-context { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3) var(--sp-5); margin-top: var(--sp-8); padding: var(--sp-4) var(--sp-5); border: 1px solid var(--line); border-radius: var(--radius-12); background: var(--bg-1); }
+.rc-lib-context-icon { flex-shrink: 0; width: 18px; height: 18px; color: var(--tone-pdf); }
+.rc-lib-context-text { flex: 1 1 240px; min-width: 0; }
+.rc-lib-context-text h2 { margin: 0; font-size: var(--fs-14); font-weight: 500; color: var(--fg-1); }
+.rc-lib-context-text .rc-hint { margin: 2px 0 0; }
+.rc-lib-context-links { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.rc-lib-context-links .rc-btn { text-decoration: none; }
+.rc-lib-context-count { color: var(--fg-3); font-weight: 400; }
+
+.rc-lib-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-4); margin-top: var(--sp-8); }
+.rc-lib-filters { display: flex; gap: var(--sp-2); min-width: 0; overflow-x: auto; scrollbar-width: none; padding: 3px; margin: -3px; }
+.rc-lib-filters::-webkit-scrollbar { display: none; }
+.rc-lib-filters .rc-chip { flex-shrink: 0; height: var(--control-32); padding: 0 12px; font-size: var(--fs-13); }
+.rc-lib-count { margin-left: 4px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.rc-chip[aria-pressed='true'] .rc-lib-count { color: var(--fg-2); }
+.rc-lib-search { position: relative; display: block; width: min(100%, 260px); }
+.rc-lib-search svg { position: absolute; top: 50%; left: 10px; width: 15px; height: 15px; color: var(--fg-3); transform: translateY(-50%); pointer-events: none; }
+.rc-lib-search .rc-input { height: var(--control-32); padding-left: 32px; }
+
+.rc-lib-grid { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: var(--sp-7) var(--sp-5); margin: var(--sp-6) 0 0; padding: 0; }
+.rc-lib-card { position: relative; min-width: 0; }
+.rc-lib-open { display: grid; gap: var(--sp-3); color: inherit; text-decoration: none; border-radius: var(--radius-8); cursor: pointer; }
+.rc-lib-open[aria-disabled='true'] { cursor: default; }
+.rc-app .rc-lib-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.rc-lib-thumb { position: relative; display: block; aspect-ratio: 1 / 1.414; border-radius: var(--radius-6); background: var(--bg-2); box-shadow: 0 0 0 1px var(--line); overflow: hidden; transition: box-shadow var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out); }
+.rc-lib-open:hover .rc-lib-thumb { box-shadow: 0 0 0 1px var(--line-strong), 0 10px 28px -14px rgba(0, 0, 0, 0.7); transform: translateY(-2px); }
+.rc-lib-page { display: grid; place-items: center; width: 100%; height: 100%; background: var(--paper); }
+.rc-lib-page img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.rc-lib-page[data-state='loading'] { background: linear-gradient(100deg, var(--bg-2) 30%, var(--bg-3) 50%, var(--bg-2) 70%) 0 0 / 300% 100%; animation: rc-lib-shine 1.4s linear infinite; }
+.rc-lib-page[data-state='none'] { background: var(--bg-2); }
+.rc-lib-page-none { display: grid; justify-items: center; gap: var(--sp-2); max-width: 80%; font-size: var(--fs-12); line-height: 1.4; color: var(--fg-3); text-align: center; }
+.rc-lib-page-none svg { width: 22px; height: 22px; }
+@keyframes rc-lib-shine { to { background-position: -300% 0; } }
+
+/* A book's cover is drawn from its title and level: paper, the book's typeface, the book's green. */
+.rc-lib-cover { grid-template-rows: auto 1fr auto; place-items: stretch; padding: 14% 12% 10%; color: #1F2A24; text-align: left; }
+.rc-lib-cover-level { justify-self: start; padding: 3px 7px; border-radius: 2px; background: #1E6B57; color: #F4F1EA; font: 600 11px/1.2 BookSans, var(--font-ui); letter-spacing: 0.02em; }
+.rc-lib-cover-title { align-self: center; font: 700 clamp(15px, 1.5vw, 19px)/1.15 BookSans, var(--font-ui); color: #1E6B57; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; overflow: hidden; }
+.rc-lib-cover-foot { font: 400 11px/1.3 BookSans, var(--font-ui); color: #5A645E; }
+
+.rc-lib-kind { position: absolute; top: 8px; right: 8px; padding: 2px 7px; border-radius: var(--radius-4); background: rgba(16, 17, 19, 0.82); color: var(--fg-1); font-size: var(--fs-12); line-height: 1.5; }
+.rc-lib-text { display: grid; gap: 2px; min-width: 0; padding-right: 32px; }
+.rc-lib-text strong { font-size: var(--fs-14); font-weight: 500; line-height: 1.35; color: var(--fg-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rc-lib-text span { font-size: var(--fs-12); color: var(--fg-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rc-lib-more { position: absolute; right: -4px; bottom: 2px; }
+
+/* With nothing of your own yet: where to start, as the first card. */
+.rc-lib-start .rc-lib-thumb { background: transparent; box-shadow: none; }
+.rc-lib-drop { gap: var(--sp-3); align-content: center; border: 1.5px dashed var(--line-strong); border-radius: var(--radius-6); background: transparent; color: var(--fg-2); font-size: var(--fs-13); }
+.rc-lib-drop svg { width: 22px; height: 22px; color: var(--accent); }
+.rc-lib-start .rc-lib-open:hover .rc-lib-thumb { transform: none; box-shadow: none; }
+.rc-lib-start .rc-lib-open:hover .rc-lib-drop { border-color: var(--accent); color: var(--fg-1); }
+.rc-lib-start .rc-lib-open:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 4px; }
+
+.rc-lib-none { margin: var(--sp-8) 0 0; padding: var(--sp-8) 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: var(--fs-14); color: var(--fg-2); }
+.rc-lib-note { margin-top: var(--sp-8); }
+
+@media (prefers-reduced-motion: reduce) {
+  .rc-lib-page[data-state='loading'] { animation: none; }
+  .rc-lib-open:hover .rc-lib-thumb { transform: none; }
+}
+@media (max-width: 640px) {
+  .rc-lib-head { align-items: stretch; }
+  .rc-lib-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .rc-lib-actions .rc-btn { justify-content: center; min-height: var(--control-44); }
+  .rc-lib-bar { gap: var(--sp-3); }
+  .rc-lib-search { width: 100%; }
+  .rc-lib-search .rc-input, .rc-lib-filters .rc-chip { height: var(--control-44); }
+  .rc-lib-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-6) var(--sp-4); }
+  .rc-lib-more { width: var(--control-44); height: var(--control-44); right: -10px; bottom: -6px; }
+  .rc-lib-context-links .rc-btn { min-height: var(--control-44); }
+}
+
 /* ---------- Import dialog ---------- */
 .rc-import { display: grid; gap: var(--sp-5); }
 .rc-import-reading { display: grid; gap: var(--sp-4); }

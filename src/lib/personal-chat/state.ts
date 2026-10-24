@@ -6,6 +6,8 @@ export const STORAGE_KEY='estudio-personal-v2';
 export const LEGACY_KEY='estudio-pure-chat-v1';
 export const UNDO_MS=8000;
 export const PERSONAL_SYSTEM='Eres un asistente útil; responde en el idioma del usuario.';
+// A chat's first title: its first words, cut at a word with «…» when the message is long.
+export const shortTitle=(text:string)=>{const t=text.trim().replace(/\s+/g,' ');return t.length<=60?t:t.slice(0,60).replace(/\s+\S*$/,'').replace(/[\s,.;:–-]+$/,'')+'…';};
 /** `attachments`: files sent with a user message, as references to the studio's stored files (see attachments.ts). */
 /** `webSearch` and `sources`: the answer was asked with web search, and the pages the API said it used (when it says). */
 /** `command`: the skill a user message called (/image-generation…). `skill`: what that skill left in the chat (see src/lib/skills/chat.ts). */

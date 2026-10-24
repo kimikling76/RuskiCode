@@ -143,7 +143,7 @@ function MediaCard({chatId, id, run}: {chatId: string; id: string; run: ImageRun
   async function improve() {
     setImproving(true);
     try {
-      const text = await textRequest('prompt', prompt);
+      const text = await textRequest(video ? 'video-prompt' : 'prompt', prompt);
       if (text) { setPrompt(text); set({prompt: text}); }
     } catch (e) {
       toast(skillError(e instanceof Error ? e.message : ''));

@@ -83,8 +83,10 @@ export function GalleryTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
                 {!selecting ? (
                   <div className="rc-tile-actions">
                     <Tip label="Descargar"><button type="button" className="rc-icon-btn rc-icon-btn--sm" aria-label="Descargar" onClick={() => void actions.download(url, job.taskId || job.id)}><Download /></button></Tip>
-                    <Tip label="Usar como referencia"><button type="button" className="rc-icon-btn rc-icon-btn--sm" aria-label="Usar como referencia" onClick={() => actions.addReference(url)}><ImagePlus /></button></Tip>
-                    <Tip label="Editar"><button type="button" className="rc-icon-btn rc-icon-btn--sm" aria-label="Editar" onClick={() => actions.editImage(url)}><Wand2 /></button></Tip>
+                    {job.mode !== 'video' ? <>
+                      <Tip label="Usar como referencia"><button type="button" className="rc-icon-btn rc-icon-btn--sm" aria-label="Usar como referencia" onClick={() => actions.addReference(url)}><ImagePlus /></button></Tip>
+                      <Tip label="Editar"><button type="button" className="rc-icon-btn rc-icon-btn--sm" aria-label="Editar" onClick={() => actions.editImage(url)}><Wand2 /></button></Tip>
+                    </> : null}
                   </div>
                 ) : null}
               </li>

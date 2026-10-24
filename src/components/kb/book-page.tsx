@@ -2,7 +2,8 @@
 import {useEffect, useMemo, useState} from 'react';
 import {useRouter, useSearchParams} from 'next/navigation';
 import {toast} from 'sonner';
-import {ArrowLeft, BookMarked, Download, Plus, Search} from 'lucide-react';
+import {ArrowLeft, BookMarked, MoreHorizontal, Plus, Search} from 'lucide-react';
+import {Menu, MenuContent, MenuItem, MenuTrigger} from '@/components/ui/menu';
 import {NavTrigger} from '@/components/studio/sidebar';
 import {Dialog} from '@/components/ui/dialog';
 import {addEntry, createProject} from '@/lib/kb/store';
@@ -15,8 +16,9 @@ import {ImportButton} from './import-dialog';
 import {EntryDetail, StatusBadge, type Names} from './entry-detail';
 import {KnownPanel} from './known-panel';
 import {ProjectSettings} from './project-settings';
+import {People, isCharacter} from './people';
 
-type Tab = 'data' | 'known' | 'settings';
+type Tab = 'people' | 'data' | 'known' | 'settings';
 const prefix: Record<KbKind, string> = {identity: 'identity', character: 'char', story: 'story', unit: 'unit', page: 'page', rule: 'rule', decision: 'decision', note: 'note'};
 const order: KbKind[] = ['decision', 'identity', 'character', 'story', 'unit', 'page', 'rule', 'note'];
 
@@ -31,7 +33,7 @@ export function BookKnowledgePage() {
   const projects = useKbProjects();
   const project = projects?.find(p => p.id === params.get('p')) || projects?.[0] || null;
   const entries = useKbEntries(project?.id || null);
-  const [tab, setTab] = useState<Tab>('data');
+  const [tab, setTab] = useState<Tab | null>(null);
   const [kind, setKind] = useState<KbKind | 'all'>('all');
   const [status, setStatus] = useState<KbStatus | 'all'>('all');
   const [query, setQuery] = useState('');
@@ -54,6 +56,11 @@ export function BookKnowledgePage() {
       .sort((a, b) => (q ? rank(a, q) - rank(b, q) : 0) || order.indexOf(a.kind) - order.indexOf(b.kind) || sortKey(a) - sortKey(b) || a.title.localeCompare(b.title));
   }, [entries, kind, status, query]);
   const selected = entries?.find(e => e.id === selectedId) || null;
+  const people = useMemo(() => (entries || []).filter(isCharacter).sort((a, b) => a.title.localeCompare(b.title, 'ru')), [entries]);
+  // Until chosen, the cast comes first when there is one (or the tab of the entry the link opens).
+  const shownTab: Tab = tab || (selected ? (selected.kind === 'character' ? 'people' : 'data') : people.length ? 'people' : 'data');
+  /** Opens an entry where it lives: a character in «Personajes», anything else in «Todos los datos». */
+  const open = (id: string) => { const e = entries?.find(x => x.id === id); setTab(e?.kind === 'character' ? 'people' : 'data'); go({e: id}); };
   const counts = useMemo(() => kbStatuses.map(s => [s, (entries || []).filter(e => e.status === s).length] as const), [entries]);
   const pendingDecisions = (entries || []).filter(e => e.kind === 'decision' && e.status === 'pending').length;
   const noApprovedPicture = (entries || []).filter(e => e.kind === 'character' && !e.data.missing && !e.data.mainRef).length;
@@ -78,46 +85,86 @@ export function BookKnowledgePage() {
       </header>
       <div className="rc-main-scroll rc-settings-scroll">
         <div className="rc-settings-page rc-kb">
-          <div className="rc-kb-head">
-            <div>
-              <h1 className="rc-page-title rc-settings-title">Contexto del libro</h1>
-              <p className="rc-page-lead">Canon, unidades, reglas y decisiones de un libro, con su fuente y su estado. Se guarda en tu cuenta. Solo lo usan las unidades de este libro y los asistentes que elijas; el Chat normal sigue neutro.</p>
-            </div>
-          </div>
-
           {projects === null ? <div className="rc-history-loading" role="status" aria-label="Cargando"><span className="rc-skeleton" /></div>
-            : !project ? <NewProject onCreated={p => go({p: p.id})} />
+            : !project ? (
+              <>
+                <h1 className="rc-page-title rc-settings-title">Contexto del libro</h1>
+                <p className="rc-page-lead">Personajes, unidades, reglas y decisiones de un libro, con su fuente y su estado.</p>
+                <NewProject onCreated={p => go({p: p.id})} />
+              </>
+            )
             : (
               <>
-                <div className="rc-kb-bar">
-                  {projects.length > 1 ? (
-                    <label className="rc-kb-project"><span className="sr-only">Libro</span>
-                      <select className="rc-input" value={project.id} onChange={e => go({p: e.target.value, e: null})}>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
-                    </label>
-                  ) : <strong className="rc-kb-project-name">{project.name}</strong>}
-                  <ImportButton project={project} />
-                  <button type="button" className="rc-btn rc-btn--ghost" onClick={() => setAdding(true)}><Plus aria-hidden="true" />Agregar dato</button>
-                  <button type="button" className="rc-btn rc-btn--ghost" disabled={!entries?.length} onClick={() => void exportBase().catch(() => toast('No se pudo exportar la base.'))}><Download aria-hidden="true" />Exportar</button>
+                <header className="rc-kb-top">
+                  <div className="rc-kb-top-title">
+                    <h1 className="rc-page-title rc-settings-title">Contexto del libro</h1>
+                    <div className="rc-kb-top-line">
+                      {projects.length > 1 ? (
+                        <label className="rc-kb-project"><span className="sr-only">Libro</span>
+                          <select className="rc-input" value={project.id} onChange={e => { setTab(null); go({p: e.target.value, e: null}); }}>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+                        </label>
+                      ) : <strong className="rc-kb-project-name" lang="ru">{project.name}</strong>}
+                      <span className="rc-hint">Solo lo usan las unidades de este libro y los asistentes que elijas.</span>
+                    </div>
+                  </div>
+                  <div className="rc-kb-top-actions">
+                    <ImportButton project={project} />
+                    <button type="button" className="rc-btn rc-btn--secondary" onClick={() => setAdding(true)}><Plus aria-hidden="true" />Agregar dato</button>
+                    <Menu>
+                      <MenuTrigger asChild><button type="button" className="rc-icon-btn" aria-label="Más opciones del contexto"><MoreHorizontal /></button></MenuTrigger>
+                      <MenuContent align="end">
+                        <MenuItem disabled={!entries?.length} onSelect={() => void exportBase().catch(() => toast('No se pudo exportar la base.'))}>Exportar el contexto (.json, con las imágenes)</MenuItem>
+                      </MenuContent>
+                    </Menu>
+                  </div>
+                </header>
+
+                {/* One line: how many of each state (each one filters «Todos los datos») and what waits for the author. */}
+                <div className="rc-kb-summary">
+                  <div className="rc-kb-counts" role="group" aria-label="Datos por estado">
+                    {counts.filter(([, n]) => n > 0).map(([s, n]) => (
+                      <button key={s} type="button" className="rc-chip" aria-pressed={shownTab === 'data' && status === s} onClick={() => { setTab('data'); setStatus(status === s && shownTab === 'data' ? 'all' : s); }}>
+                        <StatusBadge status={s} /><span className="rc-kb-count">{n}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {pendingDecisions || noApprovedPicture ? (
+                    <p className="rc-kb-todo">
+                      {pendingDecisions ? <button type="button" className="rc-kb-link" onClick={() => { setTab('data'); setKind('decision'); setStatus('pending'); }}>{pendingDecisions} {pendingDecisions === 1 ? 'decisión pendiente' : 'decisiones pendientes'}</button> : null}
+                      {noApprovedPicture ? <button type="button" className="rc-kb-link" onClick={() => { setTab('people'); go({e: null}); }}>{noApprovedPicture} {noApprovedPicture === 1 ? 'personaje sin foto principal' : 'personajes sin foto principal'}</button> : null}
+                    </p>
+                  ) : null}
                 </div>
 
-                <p className="rc-kb-counts">
-                  {counts.map(([s, n]) => <button key={s} type="button" className="rc-chip" aria-pressed={status === s} onClick={() => { setTab('data'); setStatus(status === s ? 'all' : s); }}><StatusBadge status={s} /> {n}</button>)}
-                </p>
-                {pendingDecisions || noApprovedPicture ? (
-                  <p className="rc-hint">
-                    {pendingDecisions ? <button type="button" className="rc-kb-link" onClick={() => { setTab('data'); setKind('decision'); setStatus('pending'); }}>{pendingDecisions} {pendingDecisions === 1 ? 'decisión pendiente' : 'decisiones pendientes'}</button> : null}
-                    {pendingDecisions && noApprovedPicture ? ' · ' : null}
-                    {noApprovedPicture ? <button type="button" className="rc-kb-link" onClick={() => { setTab('data'); setKind('character'); setStatus('all'); }}>{noApprovedPicture} {noApprovedPicture === 1 ? 'personaje sin referencia principal' : 'personajes sin referencia principal'}</button> : null}
-                  </p>
-                ) : null}
-
                 <div className="rc-kb-tabs" role="tablist" aria-label="Secciones">
-                  {([['data', 'Datos'], ['known', '¿Qué sabe el alumno?'], ['settings', 'Unidades y asistentes']] as [Tab, string][]).map(([t, label]) => (
-                    <button key={t} type="button" role="tab" id={'kb-tab-' + t} aria-controls={'kb-panel-' + t} aria-selected={tab === t} className="rc-kb-tab" onClick={() => setTab(t)}>{label}</button>
+                  {([['people', 'Personajes', people.length], ['data', 'Todos los datos', entries?.length], ['known', '¿Qué sabe el alumno?', undefined], ['settings', 'Unidades y asistentes', undefined]] as [Tab, string, number | undefined][]).map(([t, label, n]) => (
+                    <button key={t} type="button" role="tab" id={'kb-tab-' + t} aria-controls={'kb-panel-' + t} aria-selected={shownTab === t} className="rc-kb-tab" onClick={() => setTab(t)}>
+                      {label}{n !== undefined ? <>{' '}<span className="rc-kb-count">{n}</span></> : null}
+                    </button>
                   ))}
                 </div>
 
-                {tab === 'data' ? (
+                {shownTab === 'people' ? (
+                  <div role="tabpanel" id="kb-panel-people" aria-labelledby="kb-tab-people" className={selected?.kind === 'character' ? 'rc-kb-grid rc-kb-grid--people' : undefined} data-open={selected?.kind === 'character' ? '' : undefined}>
+                    {entries === null ? <div className="rc-history-loading" role="status" aria-label="Cargando personajes"><span className="rc-skeleton" /></div>
+                      : !people.length ? (
+                        <div className="rc-empty">
+                          <p className="rc-empty-title">Todavía no hay personajes.</p>
+                          <p className="rc-hint">Importá el paquete del libro (con personajes.json y sus fichas) o agregá uno con «Agregar dato».</p>
+                        </div>
+                      ) : selected?.kind === 'character' ? (
+                        <>
+                          <div className="rc-kb-list-col"><People people={people} current={selected.id} compact onOpen={open} /></div>
+                          <div className="rc-kb-detail-col">
+                            <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm rc-kb-back rc-kb-back--always" onClick={() => go({e: null})}><ArrowLeft aria-hidden="true" />Todos los personajes</button>
+                            <EntryDetail entry={selected} names={names} all={entries || []} project={project} onOpen={open} />
+                          </div>
+                        </>
+                      ) : <People people={people} current={null} compact={false} onOpen={open} />}
+                  </div>
+                ) : null}
+
+                {shownTab === 'data' ? (
                   <div role="tabpanel" id="kb-panel-data" aria-labelledby="kb-tab-data" className="rc-kb-grid" data-open={selected ? '' : undefined}>
                     <div className="rc-kb-list-col">
                       <div className="rc-kb-filters">
@@ -158,17 +205,17 @@ export function BookKnowledgePage() {
                       {selected ? (
                         <>
                           <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm rc-kb-back" onClick={() => go({e: null})}><ArrowLeft aria-hidden="true" />Volver a la lista</button>
-                          <EntryDetail entry={selected} names={names} all={entries || []} project={project} onOpen={id => go({e: id})} />
+                          <EntryDetail entry={selected} names={names} all={entries || []} project={project} onOpen={open} />
                         </>
                       ) : entries?.length ? <p className="rc-hint rc-kb-pick">Elegí un dato para ver su fuente, su historial y lo que decidas sobre él.</p> : null}
                     </div>
                   </div>
-                ) : tab === 'known' ? (
-                  <div role="tabpanel" id="kb-panel-known" aria-labelledby="kb-tab-known"><KnownPanel entries={entries || []} onOpen={id => { setTab('data'); go({e: id}); }} /></div>
-                ) : (
+                ) : shownTab === 'known' ? (
+                  <div role="tabpanel" id="kb-panel-known" aria-labelledby="kb-tab-known"><KnownPanel entries={entries || []} onOpen={open} /></div>
+                ) : shownTab === 'settings' ? (
                   <div role="tabpanel" id="kb-panel-settings" aria-labelledby="kb-tab-settings"><ProjectSettings project={project} /></div>
-                )}
-                <NewEntry open={adding} project={project} onClose={() => setAdding(false)} onCreated={id => { setAdding(false); setTab('data'); setQuery(''); setKind('all'); setStatus('all'); go({e: id}); }} />
+                ) : null}
+                <NewEntry open={adding} project={project} onClose={() => setAdding(false)} onCreated={id => { setAdding(false); setQuery(''); setKind('all'); setStatus('all'); open(id); }} />
               </>
             )}
         </div>

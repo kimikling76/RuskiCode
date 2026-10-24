@@ -65,6 +65,9 @@ test('Cinema text purposes have their own fixed instructions; the personal chat 
   const prompt = systemForPersonal(personalInput.parse({...base, purpose: 'prompt'}));
   assert.match(storyboard, /"shots"/);
   assert.match(prompt, /ONLY the prompt text/);
+  const video = systemForPersonal(personalInput.parse({...base, purpose: 'video-prompt'}));
+  assert.match(video, /video-generation prompt/);
+  assert.match(video, /camera movement/);
   assert.equal(personalInput.safeParse({...base, purpose: 'storyboard', system: 'x'}).success, false);
 });
 
