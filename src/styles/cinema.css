@@ -153,6 +153,8 @@
 .rc-ref img { width: 100%; height: 100%; object-fit: cover; }
 .rc-ref-remove { position: absolute; top: 3px; right: 3px; display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: var(--radius-full); background: rgba(8, 9, 10, 0.75); color: var(--fg-1); cursor: pointer; }
 .rc-ref-remove svg { width: 12px; height: 12px; }
+/* Each picture's name in the prompt: «@image1», «@image2»… */
+.rc-ref-name { position: absolute; left: 3px; bottom: 3px; padding: 1px 4px; border-radius: var(--radius-4); background: rgba(8, 9, 10, 0.82); color: var(--fg-1); font: 500 9.5px/1.3 var(--font-code); pointer-events: none; }
 .rc-ref-add { display: grid; place-items: center; border: 1px dashed var(--line-strong); background: transparent; color: var(--fg-3); cursor: pointer; }
 .rc-ref-add:hover { color: var(--fg-1); border-color: var(--fg-3); }
 .rc-ref-add svg { width: 16px; height: 16px; }

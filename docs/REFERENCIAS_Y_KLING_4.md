@@ -83,3 +83,21 @@ Los demás modelos reciben el texto como siempre.
   - el texto con «Use @image_1.».
 - **Accesibilidad:** axe sin hallazgos en el selector.
 - **Lo demás:** `tsc`, las 173 pruebas y el build de producción, sin errores.
+
+## Nombrar las imágenes en el texto: @image1, @image2…
+
+Cada imagen que se envía tiene un nombre según su orden: **@image1**, **@image2**… Se ve en una etiqueta sobre cada miniatura: en el Estudio y en las pestañas Imagen y Video de Cinema.
+
+- **En el Estudio:** al escribir «@» la lista muestra primero tus imágenes (con su miniatura) y después los personajes y lugares.
+- **Se puede escribir a mano:** «@image1», «@Image1» o «@image_1» valen igual.
+- **Si nombrás una imagen que no existe:** por ejemplo, «@image3» con dos elegidas. El Estudio avisa «No hay @image3: elegiste 2 imágenes.».
+- **El servidor lo traduce a lo que entiende cada modelo:**
+
+  | Modelo | «@image1» llega como |
+  |---|---|
+  | Kling 4.0 Reference to Video | `@image_1` |
+  | Kling 4.0 Keyframe to Video | `@first_frame` (la única imagen) |
+  | Los demás (Nano Banana, Seedream…) | «image 1» |
+
+- **Los personajes también:** cada uno llamado con «@» que tiene foto lleva la de su imagen, por ejemplo «Иван (image 2): …», o «(@image_2)» en Kling 4.0.
+- **«Ver lo que se envía» muestra el texto ya traducido**, igual al que recibe Kie.

@@ -460,6 +460,7 @@
 .rc-es-cast-pic svg { width: 16px; height: 16px; }
 .rc-gen-refs .rc-ref .rc-es-cast-pic { width: 100%; height: 100%; border-radius: 0; }
 .rc-es-note { margin: 0; font-size: var(--fs-13); color: var(--warning); }
+.rc-es-refs-hint { margin: 0; font-size: var(--fs-12); }
 
 /* The settings bar: raised pills, each value with its icon. */
 .rc-es-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }

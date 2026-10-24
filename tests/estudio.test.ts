@@ -67,3 +67,15 @@ test('Kling 4.0 Reference to Video: images as image_urls, duration as a number, 
     prompt: 'Despega\n\nUse @first_frame.', first_frame_url: 'https://tempfile.aiquickdraw.com/a.png', duration: 5,
   });
 });
+
+test('«@image1», «@image2»… name the pictures sent, in each model\'s own words', async () => {
+  const {mentionPrompt} = await import('../src/lib/cinema/mentions');
+  // Models without documented names: plain «image 1», as image models read it. A picture not sent stays as written.
+  assert.equal(mentionPrompt('La chica de @image1 frente a @Image_2 y @image3', {}, 2), 'La chica de image 1 frente a image 2 y @image3');
+  // Kling 4.0 Reference: its own `@image_1`; everything sent is named, so nothing is added.
+  assert.equal(mentionPrompt('@image1 camina hacia @image2', {mention: '@image_{n}', strictMentions: true}, 2), '@image_1 camina hacia @image_2');
+  // Kling 4.0 Keyframe: the one starting picture is `@first_frame`; a second one does not exist, so its «@» goes.
+  assert.equal(mentionPrompt('Desde @image1 hasta @image2', {mention: '@first_frame', strictMentions: true}, 1), 'Desde @first_frame hasta image2');
+  // «@image10» is the tenth picture, not «@image1» followed by a zero.
+  assert.equal(mentionPrompt('@image10', {}, 10), 'image 10');
+});

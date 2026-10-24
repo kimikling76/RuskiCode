@@ -1,4 +1,6 @@
 import {database} from '@/lib/pipeline/database';
+import {notReady} from '@/lib/sync/server';
+import {ensureSyncTables} from '@/lib/sync/schema';
 
 // Each paid generation request carries a client request id. Retrying the same id never creates new tasks:
 // if they were created, the same task ids come back; if the first attempt is still unclear, it is refused.
@@ -11,8 +13,11 @@ export type LedgerState =
 
 type Row = {status: string; taskIds: unknown};
 
-/** Reserves the request id. 'unavailable' means the table is missing: the caller falls back to the old one-shot limit. */
-export async function beginRequest(userId: string, requestId: string, model: string): Promise<LedgerState> {
+/**
+ * Reserves the request id. A missing table is created first (see sync/schema); 'unavailable' means it still cannot be
+ * used, and the caller falls back to the old one-shot limit.
+ */
+export async function beginRequest(userId: string, requestId: string, model: string, retried = false): Promise<LedgerState> {
   try {
     const inserted = await database().$queryRaw<{requestId: string}[]>`
       INSERT INTO "generation_request" ("requestId", "userId", "model", "status", "createdAt", "updatedAt")
@@ -32,7 +37,8 @@ export async function beginRequest(userId: string, requestId: string, model: str
       return {state: 'new'};
     }
     return {state: 'pending'};
-  } catch {
+  } catch (e) {
+    if (!retried && notReady(e) && await ensureSyncTables()) return beginRequest(userId, requestId, model, true);
     return {state: 'unavailable'};
   }
 }
