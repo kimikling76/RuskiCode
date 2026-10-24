@@ -111,7 +111,7 @@ export function Estudio() {
         <h1 className="rc-es-title">Dale vida a tus historias</h1>
         <EstudioComposer />
         {jobs.length ? (
-          <section className="rc-es-section" aria-labelledby="es-latest">
+          <section className="rc-es-section rc-es-latest" aria-labelledby="es-latest">
             <div className="rc-es-section-row">
               <h2 id="es-latest">Lo último</h2>
               <button type="button" className="rc-es-more" onClick={() => go({v: 'gen'})}>Mis generaciones<ChevronRight aria-hidden="true" /></button>

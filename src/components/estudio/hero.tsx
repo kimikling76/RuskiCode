@@ -5,8 +5,11 @@ import {useCinema, isDone, type CinemaJob} from '@/store/cinema';
 import {savedUrl} from '@/lib/cinema/keep';
 import {KieImage} from '@/components/cinema/job-card';
 
-// The Estudio's first view: the author's own latest results, three at a time, the middle one larger (coverflow).
+// The Estudio's first view: the author's own latest results as posters, three in sight and the middle one larger.
+// Every poster keeps its element while the row turns, so each one slides to its new place instead of jumping.
 // Nothing stands in for them: with no results yet, three empty frames say where they will appear.
+
+type Place = 'left' | 'center' | 'right' | 'off';
 
 function Frame({job}: {job: CinemaJob}) {
   const url = job.urls[0];
@@ -33,29 +36,36 @@ export function EstudioHero({onOpen}: {onOpen: (job: CinemaJob) => void}) {
   if (!n) {
     return (
       <div className="rc-es-hero rc-es-hero--empty" aria-hidden="true">
-        <span className="rc-es-hero-card" data-pos="left" />
-        <span className="rc-es-hero-card" data-pos="center"><Clapperboard /><small>Tus imágenes y videos aparecen acá</small></span>
-        <span className="rc-es-hero-card" data-pos="right" />
+        <span className="rc-es-poster" data-pos="left" />
+        <span className="rc-es-poster" data-pos="right" />
+        <span className="rc-es-poster" data-pos="center"><Clapperboard /><small>Tus imágenes y videos aparecen acá</small></span>
       </div>
     );
   }
 
-  const at3 = n === 1 ? [null, shots[0], null] : n === 2 ? [shots[(i + 1) % n], shots[i], null] : [shots[(i - 1 + n) % n], shots[i], shots[(i + 1) % n]];
+  const place = (k: number): Place => {
+    const d = (k - i + n) % n;
+    return d === 0 ? 'center' : d === 1 ? 'right' : d === n - 1 ? 'left' : 'off';
+  };
   return (
     <div className="rc-es-hero" role="group" aria-roledescription="carrusel" aria-label="Tus últimos resultados" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocus={() => setPaused(true)} onBlur={() => setPaused(false)}>
+      {shots.map((job, k) => {
+        const pos = place(k);
+        return (
+          <button
+            key={job.id}
+            type="button"
+            className="rc-es-poster"
+            data-pos={pos}
+            inert={pos === 'off'}
+            aria-label={(pos === 'center' ? 'Ver en grande: ' : 'Mostrar: ') + job.prompt.slice(0, 80)}
+            onClick={() => pos === 'center' ? onOpen(job) : setAt(x => x + (pos === 'left' ? n - 1 : 1))}
+          >
+            <Frame job={job} />
+          </button>
+        );
+      })}
       {n > 1 ? <button type="button" className="rc-es-hero-nav" data-side="prev" aria-label="Anterior" onClick={() => setAt(x => x - 1 + n)}><ChevronLeft /></button> : null}
-      {at3.map((job, k) => job ? (
-        <button
-          key={job.id + ':' + k}
-          type="button"
-          className="rc-es-hero-card"
-          data-pos={k === 0 ? 'left' : k === 1 ? 'center' : 'right'}
-          aria-label={(k === 1 ? 'Ver en grande: ' : 'Mostrar: ') + job.prompt.slice(0, 80)}
-          onClick={() => k === 1 ? onOpen(job) : setAt(x => x + (k === 0 ? n - 1 : 1))}
-        >
-          <Frame job={job} />
-        </button>
-      ) : <span key={'empty:' + k} className="rc-es-hero-card" data-pos={k === 0 ? 'left' : 'right'} aria-hidden="true" />)}
       {n > 1 ? <button type="button" className="rc-es-hero-nav" data-side="next" aria-label="Siguiente" onClick={() => setAt(x => x + 1)}><ChevronRight /></button> : null}
       <p className="sr-only" aria-live="polite">{i + 1} de {n}</p>
     </div>

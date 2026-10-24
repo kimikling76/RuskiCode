@@ -108,8 +108,8 @@ export function ProjectGrid({items: shown, go, actions, folder, make = 'project'
                 {item.type === 'folder' ? <span className="rc-es-collage-badge"><Folder /></span> : null}
               </span>
               <span className="rc-es-card-text">
-                <strong>{item.name}</strong>
-                <span>{item.type === 'folder' ? count + (count === 1 ? ' proyecto' : ' proyectos') : count + (count === 1 ? ' resultado' : ' resultados')}<span className="rc-es-private"><Lock aria-hidden="true" />Privado</span></span>
+                <span className="rc-es-card-row"><strong>{item.name}</strong><span className="rc-es-private"><Lock aria-hidden="true" />Privado</span></span>
+                <span className="rc-es-card-count">{item.type === 'folder' ? count + (count === 1 ? ' proyecto' : ' proyectos') : count + (count === 1 ? ' resultado' : ' resultados')}</span>
               </span>
             </button>
             <Menu>
