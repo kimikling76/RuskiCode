@@ -1,5 +1,6 @@
 import {imageModel, taskStates, type AspectRatio, type Resolution, type TaskState} from './capabilities';
 import {imageModels, type ImageModel, type VideoModel} from '@/lib/ai/models';
+import {mentionPrompt} from './mentions';
 
 // KIE_BASE_URL exists only for local tests against a fake Kie; production never sets it.
 const JOBS_PATH = '/api/v1/jobs';
@@ -30,9 +31,10 @@ export type JobInput = {prompt: string; aspect?: string; resolution?: string; du
 /** Builds Kie's `input` object from a catalog entry: only the fields that model documents. */
 export function jobInput(model: ImageModel | VideoModel, input: JobInput) {
   const f = model.options.fields;
+  const images = f.images && model.options.maxReferences && input.references.length ? (f.imagesSingle ? input.references.slice(0, 1) : input.references) : [];
   // Required fields with a documented default go first, so a chosen option always wins.
-  const out: Record<string, unknown> = {...model.options.fixed, [f.prompt]: input.prompt};
-  if (f.images && model.options.maxReferences && input.references.length) out[f.images] = f.imagesSingle ? input.references[0] : input.references;
+  const out: Record<string, unknown> = {...model.options.fixed, [f.prompt]: mentionPrompt(input.prompt, model.options, images.length)};
+  if (f.images && images.length) out[f.images] = f.imagesSingle ? images[0] : images;
   if (f.aspect && input.aspect) out[f.aspect] = input.aspect;
   if (f.resolution && input.resolution) out[f.resolution] = input.resolution;
   if (f.duration && input.duration) out[f.duration] = f.durationNumber ? Number(input.duration) : input.duration;

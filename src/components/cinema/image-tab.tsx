@@ -10,7 +10,7 @@ import {ChatModelPicker, estimate} from '@/components/studio/chat-model-picker';
 import {Tip} from '@/components/ui/tooltip';
 import {AskFirst, AspectPicker, Segmented, SettingChip, aspectName, optionLabel, useGenerateConfirm} from './controls';
 import {JobCard} from './job-card';
-import {GalleryPicker} from './gallery-picker';
+import {GalleryPicker, refSrc} from './gallery-picker';
 import {PromptAssistant} from './prompt-assistant';
 import type {CinemaJob} from '@/store/cinema';
 
@@ -54,7 +54,7 @@ export function ImageTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
     ],
   });
   const generate = () => { if (ready) request(); };
-  const refsLabel = (edits ? 'Imagen a editar' : 'Referencias') + ' de tu galería (hasta ' + o.maxReferences + '). Subir desde el dispositivo llega más adelante.';
+  const refsLabel = (edits ? 'Imagen a editar' : 'Referencias') + ' de tu galería o de tu computadora (hasta ' + o.maxReferences + ').';
 
   return (
     <div className="rc-cine-work">
@@ -76,7 +76,7 @@ export function ImageTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
           {needsImage ? (
             <div className="rc-notice" role="status">
               <span className="rc-dot" aria-hidden="true" />
-              <span>{model.name} edita una imagen: elegí al menos una de tu galería.</span>
+              <span>{model.name} edita una imagen: elegí al menos una de tu galería o de tu computadora.</span>
             </div>
           ) : null}
           <form className="rc-composer rc-gen" aria-label="Generar imágenes" onSubmit={e => { e.preventDefault(); generate(); }}>
@@ -84,7 +84,7 @@ export function ImageTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
               <div className="rc-gen-refs" aria-label={edits ? 'Imagen a editar' : 'Referencias'} role="group">
                 {references.map(url => (
                   <span key={url} className="rc-ref">
-                    <img src={url} alt="" />
+                    <img src={refSrc(url)} alt="" />
                     <button type="button" className="rc-ref-remove" aria-label="Quitar referencia" onClick={() => patch({references: draft.references.filter(u => u !== url)})}><X /></button>
                   </span>
                 ))}
@@ -106,7 +106,7 @@ export function ImageTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
               <div className="rc-gen-chips">
                 {o.maxReferences ? (
                   <Tip label={refsLabel}>
-                    <button type="button" className="rc-icon-btn" aria-label={(edits ? 'Elegir la imagen a editar' : 'Agregar referencias') + ' desde la galería'} onClick={() => setPicker(true)}>
+                    <button type="button" className="rc-icon-btn" aria-label={(edits ? 'Elegir la imagen a editar' : 'Agregar referencias') + ' de la galería o de tu computadora'} onClick={() => setPicker(true)}>
                       <ImagePlus />{references.length ? <span className="rc-gen-count" aria-hidden="true">{references.length}</span> : null}
                     </button>
                   </Tip>
@@ -151,6 +151,7 @@ export function ImageTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
         max={o.maxReferences}
         initial={draft.references}
         title={edits ? 'Imagen a editar' : 'Referencias'}
+        upload
         onChoose={references => patch({references})}
       />
       <PromptAssistant open={assistant} onClose={() => setAssistant(false)} initial={draft.prompt} onUse={prompt => patch({prompt})} />

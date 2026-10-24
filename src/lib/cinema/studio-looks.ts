@@ -79,12 +79,17 @@ export function mentionQuery(before: string) {
  * What is sent to the model: the scene as written (with «@» taken off the names), then who and where with their
  * descriptions, then the chosen looks. Nothing is added when everything is «Auto» and nobody is called.
  */
-export function composePrompt(text: string, looks: Looks, called: Mention[]) {
+/** `tag`: how the model names someone's picture in the prompt (Kling 4.0: `@image_2`), when it is sent. */
+export function composePrompt(text: string, looks: Looks, called: Mention[], tag?: (m: Mention) => string | null) {
   let scene = text.trim();
   for (const m of [...called].sort((a, b) => b.name.length - a.name.length)) scene = scene.split('@' + m.name).join(m.name);
   const lines: string[] = [];
-  const described = called.filter(m => m.description.trim());
-  if (described.length) lines.push(described.map(m => m.name + ': ' + m.description.trim().replace(/\s+/g, ' ')).join(' '));
+  const described = called.filter(m => m.description.trim() || tag?.(m));
+  if (described.length) lines.push(described.map(m => {
+    const t = tag?.(m);
+    const about = m.description.trim().replace(/\s+/g, ' ');
+    return m.name + (t ? ' (' + t + ')' : '') + (about ? ': ' + about : '.');
+  }).join(' '));
   const style = (Object.keys(lookNames) as LookKey[]).map(k => lookOption(k, looks[k]).prompt).filter(Boolean).join(' ');
   if (style) lines.push(style);
   return lines.length ? scene + '\n\n' + lines.join('\n') : scene;

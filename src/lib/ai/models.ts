@@ -75,6 +75,8 @@ export type MediaOptions = {
   /** What the «resolution» field really is for this model (Calidad, Tamaño); «Resolución» when absent. */
   resolutionLabel?: string;
   durations: readonly string[];
+  /** The duration the page gives as default, when it is not the first one offered. */
+  durationDefault?: string;
   outputFormat?: string;
   /** Required fields with a documented default, sent as documented. */
   fixed?: Record<string, unknown>;
@@ -84,6 +86,13 @@ export type MediaOptions = {
   maxVariants: number;
   /** 'create' works from text alone; 'edit' needs reference images. */
   modes: readonly ('create' | 'edit')[];
+  /**
+   * How the prompt names the images sent, as the model's page documents it: `@image_{n}` (numbered from 1, in order)
+   * or one fixed name such as `@first_frame`.
+   */
+  mention?: string;
+  /** The page says every «@» in the prompt must name something sent, or the request is rejected. */
+  strictMentions?: boolean;
 };
 
 export type ImageModel = Base & {category: 'image'; options: MediaOptions};

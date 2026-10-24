@@ -10,7 +10,7 @@ import {ChatModelPicker, estimate} from '@/components/studio/chat-model-picker';
 import {Tip} from '@/components/ui/tooltip';
 import {AskFirst, AspectPicker, Segmented, SettingChip, aspectName, optionLabel, useGenerateConfirm} from './controls';
 import {JobCard} from './job-card';
-import {GalleryPicker} from './gallery-picker';
+import {GalleryPicker, refSrc} from './gallery-picker';
 import {PromptAssistant} from './prompt-assistant';
 
 // Video: the same frame as Image. The results take the screen and the request is written below them; each setting is
@@ -35,7 +35,7 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
   const pick = (value: string, list: readonly string[]) => list.includes(value) ? value : list[0] || '';
   const aspect = pick(draft.aspect, o?.aspectRatios || []);
   const resolution = pick(draft.resolution, o?.resolutions || []);
-  const duration = pick(draft.duration, o?.durations || []);
+  const duration = pick(draft.duration || o?.durationDefault || '', o?.durations || []);
   const references = draft.references.slice(0, o?.maxReferences || 0);
   const resolutionLabel = o?.resolutionLabel || 'Resolución';
   // A model that only animates a picture needs its starting image.
@@ -83,7 +83,7 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
   }
 
   const generate = () => { if (ready) request(); };
-  const refsLabel = (start ? 'Imagen inicial' : 'Referencias (hasta ' + o.maxReferences + ')') + ' de tu galería' + (animates ? '' : ', si querés') + '. Subir desde el dispositivo llega más adelante.';
+  const refsLabel = (start ? 'Imagen inicial' : 'Referencias (hasta ' + o.maxReferences + ')') + ' de tu galería o de tu computadora' + (animates ? '' : ', si querés') + '.';
 
   return (
     <div className="rc-cine-work">
@@ -105,7 +105,7 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
           {needsImage ? (
             <div className="rc-notice" role="status">
               <span className="rc-dot" aria-hidden="true" />
-              <span>{model.name} anima una imagen: elegí la imagen inicial de tu galería.</span>
+              <span>{model.name} anima una imagen: elegí la imagen inicial de tu galería o de tu computadora.</span>
             </div>
           ) : null}
           <form className="rc-composer rc-gen" aria-label="Generar video" onSubmit={e => { e.preventDefault(); generate(); }}>
@@ -113,7 +113,7 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
               <div className="rc-gen-refs" aria-label={imagesName} role="group">
                 {references.map(url => (
                   <span key={url} className="rc-ref">
-                    <img src={url} alt="" />
+                    <img src={refSrc(url)} alt="" />
                     <button type="button" className="rc-ref-remove" aria-label={start ? 'Quitar la imagen inicial' : 'Quitar referencia'} onClick={() => patch({references: draft.references.filter(u => u !== url)})}><X /></button>
                   </span>
                 ))}
@@ -135,7 +135,7 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
               <div className="rc-gen-chips">
                 {o.maxReferences ? (
                   <Tip label={refsLabel}>
-                    <button type="button" className="rc-icon-btn" aria-label={(start ? (animates ? 'Elegir' : 'Agregar') + ' la imagen inicial' : 'Agregar referencias') + ' desde la galería'} onClick={() => setPicker(true)}>
+                    <button type="button" className="rc-icon-btn" aria-label={(start ? (animates ? 'Elegir' : 'Agregar') + ' la imagen inicial' : 'Agregar referencias') + ' de la galería o de tu computadora'} onClick={() => setPicker(true)}>
                       <ImagePlus />{references.length ? <span className="rc-gen-count" aria-hidden="true">{references.length}</span> : null}
                     </button>
                   </Tip>
@@ -180,6 +180,7 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
         max={o.maxReferences}
         initial={references}
         title={imagesName}
+        upload
         onChoose={references => patch({references})}
       />
       <PromptAssistant open={assistant} onClose={() => setAssistant(false)} initial={draft.prompt} onUse={prompt => patch({prompt})} video />

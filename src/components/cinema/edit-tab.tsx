@@ -9,7 +9,7 @@ import {imageModel, maxVariants, resolutions, type Resolution} from '@/lib/cinem
 import {startGeneration} from '@/lib/cinema/client';
 import {Field, GenerateBar, ModelRow, Segmented} from './controls';
 import {JobCard} from './job-card';
-import {GalleryPicker} from './gallery-picker';
+import {GalleryPicker, refSrc} from './gallery-picker';
 
 export function EditTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
   const draft = useCinemaUi(s => s.edit);
@@ -40,9 +40,9 @@ export function EditTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
     <div className="rc-cine-layout">
       <section className="rc-cine-panel" aria-label="Ajustes de la edición">
         <div className="rc-cine-panel-scroll">
-          <Field label="Imagen original" hint="Desde tu galería. Subir desde el dispositivo necesita alojar el archivo y llega más adelante.">
-            <button type="button" className="rc-edit-source" onClick={() => setPicker(true)} aria-label={draft.source ? 'Cambiar imagen original' : 'Elegir imagen original de la galería'}>
-              {draft.source ? <img src={draft.source} alt="" /> : <span><ImageIcon aria-hidden="true" />Elegir de la galería</span>}
+          <Field label="Imagen original" hint="De tu galería o de tu computadora.">
+            <button type="button" className="rc-edit-source" onClick={() => setPicker(true)} aria-label={draft.source ? 'Cambiar imagen original' : 'Elegir o subir la imagen original'}>
+              {draft.source ? <img src={refSrc(draft.source)} alt="" /> : <span><ImageIcon aria-hidden="true" />Elegir o subir una imagen</span>}
             </button>
           </Field>
           <Field label="Instrucción">
@@ -77,7 +77,7 @@ export function EditTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
         {!draft.source ? (
           <div className="rc-cine-empty">
             <div className="rc-cine-empty-frame" aria-hidden="true" />
-            <p>Elegí una imagen de la galería para editarla.</p>
+            <p>Elegí una imagen de la galería, o subí una de tu computadora, para editarla.</p>
           </div>
         ) : (
           <div className="rc-edit-stage">
@@ -110,7 +110,7 @@ export function EditTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
               </figure>
             ) : (
               <figure className="rc-compare rc-compare--single">
-                <img src={draft.source} alt="Imagen original" />
+                <img src={refSrc(draft.source)} alt="Imagen original" />
               </figure>
             )}
 
@@ -135,6 +135,7 @@ export function EditTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
         max={1}
         initial={draft.source ? [draft.source] : []}
         title="Imagen original"
+        upload
         onChoose={urls => patch({source: urls[0] || null})}
       />
     </div>
