@@ -10,7 +10,7 @@ Es el mismo Estudio de Cinema Studio (`/workspace/estudio`), con la misma estruc
 - **El del medio** lleva un borde claro y una sombra profunda. Los de los costados son más chicos, un poco más oscuros y quedan detrás.
 - Al avanzar, cada póster **se desliza** a su nuevo lugar, en vez de cambiar de golpe.
 - Al pasar el mouse, el póster sube un poco y se aclara.
-- Las flechas se ven tenues y se encienden al pasar el mouse o al llegar con el teclado. En el teléfono quedan debajo de los pósters, para no taparlos.
+- Debajo de los pósters hay una fila con anterior, los puntos de posición, pausa y siguiente; nunca tapan los pósters (ver «Pulido de detalles»).
 - El carrusel es más bajo, así el panel para generar queda más cerca.
 
 ### Barra lateral
