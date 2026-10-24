@@ -1,5 +1,5 @@
 'use client';
-import {useMemo, useRef, useState, type KeyboardEvent} from 'react';
+import {useMemo, useRef, useState, type KeyboardEvent, type ReactNode} from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
 import * as Popover from '@radix-ui/react-popover';
 import {AtSign, Check, Clapperboard, Clock, Gem, Image as ImageIcon, Loader2, MapPin, Minus, Plus, RectangleHorizontal, ScanLine, Sparkles, User, Video, X} from 'lucide-react';
@@ -14,7 +14,7 @@ import {composePrompt, lookNames, lookOption, lookOptions, mentioned, mentionQue
 import {useStudioItems} from '@/store/cinema-projects';
 import type {JobBook} from '@/store/cinema';
 import {useBalance} from '@/lib/ai/balance';
-import {mentionPrompt} from '@/lib/cinema/mentions';
+import {authorImageName, mentionPrompt} from '@/lib/cinema/mentions';
 import {useCast, useEstudioDraft, type CastMember} from './data';
 import {LookThumb} from './look-thumbs';
 
@@ -68,9 +68,15 @@ export function EstudioComposer({project}: {project?: string}) {
   const needsImage = editsOnly && !references.length;
   const ready = Boolean(model && d.prompt.trim()) && !needsImage;
   const target = project ?? d.project;
-  // A model that names its images in the prompt (`@image_{n}`) is told which picture is whose.
-  const numbered = o?.mention?.includes('{n}') ? o.mention : null;
-  const prompt = composePrompt(d.prompt, d.looks, called, numbered ? m => m.reference && references.includes(m.reference) ? numbered.replace('{n}', String(references.indexOf(m.reference) + 1)) : null : undefined);
+  // The pictures sent, named in order «@image1», «@image2»… (the server turns them into each model's own names).
+  const sentCount = o?.fields.images ? (o.fields.imagesSingle ? Math.min(1, references.length) : references.length) : 0;
+  // Each called character is told which picture is theirs: by the model's own name (`@image_{n}`), or «image n».
+  const numbered = o?.mention?.includes('{n}') ? o.mention : !o?.mention ? 'image {n}' : null;
+  const pictureOf = (m: {reference?: string}) => {
+    const k = m.reference ? references.indexOf(m.reference) : -1;
+    return numbered && k >= 0 && k < sentCount ? numbered.replace('{n}', String(k + 1)) : null;
+  };
+  const prompt = composePrompt(d.prompt, d.looks, called, pictureOf);
   const estimate = model?.price ? model.price.credits * count : null;
   // The button's second line: the catalog's estimate when Kie publishes a price, otherwise the real Kie balance.
   const balance = useBalance().data?.credits;
@@ -112,15 +118,30 @@ export function EstudioComposer({project}: {project?: string}) {
   });
   const generate = () => { if (ready && !busy) request(); };
 
-  // «@»: what is written right before the caret opens the list; picking a name writes it in full.
-  const options = menu && cast ? cast.filter(m => m.name.toLowerCase().includes(menu.query.toLowerCase())).slice(0, 8) : [];
+  const unknownImages = [...new Set([...d.prompt.matchAll(/@image_?(\d{1,2})(?![\p{L}\p{N}_])/giu)].map(m => Number(m[1])).filter(n => n < 1 || n > sentCount))];
+
+  // «@»: what is written right before the caret opens the list (the pictures first, then the cast); picking one writes
+  // its name in full.
+  type Entry = {key: string; name: string; pic: ReactNode; sub: string; cast?: boolean};
+  const entries: Entry[] = [
+    ...references.slice(0, sentCount).map((url, i): Entry => {
+      const member = called.find(m => m.reference === url) as CastMember | undefined;
+      return {key: 'image:' + url, name: authorImageName(i + 1).slice(1), sub: member ? 'Foto de ' + member.name : 'Referencia ' + (i + 1),
+        pic: member ? <CastPicture member={member} /> : <span className="rc-es-cast-pic" aria-hidden="true"><img src={refSrc(url)} alt="" /></span>};
+    }),
+    ...(cast || []).map((m): Entry => ({key: m.key, name: m.name, cast: true, pic: <CastPicture member={m} />,
+      sub: m.source === 'book' ? (m.book?.projectName || 'Libro') + (m.reference ? ' · con su foto principal' : ' · sin foto principal') : m.kind === 'place' ? 'Lugar' : 'Personaje'})),
+  ];
+  const options = menu ? entries.filter(e => e.name.toLowerCase().includes(menu.query.toLowerCase())).slice(0, 10) : [];
+  // Writing past every name closes the list instead of covering the box with «nada»; a bare «@» still shows it.
+  const listOpen = Boolean(menu && (options.length || !menu.query));
   function readMention() {
     const el = box.current;
     if (!el) return;
     const q = mentionQuery(el.value.slice(0, el.selectionStart));
     setMenu(q === null ? null : {query: q, index: 0});
   }
-  function choose(m: CastMember) {
+  function choose(m: Entry) {
     const el = box.current;
     if (!el) return;
     const at = el.selectionStart;
@@ -213,11 +234,12 @@ export function EstudioComposer({project}: {project?: string}) {
           <div className="rc-es-box">
             {references.length ? (
               <div className="rc-gen-refs" role="group" aria-label="Referencias que se envían">
-                {references.map(url => {
+                {references.map((url, i) => {
                   const member = called.find(m => m.reference === url) as CastMember | undefined;
                   return (
                     <span key={url} className="rc-ref" title={member ? member.name : undefined}>
                       {member ? <CastPicture member={member} /> : <img src={refSrc(url)} alt="" />}
+                      {i < sentCount ? <span className="rc-ref-name">{authorImageName(i + 1)}</span> : null}
                       {member ? null : <button type="button" className="rc-ref-remove" aria-label="Quitar referencia" onClick={() => d.patch({references: d.references.filter(u => u !== url)})}><X /></button>}
                     </span>
                   );
@@ -234,28 +256,31 @@ export function EstudioComposer({project}: {project?: string}) {
                 maxRows={9}
                 maxLength={3600}
                 value={d.prompt}
-                placeholder="Describí la escena; usá @ para sumar personajes y lugares"
+                placeholder="Describí la escena; usá @ para sumar imágenes, personajes y lugares"
                 aria-autocomplete="list"
-                aria-controls={menu ? 'estudio-cast' : undefined}
-                aria-activedescendant={menu && options.length ? 'estudio-cast-' + Math.min(menu.index, options.length - 1) : undefined}
+                aria-controls={listOpen ? 'estudio-cast' : undefined}
+                aria-activedescendant={listOpen && menu && options.length ? 'estudio-cast-' + Math.min(menu.index, options.length - 1) : undefined}
                 onChange={e => { d.patch({prompt: e.target.value}); requestAnimationFrame(readMention); }}
                 onKeyDown={onKeyDown}
                 onClick={readMention}
                 // Leaving the box closes the list, unless the focus came back (the «@» button puts it there).
                 onBlur={() => setTimeout(() => { if (document.activeElement !== box.current) setMenu(null); }, 150)}
               />
-              {menu ? (
-                <div className="rc-es-cast rc-layer" id="estudio-cast" role="listbox" aria-label="Personajes y lugares">
-                  {cast === null ? <p className="rc-hint">Cargando…</p> : options.length ? options.map((m, i) => (
+              {listOpen && menu ? (
+                <div className="rc-es-cast rc-layer" id="estudio-cast" role="listbox" aria-label="Imágenes, personajes y lugares">
+                  {options.length ? options.map((m, i) => (
                     <button key={m.key} id={'estudio-cast-' + i} type="button" role="option" aria-selected={i === menu.index} className="rc-es-cast-option" tabIndex={-1} onMouseDown={e => e.preventDefault()} onClick={() => choose(m)}>
-                      <CastPicture member={m} />
-                      <span><strong lang="ru">{m.name}</strong><small>{m.source === 'book' ? (m.book?.projectName || 'Libro') + (m.reference ? ' · con su foto principal' : ' · sin foto principal') : m.kind === 'place' ? 'Lugar' : 'Personaje'}</small></span>
+                      {m.pic}
+                      <span><strong lang={m.cast ? 'ru' : undefined}>{m.cast ? m.name : '@' + m.name}</strong><small>{m.sub}</small></span>
                     </button>
-                  )) : <p className="rc-hint">{cast.length ? 'Nadie con ese nombre.' : 'Todavía no hay personajes ni lugares: agregalos en «Mis elementos» o en Contexto del libro.'}</p>}
+                  )) : cast === null ? <p className="rc-hint">Cargando…</p>
+                    : <p className="rc-hint">{entries.length ? 'Nada con ese nombre.' : 'Todavía no hay imágenes elegidas ni personajes o lugares: agregalos con «+», en «Mis elementos» o en Contexto del libro.'}</p>}
                 </div>
               ) : null}
               <span className="sr-only" role="status">{menu && options.length ? options.length + (options.length === 1 ? ' sugerencia' : ' sugerencias') : ''}</span>
             </div>
+            {sentCount ? <p className="rc-hint rc-es-refs-hint">Nombralas en la escena como {Array.from({length: Math.min(sentCount, 2)}, (_, i) => authorImageName(i + 1)).join(', ')}{sentCount > 2 ? '…' : ''}, o elegilas con @.</p> : null}
+            {unknownImages.length ? <p className="rc-es-note" role="status">No hay {unknownImages.map(authorImageName).join(' ni ')}: {sentCount ? 'elegiste ' + sentCount + (sentCount === 1 ? ' imagen' : ' imágenes') : max ? 'todavía no elegiste ninguna imagen' : model.name + ' no recibe imágenes'}.</p> : null}
             {left.length ? <p className="rc-es-note" role="status">{model.name} recibe hasta {max} {max === 1 ? 'imagen' : 'imágenes'}: {left.map(m => m.name).join(', ')} va{left.length === 1 ? '' : 'n'} solo con su descripción.</p> : null}
             {needsImage ? <p className="rc-es-note" role="status">{model.name} {video ? 'anima' : 'edita'} una imagen: elegí una con «+» o con el cuadro.</p> : null}
 

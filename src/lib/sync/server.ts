@@ -1,6 +1,7 @@
 import {z} from 'zod';
 import {database} from '@/lib/pipeline/database';
 import {syncKinds} from './kinds';
+import {ensureSyncTables} from './schema';
 
 /** Biggest record accepted (serialized JSON). Book images travel separately as assets. */
 export const MAX_ITEM_CHARS = 2_000_000;
@@ -43,11 +44,15 @@ export function notReady(error: unknown) {
   return text.includes('42P01') || /relation "?(sync_item|sync_asset|generation_request)"? does not exist/.test(text);
 }
 
+const asSyncError = (e: unknown) => e instanceof SyncError ? e : new SyncError(notReady(e) ? 'SYNC_NOT_READY' : 'SYNC_UNAVAILABLE');
+
+/** A missing table is created (see ./schema) and the operation tried once more: nothing was written the first time. */
 async function run<T>(fn: () => Promise<T>): Promise<T> {
   try { return await fn(); } catch (e) {
-    if (e instanceof SyncError) throw e;
-    if (notReady(e)) throw new SyncError('SYNC_NOT_READY');
-    throw new SyncError('SYNC_UNAVAILABLE');
+    if (!(e instanceof SyncError) && notReady(e) && await ensureSyncTables()) {
+      try { return await fn(); } catch (again) { throw asSyncError(again); }
+    }
+    throw asSyncError(e);
   }
 }
 

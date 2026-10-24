@@ -11,6 +11,7 @@ import {Tip} from '@/components/ui/tooltip';
 import {AskFirst, AspectPicker, Segmented, SettingChip, aspectName, optionLabel, useGenerateConfirm} from './controls';
 import {JobCard} from './job-card';
 import {GalleryPicker, refSrc} from './gallery-picker';
+import {authorImageName} from '@/lib/cinema/mentions';
 import {PromptAssistant} from './prompt-assistant';
 
 // Video: the same frame as Image. The results take the screen and the request is written below them; each setting is
@@ -83,7 +84,7 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
   }
 
   const generate = () => { if (ready) request(); };
-  const refsLabel = (start ? 'Imagen inicial' : 'Referencias (hasta ' + o.maxReferences + ')') + ' de tu galería o de tu computadora' + (animates ? '' : ', si querés') + '.';
+  const refsLabel = (start ? 'Imagen inicial' : 'Referencias (hasta ' + o.maxReferences + ')') + ' de tu galería o de tu computadora' + (animates ? '' : ', si querés') + '. En el texto se llama' + (o.maxReferences > 1 ? 'n @image1, @image2…' : ' @image1') + '.';
 
   return (
     <div className="rc-cine-work">
@@ -111,9 +112,10 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
           <form className="rc-composer rc-gen" aria-label="Generar video" onSubmit={e => { e.preventDefault(); generate(); }}>
             {references.length ? (
               <div className="rc-gen-refs" aria-label={imagesName} role="group">
-                {references.map(url => (
+                {references.map((url, i) => (
                   <span key={url} className="rc-ref">
                     <img src={refSrc(url)} alt="" />
+                    {!o.fields.imagesSingle || i === 0 ? <span className="rc-ref-name">{authorImageName(i + 1)}</span> : null}
                     <button type="button" className="rc-ref-remove" aria-label={start ? 'Quitar la imagen inicial' : 'Quitar referencia'} onClick={() => patch({references: draft.references.filter(u => u !== url)})}><X /></button>
                   </span>
                 ))}

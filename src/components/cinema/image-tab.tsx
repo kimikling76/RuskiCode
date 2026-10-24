@@ -11,6 +11,7 @@ import {Tip} from '@/components/ui/tooltip';
 import {AskFirst, AspectPicker, Segmented, SettingChip, aspectName, optionLabel, useGenerateConfirm} from './controls';
 import {JobCard} from './job-card';
 import {GalleryPicker, refSrc} from './gallery-picker';
+import {authorImageName} from '@/lib/cinema/mentions';
 import {PromptAssistant} from './prompt-assistant';
 import type {CinemaJob} from '@/store/cinema';
 
@@ -54,7 +55,7 @@ export function ImageTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
     ],
   });
   const generate = () => { if (ready) request(); };
-  const refsLabel = (edits ? 'Imagen a editar' : 'Referencias') + ' de tu galería o de tu computadora (hasta ' + o.maxReferences + ').';
+  const refsLabel = (edits ? 'Imagen a editar' : 'Referencias') + ' de tu galería o de tu computadora (hasta ' + o.maxReferences + '). En el texto se llaman @image1, @image2…';
 
   return (
     <div className="rc-cine-work">
@@ -82,9 +83,10 @@ export function ImageTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
           <form className="rc-composer rc-gen" aria-label="Generar imágenes" onSubmit={e => { e.preventDefault(); generate(); }}>
             {references.length ? (
               <div className="rc-gen-refs" aria-label={edits ? 'Imagen a editar' : 'Referencias'} role="group">
-                {references.map(url => (
+                {references.map((url, i) => (
                   <span key={url} className="rc-ref">
                     <img src={refSrc(url)} alt="" />
+                    {!o.fields.imagesSingle || i === 0 ? <span className="rc-ref-name">{authorImageName(i + 1)}</span> : null}
                     <button type="button" className="rc-ref-remove" aria-label="Quitar referencia" onClick={() => patch({references: draft.references.filter(u => u !== url)})}><X /></button>
                   </span>
                 ))}
