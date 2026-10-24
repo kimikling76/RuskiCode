@@ -1,5 +1,5 @@
 'use client';
-import {Fragment, useState, type MouseEvent, type KeyboardEvent, type ReactNode} from 'react';
+import {Fragment, useRef, useState, type MouseEvent, type KeyboardEvent, type ReactNode} from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import {ChevronDown, Sparkles} from 'lucide-react';
 import {aspectRatios, imageModel, ratioValue, type AspectRatio} from '@/lib/cinema/capabilities';
@@ -143,15 +143,27 @@ export function AskFirst({id = 'cinema-ask-first'}: {id?: string}) {
   );
 }
 
-/** Generating with «Preguntar antes» on asks first, with what will be sent. The confirmation never shows a cost Kie has not reported. */
-export function useGenerateConfirm({label, facts, onGenerate}: {label: string; facts: [string, string][]; onGenerate: () => void}) {
+/**
+ * Generating with «Preguntar antes» on asks first, with what will be sent. The confirmation never shows a cost Kie has
+ * not reported. `onGenerate` returns the request's promise: until it settles a second click (a double click, say) is
+ * ignored, so one request is never sent, and paid, twice. `busy` is true meanwhile.
+ */
+export function useGenerateConfirm({label, facts, onGenerate}: {label: string; facts: [string, string][]; onGenerate: () => unknown}) {
   const askFirst = useCinemaUi(s => s.askFirst);
   const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const inFlight = useRef(false);
+  const run = () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    Promise.resolve().then(onGenerate).catch(() => {}).finally(() => { inFlight.current = false; setBusy(false); });
+  };
   const dialog = (
     <ConfirmDialog
       open={confirm}
       onClose={() => setConfirm(false)}
-      onConfirm={() => { setConfirm(false); onGenerate(); }}
+      onConfirm={() => { setConfirm(false); run(); }}
       title="¿Generar en Kie?"
       description="Cada resultado es una tarea en Kie y consume créditos. El costo real aparece al terminar, cuando Kie lo informa."
       confirmLabel={label}
@@ -161,16 +173,16 @@ export function useGenerateConfirm({label, facts, onGenerate}: {label: string; f
       </dl>
     </ConfirmDialog>
   );
-  return {request: () => askFirst ? setConfirm(true) : onGenerate(), dialog};
+  return {request: () => { if (!inFlight.current) { if (askFirst) setConfirm(true); else run(); } }, dialog, busy};
 }
 
 /** «Preguntar antes» + the single primary action of a panel. */
-export function GenerateBar({label, disabled, facts, onGenerate}: {label: string; disabled?: boolean; facts: [string, string][]; onGenerate: () => void}) {
-  const {request, dialog} = useGenerateConfirm({label, facts, onGenerate});
+export function GenerateBar({label, disabled, facts, onGenerate}: {label: string; disabled?: boolean; facts: [string, string][]; onGenerate: () => unknown}) {
+  const {request, dialog, busy} = useGenerateConfirm({label, facts, onGenerate});
   return (
     <div className="rc-cine-generate">
       <AskFirst />
-      <button type="button" className="rc-btn rc-btn--primary" disabled={disabled} onClick={request}>
+      <button type="button" className="rc-btn rc-btn--primary" disabled={disabled || busy} onClick={request}>
         {label}
       </button>
       {dialog}

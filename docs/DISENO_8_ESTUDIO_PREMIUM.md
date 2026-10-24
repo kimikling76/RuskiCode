@@ -86,3 +86,37 @@ Los dibujos están hechos en el propio sitio: no son imágenes de otra página.
 - Revisión de accesibilidad (axe) sin hallazgos en Inicio, un popover abierto, un proyecto, la barra plegada y el teléfono.
 - Con el teclado: el popover abre con el foco en la opción elegida, las flechas se mueven entre las tarjetas y Enter elige.
 - `tsc`, las 170 pruebas y el build de producción, sin errores.
+
+## Pulido de detalles (con la guía UI/UX Pro Max)
+
+Se revisó el Estudio contra la lista de la guía: accesibilidad, uso con el dedo y respuesta de los botones. Antes de corregir, se midió en el navegador.
+
+### Qué se encontró y se corrigió
+
+- **Un doble clic en GENERAR creaba dos tareas en Kie, y se cobraban las dos.** Pasaba con «Preguntar antes» apagado.
+  - Ahora, mientras se le pide a Kie, el botón se bloquea y dice «ENVIANDO… Pidiendo a Kie». Un segundo clic no hace nada.
+  - El arreglo está en la parte compartida, así que también protege las pestañas Imagen, Video y Editar de Cinema Studio. «Dirigir» genera plano por plano y no se cambió.
+  - Medido antes y después: el doble clic pasó de 2 tareas a 1, en el Estudio y en la pestaña Imagen.
+- **El carrusel avanzaba solo y no tenía cómo detenerlo.** Ahora tiene, debajo de los pósters, una fila con:
+  - anterior;
+  - puntos que muestran en cuál estás;
+  - **pausa / reanudar**;
+  - siguiente.
+
+  En pausa queda quieto hasta que lo reanudes. Mientras avanza solo, el lector de pantalla no anuncia cada cambio; sí lo hace cuando lo movés vos. Si la computadora pide menos movimiento, no avanza solo y no aparece el botón de pausa.
+- **El foco del teclado no se veía en varios controles:** la página actual de la barra lateral, los pósters, Imagen/Video, el modelo, Calidad, Formato y los videos. Sus sombras tapaban la marca.
+  - Ahora se usa la misma marca que en el resto del sitio, un contorno amarillo que ninguna sombra tapa.
+  - En el botón GENERAR el contorno es blanco, para que se vea sobre el amarillo.
+  - Al escribir la escena se ilumina todo el escenario.
+- **Las etiquetas chicas de los chips** («REFERENCIAS», «LUZ»…) tenían un contraste de 4,17:1. Ahora tienen más de 4,5:1, que es el mínimo.
+- **En el teléfono:**
+  - los ajustes del panel quedan a 8 px entre sí;
+  - los botones responden al toque sin demora;
+  - «Imagen» y «Video» quedan centrados en su botón.
+
+### Cómo se verificó
+
+- Un recorrido con Tab por toda la página: todos los controles muestran el foco (el cuadro de texto lo muestra iluminando el escenario).
+- Una medición de contraste de cada texto visible: ninguno queda por debajo de 4,5:1.
+- axe sin hallazgos en Inicio, un popover abierto, un proyecto, Mis elementos y el teléfono.
+- `tsc`, las 170 pruebas y el build de producción, sin errores.

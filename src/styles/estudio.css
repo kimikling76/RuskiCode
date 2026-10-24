@@ -37,11 +37,15 @@
   color: var(--fg-1);
 }
 .rc-es[data-collapsed='true'] { grid-template-columns: 68px minmax(0, 1fr); }
-.rc-es :focus-visible, .rc-es-drawer :focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* The site's own focus mark, an outline no shadow can cover, in the Estudio's yellow. */
+.rc-es :focus-visible, .rc-es-drawer :focus-visible { outline: 2px solid var(--es-accent); outline-offset: 2px; box-shadow: none; }
+/* No tap delay and no double-tap zoom on the Estudio's buttons. */
+.rc-es :is(button, a, select), .rc-es-drawer :is(button, a) { touch-action: manipulation; }
+/* Small labels: #9A9DA3 keeps 4.5:1 or more on every surface of the Estudio (the site's tertiary grey does not). */
 .rc-es-label,
 .rc-es-chip-text small,
 .rc-es-crumbs,
-.rc-es-balance small { font: 500 10.5px/1.1 var(--font-code); text-transform: uppercase; letter-spacing: 0.08em; color: var(--fg-3); }
+.rc-es-balance small { font: 500 10.5px/1.1 var(--font-code); text-transform: uppercase; letter-spacing: 0.08em; color: #9A9DA3; }
 /* Raised tiles share one light: a bright top edge, a darker bottom edge and a short shadow. */
 .rc-es, .rc-es-drawer { --es-tile-light: inset 0 1px 0 rgba(255, 255, 255, 0.38), inset 0 -1px 0 rgba(0, 0, 0, 0.28), 0 1px 2px rgba(0, 0, 0, 0.55); }
 
@@ -227,10 +231,10 @@
 /* ---------- Hero: the latest results as posters ---------- */
 /* All posters share one size and stand on the same centre; each place only moves and scales them, so a turn of the
    row is one smooth slide. The middle one carries the light border and the deep shadow. */
-.rc-es-hero {
-  --poster-h: clamp(150px, 16vw, 228px);
+.rc-es-hero { --poster-h: clamp(150px, 16vw, 228px); }
+.rc-es-hero-stage {
   position: relative;
-  height: calc(var(--poster-h) + 56px);
+  height: calc(var(--poster-h) + 48px);
   overflow-x: clip;
 }
 .rc-es-poster {
@@ -276,31 +280,30 @@
 .rc-es-hero--empty .rc-es-poster:hover { --lift: 0px; }
 .rc-es-hero--empty svg { width: 26px; height: 26px; }
 .rc-es-hero--empty small { font-size: var(--fs-13); }
-.rc-es-hero-nav {
-  position: absolute;
-  z-index: 4;
-  top: 50%;
+/* Under the posters: previous, where you are, pause and next. Pausing stops the turn until it is resumed. */
+.rc-es-hero-controls { display: flex; align-items: center; justify-content: center; gap: var(--sp-3); margin-top: var(--sp-1); }
+.rc-es-hero-btn {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
-  margin-top: -18px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   border: 0;
   border-radius: var(--radius-full);
-  background: #232326;
-  color: var(--fg-1);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1), 0 6px 16px -6px rgba(0, 0, 0, 0.8);
-  opacity: 0.6;
+  background: #1E1E21;
+  color: var(--fg-2);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
   cursor: pointer;
-  transition: opacity var(--dur-fast), background var(--dur-fast), transform var(--dur-fast);
+  transition: background var(--dur-fast), color var(--dur-fast), transform var(--dur-fast) var(--ease-out);
 }
-.rc-es-hero:hover .rc-es-hero-nav, .rc-es-hero-nav:focus-visible { opacity: 1; }
-.rc-es-hero-nav:hover { background: #2E2E32; transform: scale(1.06); }
-.rc-es-hero-nav[data-side='prev'] { left: max(var(--sp-2), calc(50% - var(--poster-h) * 1.78 * 1.04 - 36px)); }
-.rc-es-hero-nav[data-side='next'] { right: max(var(--sp-2), calc(50% - var(--poster-h) * 1.78 * 1.04 - 36px)); }
-.rc-es-hero-nav svg { width: 17px; height: 17px; }
-@media (hover: none) { .rc-es-hero-nav { opacity: 1; } }
-.rc-es-title { margin: var(--sp-9) 0 var(--sp-8); font: 700 clamp(30px, 4.2vw, 52px)/0.96 var(--font-display); letter-spacing: -0.028em; text-align: center; text-transform: uppercase; text-wrap: balance; text-shadow: 0 2px 30px rgba(0, 0, 0, 0.6); }
+.rc-es-hero-btn:hover { background: #2A2A2E; color: var(--fg-1); transform: scale(1.06); }
+.rc-es-hero-btn:active { transform: scale(0.96); }
+.rc-es-hero-btn svg { width: 16px; height: 16px; }
+.rc-es-hero-btn[aria-pressed='true'] { color: var(--es-accent); }
+.rc-es-hero-dots { display: flex; align-items: center; gap: 7px; padding: 0 var(--sp-2); }
+.rc-es-hero-dots span { width: 6px; height: 6px; border-radius: var(--radius-full); background: rgba(255, 255, 255, 0.24); transition: background var(--dur-base), transform var(--dur-base) var(--ease-out); }
+.rc-es-hero-dots span[data-on] { background: var(--es-accent); transform: scale(1.35); }
+.rc-es-title { margin: var(--sp-8) 0 var(--sp-8); font: 700 clamp(30px, 4.2vw, 52px)/0.96 var(--font-display); letter-spacing: -0.028em; text-align: center; text-transform: uppercase; text-wrap: balance; text-shadow: 0 2px 30px rgba(0, 0, 0, 0.6); }
 
 /* ---------- Composer ---------- */
 /* Three layers: the panel (chips on top), the lighter writing stage inside it, and the raised controls on the stage. */
@@ -410,8 +413,8 @@
 .rc-es-pop-option[aria-checked='true'] .rc-es-pop-pic { box-shadow: 0 0 0 2px var(--accent), 0 6px 14px -6px rgba(0, 0, 0, 0.8); }
 .rc-es-pop-check { position: absolute; top: 4px; right: 4px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: var(--radius-full); background: var(--accent); color: var(--on-accent); }
 .rc-es-pop-check svg { width: 12px; height: 12px; stroke-width: 3; }
-.rc-es-pop-option:focus-visible { box-shadow: none; }
-.rc-es-pop-option:focus-visible .rc-es-pop-pic { box-shadow: var(--focus-ring); }
+.rc-es-pop-option:focus-visible { outline: none; }
+.rc-es-pop-option:focus-visible .rc-es-pop-pic { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .rc-es-stage {
   display: grid;
@@ -424,12 +427,13 @@
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   transition: box-shadow var(--dur-base);
 }
-.rc-es-stage:focus-within { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.06); }
+/* Writing in the box lights the whole stage (the box itself has no frame of its own). */
+.rc-es-stage:has(.rc-es-prompt:focus-visible) { box-shadow: inset 0 0 0 1.5px rgba(228, 255, 26, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06); }
 .rc-es-box { display: grid; gap: var(--sp-4); min-width: 0; }
 .rc-es-write { position: relative; }
 .rc-es-prompt { display: block; width: 100%; padding: var(--sp-2) var(--sp-1); border: 0; background: transparent; color: var(--fg-1); font: 400 var(--fs-16)/1.55 var(--font-ui); resize: none; outline: none; }
 .rc-es-prompt::placeholder { color: var(--fg-3); }
-.rc-es .rc-es-prompt:focus-visible { box-shadow: none; }
+.rc-es .rc-es-prompt:focus-visible { outline: none; }
 .rc-es-cast {
   position: absolute;
   z-index: 40;
@@ -544,7 +548,16 @@
 }
 .rc-es-generate small { display: inline-flex; align-items: center; gap: 5px; font: 600 var(--fs-12)/1 var(--font-ui); letter-spacing: 0; text-shadow: none; opacity: 0.78; font-variant-numeric: tabular-nums; }
 .rc-es-generate small svg { width: 13px; height: 13px; }
-.rc-es .rc-es-generate:focus-visible { box-shadow: 0 0 0 2px var(--es-bg), 0 0 0 4px #FFFFFF, 0 var(--depth) 0 #8EA200; }
+/* On the yellow key the mark is white, away from its edge, and the key keeps its depth. */
+.rc-es .rc-es-generate:focus-visible {
+  outline: 2px solid #FFFFFF;
+  outline-offset: 3px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75), inset 0 -2px 0 rgba(0, 0, 0, 0.1), 0 var(--depth) 0 #8EA200, 0 calc(var(--depth) + 2px) 2px rgba(0, 0, 0, 0.45);
+}
+/* Sending: the key stays yellow, a little dimmer, until Kie answers. */
+.rc-es-generate[aria-busy='true']:disabled { background: linear-gradient(180deg, #F5FF8A 0%, #E8FF2E 38%, #D9F500 100%); color: #12140A; opacity: 0.82; cursor: progress; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75), 0 2px 0 #8EA200; transform: translateY(3px); }
+.rc-es-spin { animation: rc-es-spin 0.9s linear infinite; }
+@keyframes rc-es-spin { to { transform: rotate(360deg); } }
 
 .rc-es-under { display: flex; flex-wrap: wrap; grid-column: 2; align-items: center; gap: var(--sp-3) var(--sp-6); padding: 0 var(--sp-3); font-size: var(--fs-13); color: var(--fg-3); }
 .rc-es-target { display: inline-flex; align-items: center; gap: var(--sp-3); }
@@ -561,8 +574,8 @@
 .rc-es-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(236px, 1fr)); gap: var(--sp-8) var(--sp-6); margin: 0; padding: 0; list-style: none; }
 .rc-es-card { position: relative; min-width: 0; }
 .rc-es-card-open { display: grid; gap: var(--sp-4); width: 100%; padding: 0; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; }
-.rc-es-card-open:focus-visible { box-shadow: none; }
-.rc-es-card-open:focus-visible .rc-es-collage { box-shadow: var(--focus-ring); border-radius: 16px; }
+.rc-es-card-open:focus-visible { outline: none; }
+.rc-es-card-open:focus-visible .rc-es-collage { outline: 2px solid var(--es-accent); outline-offset: 3px; border-radius: 16px; }
 .rc-es-collage {
   position: relative;
   display: grid;
@@ -714,7 +727,7 @@
   /* Image / Video goes above the panel, so the panel keeps the whole width. */
   .rc-es-composer { grid-template-columns: minmax(0, 1fr); }
   .rc-es-mode { flex-direction: row; justify-self: start; margin-bottom: 0; }
-  .rc-es-mode-option { display: flex; justify-content: center; gap: var(--sp-3); width: auto; height: 40px; padding: 0 var(--sp-6); font-size: var(--fs-13); }
+  .rc-es-mode-option { display: flex; align-items: center; justify-content: center; gap: var(--sp-3); width: auto; height: 40px; padding: 0 var(--sp-6); font-size: var(--fs-13); }
   .rc-es-under { grid-column: 1; }
   .rc-es-grid { grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: var(--sp-7) var(--sp-5); }
   .rc-es-go .rc-es-tip, .rc-es-generate { width: 100%; }
@@ -741,12 +754,9 @@
   .rc-es-open-side { display: inline-flex; align-items: center; gap: var(--sp-3); height: var(--control-44); padding: 0 var(--sp-5); border: 1px solid var(--es-line); border-radius: var(--radius-12); background: var(--es-panel); color: var(--fg-1); font: 600 var(--fs-14)/1 var(--font-display); cursor: pointer; }
   .rc-es-open-side svg { width: 17px; height: 17px; }
   .rc-es-page { padding: var(--sp-5) var(--sp-5) 88px; }
-  /* On a phone the arrows sit under the posters, side by side, instead of over them. */
-  .rc-es-hero { --poster-h: min(40vw, 168px); height: calc(var(--poster-h) + 96px); }
-  .rc-es-poster { top: calc(50% - 22px); }
-  .rc-es-hero-nav { top: auto; bottom: 0; width: var(--control-44); height: var(--control-44); margin-top: 0; opacity: 1; }
-  .rc-es-hero-nav[data-side='prev'] { left: calc(50% - 50px); }
-  .rc-es-hero-nav[data-side='next'] { right: calc(50% - 50px); }
+  .rc-es-hero { --poster-h: min(40vw, 168px); }
+  .rc-es-hero-btn { width: var(--control-44); height: var(--control-44); }
+  .rc-es-hero-controls { gap: var(--sp-4); }
   .rc-es-card-row { display: grid; gap: 5px; }
   .rc-es-title { margin: var(--sp-7) 0 var(--sp-6); }
   .rc-es-composer { grid-template-columns: minmax(0, 1fr); }
@@ -758,6 +768,7 @@
   .rc-es-chips { margin: 0 calc(-1 * var(--sp-2)); padding: 2px var(--sp-2); }
   .rc-es-pill, .rc-es-bar .rc-chip-setting, .rc-es-model .rc-model-trigger, .rc-es-stepper { height: var(--control-44); }
   .rc-es-pill--icon { width: var(--control-44); }
+  .rc-es-bar { gap: var(--sp-3); }
   .rc-es-model .rc-model-trigger { max-width: 190px; }
   .rc-es-under { grid-column: 1; padding: 0; }
   .rc-es-target select.rc-input { height: var(--control-44); }

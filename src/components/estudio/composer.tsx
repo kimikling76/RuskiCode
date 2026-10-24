@@ -2,7 +2,7 @@
 import {useMemo, useRef, useState, type KeyboardEvent} from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
 import * as Popover from '@radix-ui/react-popover';
-import {AtSign, Check, Clapperboard, Clock, Gem, Image as ImageIcon, MapPin, Minus, Plus, RectangleHorizontal, ScanLine, Sparkles, User, Video, X} from 'lucide-react';
+import {AtSign, Check, Clapperboard, Clock, Gem, Image as ImageIcon, Loader2, MapPin, Minus, Plus, RectangleHorizontal, ScanLine, Sparkles, User, Video, X} from 'lucide-react';
 import {imageModels, videoModels, enabledStatus, publicModel} from '@/lib/ai/models';
 import {startGeneration} from '@/lib/cinema/client';
 import {ChatModelPicker} from '@/components/studio/chat-model-picker';
@@ -85,11 +85,11 @@ export function EstudioComposer({project}: {project?: string}) {
     return {project: first.project, name: first.projectName, characters: fromBook.filter(m => m.book!.project === first.project).map(m => ({id: m.book!.id, name: m.name, refs: m.book!.refs.filter(r => references.includes('asset:' + r.hash))}))};
   }, [called, references]);
 
-  const {request, dialog} = useGenerateConfirm({
+  const {request, dialog, busy} = useGenerateConfirm({
     label,
     onGenerate: () => {
       if (!model || !o) return;
-      void startGeneration({
+      return startGeneration({
         mode: video ? 'video' : 'create', model: model.id, prompt,
         aspect: o.aspectRatios.length ? aspect : '', resolution: o.resolutions.length ? resolution : '', duration: o.durations.length ? duration : undefined,
         references, count, ...(target ? {studio: target} : {}), ...(book ? {book} : {}),
@@ -107,7 +107,7 @@ export function EstudioComposer({project}: {project?: string}) {
       ...(estimate !== null ? [['Costo', '≈ ' + estimate.toLocaleString('es-AR') + ' créditos estimados; el real lo informa Kie al terminar'] as [string, string]] : []),
     ] : [],
   });
-  const generate = () => { if (ready) request(); };
+  const generate = () => { if (ready && !busy) request(); };
 
   // «@»: what is written right before the caret opens the list; picking a name writes it in full.
   const options = menu && cast ? cast.filter(m => m.name.toLowerCase().includes(menu.query.toLowerCase())).slice(0, 8) : [];
@@ -297,9 +297,10 @@ export function EstudioComposer({project}: {project?: string}) {
           <div className="rc-es-go">
             <Tip label={ready ? 'Ctrl+Enter' : needsImage ? 'Elegí la imagen' : 'Describí la escena'}>
               <span className="rc-es-tip">
-                <button type="button" className="rc-es-generate" disabled={!ready} onClick={generate}>
-                  <span>{label.toUpperCase()}</span>
-                  {estimate !== null ? <small><Sparkles aria-hidden="true" />≈ {estimate.toLocaleString('es-AR')}<span className="sr-only"> créditos estimados</span></small>
+                <button type="button" className="rc-es-generate" disabled={!ready || busy} aria-busy={busy || undefined} onClick={generate}>
+                  <span>{busy ? 'ENVIANDO…' : label.toUpperCase()}</span>
+                  {busy ? <small><Loader2 className="rc-es-spin" aria-hidden="true" />Pidiendo a Kie</small>
+                    : estimate !== null ? <small><Sparkles aria-hidden="true" />≈ {estimate.toLocaleString('es-AR')}<span className="sr-only"> créditos estimados</span></small>
                     : balance !== undefined ? <small><Sparkles aria-hidden="true" />{balance.toLocaleString('es-AR', {maximumFractionDigits: 1})} disponibles<span className="sr-only"> en tu saldo de Kie</span></small> : null}
                 </button>
               </span>

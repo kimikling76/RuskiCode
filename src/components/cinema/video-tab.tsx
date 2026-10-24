@@ -46,11 +46,11 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
   const ready = Boolean(draft.prompt.trim()) && !needsImage;
   const label = 'Generar video';
 
-  const {request, dialog} = useGenerateConfirm({
+  const {request, dialog, busy} = useGenerateConfirm({
     label,
     onGenerate: () => {
       if (!model || !o) return;
-      void startGeneration({mode: 'video', model: model.id, prompt: draft.prompt.trim(), aspect: o.aspectRatios.length ? aspect : '', resolution: o.resolutions.length ? resolution : '', duration: o.durations.length ? duration : undefined, references, count: 1});
+      return startGeneration({mode: 'video', model: model.id, prompt: draft.prompt.trim(), aspect: o.aspectRatios.length ? aspect : '', resolution: o.resolutions.length ? resolution : '', duration: o.durations.length ? duration : undefined, references, count: 1});
     },
     facts: model && o ? [
       ['Modelo', model.name],
@@ -164,7 +164,7 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
                 <AskFirst id="cinema-video-ask-first" />
                 <Tip label={ready ? label : needsImage ? 'Elegí la imagen inicial' : 'Escribí el prompt'} shortcut={ready ? 'Ctrl+Enter' : undefined}>
                   <span className="rc-gen-submit">
-                    <button type="submit" className="rc-btn rc-btn--primary" disabled={!ready}>{label}</button>
+                    <button type="submit" className="rc-btn rc-btn--primary" disabled={!ready || busy}>{label}</button>
                   </span>
                 </Tip>
               </div>
