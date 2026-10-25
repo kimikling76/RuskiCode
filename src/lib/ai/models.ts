@@ -151,10 +151,14 @@ export const findModel = (id: string) => catalog.find(m => m.id === id);
 export {usableStatus};
 export const enabledStatus = (m: CatalogModel) => usableStatus(m.status);
 
-/** Used when a model's page does not state a prompt limit: the limit the studio has always used. */
-export const defaultPromptMax = 4000;
+/**
+ * Used when a model's page does not state a prompt limit. Images: 20 000, the longest Kie documents for its image
+ * models (GPT Image 2, Nano Banana); a refusal costs nothing, Kie checks before creating the task. Video keeps the
+ * 4 000 the studio has always used.
+ */
+export const defaultPromptMax = {image: 20000, video: 4000} as const;
 /** The longest prompt the studio sends to this model. */
-export const promptLimit = (o?: Pick<MediaOptions, 'promptMax'>) => o?.promptMax || defaultPromptMax;
+export const promptLimit = (o: Pick<MediaOptions, 'promptMax'> | undefined, category: 'image' | 'video') => o?.promptMax || defaultPromptMax[category];
 
 /** The view the browser gets: no endpoints, only what the pickers need. */
 export type PublicModel = {

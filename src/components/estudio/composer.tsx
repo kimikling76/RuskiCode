@@ -67,7 +67,7 @@ export function EstudioComposer({project}: {project?: string}) {
   const left = called.filter(m => m.reference && !references.includes(m.reference));
   const editsOnly = Boolean(o && !o.modes.includes('create'));
   const needsImage = editsOnly && !references.length;
-  const limit = promptLimit(o);
+  const limit = promptLimit(o, video ? 'video' : 'image');
   const target = project ?? d.project;
   // The pictures sent, named in order «@image1», «@image2»… (the server turns them into each model's own names).
   const sentCount = o?.fields.images ? (o.fields.imagesSingle ? Math.min(1, references.length) : references.length) : 0;

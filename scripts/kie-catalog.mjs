@@ -162,7 +162,7 @@ function mediaEntry(page, s, opPath, op, category) {
   const options = {fields: {prompt: 'prompt'}, aspectRatios: [], resolutions: [], durations: [], maxReferences: 0, maxVariants: category === 'image' ? 4 : 1, modes: ['create']};
 
   // The longest prompt Kie accepts for this model, when its page says it.
-  const promptMax = Number(f('prompt').maxLength) || Number((String(f('prompt').description || '').match(/max(?:imum)?(?: length)?[^0-9]{0,20}(\d[\d,]*)\s*(?:characters|chars)/i)?.[1] || '').replace(/,/g, ''));
+  const promptMax = Number(f('prompt').maxLength) || Number((String(f('prompt').description || '').match(/(?:max(?:imum)?(?: length)?|up to)[^0-9]{0,20}(\d[\d,]*)\s*(?:characters|chars)/i)?.[1] || '').replace(/,/g, ''));
   if (promptMax > 0) options.promptMax = promptMax;
 
   // Reference images.

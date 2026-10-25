@@ -42,7 +42,7 @@ function validate(input: z.infer<typeof createInput>) {
   if (!offered(input.aspect, o.aspectRatios) || !offered(input.resolution, o.resolutions) || !offered(input.duration, o.durations)) return {error: 'INVALID_PARAMETERS'} as const;
   if (input.references.length > o.maxReferences || input.count > o.maxVariants) return {error: 'INVALID_PARAMETERS'} as const;
   // The prompt as Kie gets it (images named in the model's own words) must fit the limit its page documents.
-  if (String(jobInput(model, {prompt: input.prompt, references: input.references})[o.fields.prompt]).length > promptLimit(o)) return {error: 'PROMPT_TOO_LONG'} as const;
+  if (String(jobInput(model, {prompt: input.prompt, references: input.references})[o.fields.prompt]).length > promptLimit(o, model.category)) return {error: 'PROMPT_TOO_LONG'} as const;
   return {model} as const;
 }
 

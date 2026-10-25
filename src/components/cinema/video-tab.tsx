@@ -45,7 +45,7 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
   const needsImage = animates && !references.length;
   const start = o?.maxReferences === 1;
   const imagesName = start ? 'Imagen inicial' : 'Referencias';
-  const limit = promptLimit(o);
+  const limit = promptLimit(o, 'video');
   const ready = Boolean(draft.prompt.trim()) && !needsImage && draft.prompt.trim().length <= limit;
   const label = 'Generar video';
 

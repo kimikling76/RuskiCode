@@ -147,7 +147,8 @@ Antes, el cuadro de texto cortaba en 3.600 caracteres en el Estudio y en 4.000 e
 | Kling 4.0 | 8.000 |
 | La mayoría de los modelos | 5.000 |
 | Hailuo 02 Pro | 1.500 |
-| Sin límite documentado (Veo 3.1, GPT Image, Flux Kontext…) | 4.000, como antes |
+| Imagen sin límite documentado (GPT Image 1.5, GPT-4o Image, Flux Kontext) | 20.000 |
+| Video sin límite documentado (Veo 3.1) | 4.000, como antes |
 
 - **El catálogo** guarda ese límite en cada modelo (`promptMax`). El generador lo lee de la página, y solo se agregó ese dato: el resto del catálogo quedó igual.
 - **Cerca del límite** (desde el 80 %) aparece un contador, por ejemplo «4.200 / 5.000 caracteres».
@@ -158,3 +159,9 @@ Antes, el cuadro de texto cortaba en 3.600 caracteres en el Estudio y en 4.000 e
 - Un texto de 13.600 caracteres con Nano Banana llegó entero a Kie.
 - Al pasar a Hailuo 02 Pro, el aviso apareció y Generar quedó apagado.
 - Un pedido de 1.501 caracteres directo al servidor para Hailuo fue rechazado, sin crear ninguna tarea.
+
+### Imágenes: el máximo en todos los modelos (25 de octubre de 2026)
+
+- **GPT Image 2 y 2.5 (Flare y Sunburst) Image to Image** decían el límite con otras palabras («up to 20,000 characters»). Ahora el generador también lo lee, y pasaron de 4.000 a **20.000**.
+- **Los modelos de imagen cuya página no dice ningún límite** (GPT Image 1.5, GPT-4o Image y Flux Kontext) pasaron de 4.000 a **20.000**, el máximo que Kie documenta para sus modelos de imagen. Si Kie rechazara un texto tan largo, lo hace antes de crear la tarea: no gasta créditos, y el estudio muestra el error.
+- **Los modelos cuya página fija un límite** lo mantienen, porque Kie rechaza cualquier texto más largo. Por ejemplo: Seedream 4.5 (3.000), Qwen Image Edit (2.000), Z-Image (1.000) y la mayoría (5.000). Grok Imagine Image to Image llega a 390.000.

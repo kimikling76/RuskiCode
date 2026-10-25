@@ -40,7 +40,7 @@ export function ImageTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
   // A model that only edits needs at least one reference image.
   const edits = !o.modes.includes('create');
   const needsImage = edits && !references.length;
-  const limit = promptLimit(o);
+  const limit = promptLimit(o, 'image');
   const ready = Boolean(draft.prompt.trim()) && !needsImage && draft.prompt.trim().length <= limit;
 
   const {request, dialog, busy} = useGenerateConfirm({

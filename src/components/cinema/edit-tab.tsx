@@ -37,7 +37,7 @@ export function EditTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
 
   const doneInBatch = batch.filter(isDone);
   const editModel = findModel(imageModel.id);
-  const limit = promptLimit(editModel && 'options' in editModel ? editModel.options : undefined);
+  const limit = promptLimit(editModel && 'options' in editModel ? editModel.options : undefined, 'image');
 
   return (
     <div className="rc-cine-layout">
