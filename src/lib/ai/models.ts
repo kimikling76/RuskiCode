@@ -75,6 +75,8 @@ export type MediaOptions = {
   /** What the «resolution» field really is for this model (Calidad, Tamaño); «Resolución» when absent. */
   resolutionLabel?: string;
   durations: readonly string[];
+  /** The longest prompt Kie accepts for this model, in characters, as its page states it. */
+  promptMax?: number;
   /** The duration the page gives as default, when it is not the first one offered. */
   durationDefault?: string;
   outputFormat?: string;
@@ -121,7 +123,7 @@ const tested: CatalogModel[] = [
     options: {
       fields: {prompt: 'prompt', images: 'image_input', aspect: 'aspect_ratio', resolution: 'resolution', format: 'output_format'},
       // Same values as src/lib/cinema/capabilities.ts, where their sources are listed.
-      aspectRatios: nanoRatios, resolutions: nanoResolutions, durations: [], outputFormat: nanoFormat, maxReferences: nanoRefs, maxVariants: nanoVariants, modes: ['create', 'edit'],
+      aspectRatios: nanoRatios, resolutions: nanoResolutions, durations: [], outputFormat: nanoFormat, promptMax: 20000, maxReferences: nanoRefs, maxVariants: nanoVariants, modes: ['create', 'edit'],
     },
   },
 ];
@@ -148,6 +150,15 @@ export const catalog: CatalogModel[] = [...textModels, ...imageModels, ...videoM
 export const findModel = (id: string) => catalog.find(m => m.id === id);
 export {usableStatus};
 export const enabledStatus = (m: CatalogModel) => usableStatus(m.status);
+
+/**
+ * Used when a model's page does not state a prompt limit. Images: 20 000, the longest Kie documents for its image
+ * models (GPT Image 2, Nano Banana); a refusal costs nothing, Kie checks before creating the task. Video keeps the
+ * 4 000 the studio has always used.
+ */
+export const defaultPromptMax = {image: 20000, video: 4000} as const;
+/** The longest prompt the studio sends to this model. */
+export const promptLimit = (o: Pick<MediaOptions, 'promptMax'> | undefined, category: 'image' | 'video') => o?.promptMax || defaultPromptMax[category];
 
 /** The view the browser gets: no endpoints, only what the pickers need. */
 export type PublicModel = {

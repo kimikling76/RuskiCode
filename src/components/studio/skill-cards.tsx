@@ -6,7 +6,7 @@ import TextareaAutosize from 'react-textarea-autosize';
 import {toast} from 'sonner';
 import {ArrowUpRight, BookOpenCheck, Clapperboard, Download, Film, ImagePlus, RotateCcw, Sparkles, SpellCheck2, X} from 'lucide-react';
 import type {PDFDocumentProxy} from 'pdfjs-dist';
-import {imageModels, videoModels, enabledStatus, publicModel, findModel} from '@/lib/ai/models';
+import {imageModels, videoModels, enabledStatus, publicModel, findModel, promptLimit} from '@/lib/ai/models';
 import {useCinema, isActive, type CinemaJob} from '@/store/cinema';
 import {downloadImage} from '@/lib/cinema/client';
 import {savedUrl} from '@/lib/cinema/keep';
@@ -161,7 +161,7 @@ function MediaCard({chatId, id, run}: {chatId: string; id: string; run: ImageRun
   return (
     <div className="rc-skill-body">
       <label className="rc-field"><span>Prompt</span>
-        <TextareaAutosize className="rc-textarea" minRows={2} maxRows={10} maxLength={4000} value={prompt} onChange={e => setPrompt(e.target.value)} onBlur={() => set({prompt})} />
+        <TextareaAutosize className="rc-textarea" minRows={2} maxRows={10} maxLength={promptLimit(o, video ? 'video' : 'image')} value={prompt} onChange={e => setPrompt(e.target.value)} onBlur={() => set({prompt})} />
       </label>
       <div className="rc-skill-row">
         <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm" disabled={improving || !prompt.trim()} onClick={() => void improve()}><Sparkles aria-hidden="true" />{improving ? 'Mejorando…' : 'Mejorar el prompt con IA'}</button>
@@ -189,7 +189,7 @@ function MediaCard({chatId, id, run}: {chatId: string; id: string; run: ImageRun
       ) : null}
       {needsImage ? <p className="rc-pdf-warn">Este modelo necesita una imagen{video ? ' de inicio' : ' para editar'}: adjuntá una en el mensaje.</p> : null}
       <div className="rc-skill-row">
-        <button type="button" className="rc-btn rc-btn--primary rc-btn--sm" disabled={!prompt.trim() || needsImage} onClick={() => setConfirm(true)}>
+        <button type="button" className="rc-btn rc-btn--primary rc-btn--sm" disabled={!prompt.trim() || needsImage || prompt.trim().length > promptLimit(o, video ? 'video' : 'image')} onClick={() => setConfirm(true)}>
           {video ? <Film aria-hidden="true" /> : <ImagePlus aria-hidden="true" />}{video ? 'Generar el video…' : count === 1 ? 'Generar la imagen…' : 'Generar ' + count + ' imágenes…'}
         </button>
         <span className="rc-hint">Nada se pide a Kie hasta que confirmes.</span>

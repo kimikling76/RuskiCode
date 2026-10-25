@@ -4,11 +4,11 @@ import TextareaAutosize from 'react-textarea-autosize';
 import {X, ImagePlus, Sparkles} from 'lucide-react';
 import {useCinema} from '@/store/cinema';
 import {useCinemaUi} from '@/store/cinema-ui';
-import {imageModels, enabledStatus, publicModel} from '@/lib/ai/models';
+import {imageModels, enabledStatus, publicModel, promptLimit} from '@/lib/ai/models';
 import {startGeneration} from '@/lib/cinema/client';
 import {ChatModelPicker, estimate} from '@/components/studio/chat-model-picker';
 import {Tip} from '@/components/ui/tooltip';
-import {AskFirst, AspectPicker, Segmented, SettingChip, aspectName, optionLabel, useGenerateConfirm} from './controls';
+import {AskFirst, AspectPicker, PromptCount, Segmented, SettingChip, aspectName, optionLabel, useGenerateConfirm} from './controls';
 import {JobCard} from './job-card';
 import {GalleryPicker, refSrc} from './gallery-picker';
 import {authorImageName} from '@/lib/cinema/mentions';
@@ -40,7 +40,8 @@ export function ImageTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
   // A model that only edits needs at least one reference image.
   const edits = !o.modes.includes('create');
   const needsImage = edits && !references.length;
-  const ready = Boolean(draft.prompt.trim()) && !needsImage;
+  const limit = promptLimit(o, 'image');
+  const ready = Boolean(draft.prompt.trim()) && !needsImage && draft.prompt.trim().length <= limit;
 
   const {request, dialog, busy} = useGenerateConfirm({
     label,
@@ -98,12 +99,13 @@ export function ImageTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
               className="rc-composer-input rc-gen-prompt"
               minRows={2}
               maxRows={8}
-              maxLength={4000}
+              maxLength={limit}
               value={draft.prompt}
               onChange={e => patch({prompt: e.target.value})}
               onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); generate(); } }}
               placeholder="Qué querés ver: sujeto, lugar, encuadre, luz y estilo"
             />
+            <PromptCount length={draft.prompt.trim().length} limit={limit} model={model.name} />
             <div className="rc-gen-bar">
               <div className="rc-gen-chips">
                 {o.maxReferences ? (
@@ -135,7 +137,7 @@ export function ImageTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
               </div>
               <div className="rc-gen-actions">
                 <AskFirst />
-                <Tip label={ready ? label : needsImage ? 'Elegí la imagen a editar' : 'Escribí el prompt'} shortcut={ready ? 'Ctrl+Enter' : undefined}>
+                <Tip label={ready ? label : needsImage ? 'Elegí la imagen a editar' : draft.prompt.trim().length > limit ? 'Acortá el texto' : 'Escribí el prompt'} shortcut={ready ? 'Ctrl+Enter' : undefined}>
                   <span className="rc-gen-submit">
                     <button type="submit" className="rc-btn rc-btn--primary" disabled={!ready || busy}>{label}</button>
                   </span>

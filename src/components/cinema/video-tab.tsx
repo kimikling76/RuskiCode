@@ -2,13 +2,13 @@
 import {useMemo, useState} from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
 import {ArrowUpRight, ImagePlus, Sparkles, X} from 'lucide-react';
-import {videoModels, enabledStatus, publicModel} from '@/lib/ai/models';
+import {videoModels, enabledStatus, publicModel, promptLimit} from '@/lib/ai/models';
 import {useCinema, type CinemaJob} from '@/store/cinema';
 import {useCinemaUi} from '@/store/cinema-ui';
 import {startGeneration} from '@/lib/cinema/client';
 import {ChatModelPicker, estimate} from '@/components/studio/chat-model-picker';
 import {Tip} from '@/components/ui/tooltip';
-import {AskFirst, AspectPicker, Segmented, SettingChip, aspectName, optionLabel, useGenerateConfirm} from './controls';
+import {AskFirst, AspectPicker, PromptCount, Segmented, SettingChip, aspectName, optionLabel, useGenerateConfirm} from './controls';
 import {JobCard} from './job-card';
 import {GalleryPicker, refSrc} from './gallery-picker';
 import {authorImageName} from '@/lib/cinema/mentions';
@@ -45,7 +45,8 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
   const needsImage = animates && !references.length;
   const start = o?.maxReferences === 1;
   const imagesName = start ? 'Imagen inicial' : 'Referencias';
-  const ready = Boolean(draft.prompt.trim()) && !needsImage;
+  const limit = promptLimit(o, 'video');
+  const ready = Boolean(draft.prompt.trim()) && !needsImage && draft.prompt.trim().length <= limit;
   const label = 'Generar video';
 
   const {request, dialog, busy} = useGenerateConfirm({
@@ -128,12 +129,13 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
               className="rc-composer-input rc-gen-prompt"
               minRows={2}
               maxRows={8}
-              maxLength={4000}
+              maxLength={limit}
               value={draft.prompt}
               onChange={e => patch({prompt: e.target.value})}
               onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); generate(); } }}
               placeholder="Qué pasa, dónde y cómo se mueve la cámara"
             />
+            <PromptCount length={draft.prompt.trim().length} limit={limit} model={model.name} />
             <div className="rc-gen-bar">
               <div className="rc-gen-chips">
                 {o.maxReferences ? (
@@ -165,7 +167,7 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
               </div>
               <div className="rc-gen-actions">
                 <AskFirst id="cinema-video-ask-first" />
-                <Tip label={ready ? label : needsImage ? 'Elegí la imagen inicial' : 'Escribí el prompt'} shortcut={ready ? 'Ctrl+Enter' : undefined}>
+                <Tip label={ready ? label : needsImage ? 'Elegí la imagen inicial' : draft.prompt.trim().length > limit ? 'Acortá el texto' : 'Escribí el prompt'} shortcut={ready ? 'Ctrl+Enter' : undefined}>
                   <span className="rc-gen-submit">
                     <button type="submit" className="rc-btn rc-btn--primary" disabled={!ready || busy}>{label}</button>
                   </span>

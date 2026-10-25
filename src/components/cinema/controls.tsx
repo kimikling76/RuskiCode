@@ -9,6 +9,24 @@ import {useCinemaUi} from '@/store/cinema-ui';
 import {ConfirmDialog} from '@/components/ui/dialog';
 import {Switch} from '@/components/ui/switch';
 
+/**
+ * How long the prompt is against what the chosen model accepts. Quiet until 80 % of the limit; past it, says by how
+ * much (and generating stays off). `sent` is the text that really goes, when it adds to what was written.
+ */
+export function PromptCount({length, limit, model, sent}: {length: number; limit: number; model: string; sent?: number}) {
+  const total = sent ?? length;
+  if (total < limit * 0.8) return null;
+  const n = (v: number) => v.toLocaleString('es-AR');
+  const over = total > limit;
+  return (
+    <p className={'rc-prompt-count' + (over ? ' rc-prompt-count--over' : '')} role={over ? 'status' : undefined}>
+      {over
+        ? (sent !== undefined && sent > length ? 'Con los personajes y el estilo, el texto llega a ' + n(total) : 'El texto tiene ' + n(total)) + ' caracteres; ' + model + ' acepta hasta ' + n(limit) + '. Acortalo o elegí otro modelo.'
+        : n(total) + ' / ' + n(limit) + ' caracteres'}
+    </p>
+  );
+}
+
 export function Field({label, hint, children, action}: {label: string; hint?: ReactNode; children: ReactNode; action?: ReactNode}) {
   return (
     <div className="rc-cine-field">

@@ -481,3 +481,7 @@
 .rc-video-pending p { margin: var(--sp-2) 0; }
 .rc-cine-model-picker .rc-model-trigger { width: 100%; max-width: 100%; margin-left: 0; justify-content: space-between; height: var(--control-36); border: 1px solid var(--line-strong); }
 
+
+/* Prompt length against the model's limit: quiet near it, warning past it. */
+.rc-prompt-count { margin: var(--sp-1) 0 0; font-size: var(--fs-13); color: var(--text-muted, inherit); font-variant-numeric: tabular-nums; }
+.rc-prompt-count--over { color: var(--warning); }

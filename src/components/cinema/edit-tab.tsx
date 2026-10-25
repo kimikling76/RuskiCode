@@ -7,7 +7,8 @@ import {useCinema, isDone, type CinemaJob} from '@/store/cinema';
 import {useCinemaUi} from '@/store/cinema-ui';
 import {imageModel, maxVariants, resolutions, type Resolution} from '@/lib/cinema/capabilities';
 import {startGeneration} from '@/lib/cinema/client';
-import {Field, GenerateBar, ModelRow, Segmented} from './controls';
+import {Field, GenerateBar, ModelRow, PromptCount, Segmented} from './controls';
+import {findModel, promptLimit} from '@/lib/ai/models';
 import {JobCard} from './job-card';
 import {GalleryPicker, refSrc} from './gallery-picker';
 
@@ -35,6 +36,8 @@ export function EditTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
   }
 
   const doneInBatch = batch.filter(isDone);
+  const editModel = findModel(imageModel.id);
+  const limit = promptLimit(editModel && 'options' in editModel ? editModel.options : undefined, 'image');
 
   return (
     <div className="rc-cine-layout">
@@ -51,11 +54,12 @@ export function EditTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
               className="rc-textarea rc-cine-prompt"
               minRows={3}
               maxRows={10}
-              maxLength={4000}
+              maxLength={limit}
               value={draft.instruction}
               onChange={e => patch({instruction: e.target.value})}
               placeholder="Qué cambiar: «que sea de noche», «quitá el cartel», «estilo acuarela»"
             />
+            <PromptCount length={draft.instruction.trim().length} limit={limit} model={imageModel.name} />
           </Field>
           <Field label="Modelo"><ModelRow detail="formato automático" /></Field>
           <Field label="Resolución">
@@ -67,7 +71,7 @@ export function EditTab({onOpen}: {onOpen: (job: CinemaJob) => void}) {
         </div>
         <GenerateBar
           label={draft.count === 1 ? 'Editar' : 'Editar · ' + draft.count}
-          disabled={!draft.source || !draft.instruction.trim()}
+          disabled={!draft.source || !draft.instruction.trim() || draft.instruction.trim().length > limit}
           onGenerate={generate}
           facts={[['Modelo', imageModel.name], ['Variantes', String(draft.count)], ['Resolución', resolution]]}
         />

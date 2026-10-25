@@ -105,3 +105,16 @@ test('video models whose seconds Kie gives as a range offer every second, from t
     if (m.options.durationDefault) assert.ok(m.options.durations.includes(m.options.durationDefault), m.id);
   }
 });
+
+test('each model takes the longest prompt its page documents; without one, 20 000 for images and the old 4000 for video', async () => {
+  const {findModel, promptLimit, imageModels, videoModels, enabledStatus} = await import('../src/lib/ai/models');
+  const limit = (id: string) => { const m = findModel(id); assert.ok(m && 'options' in m && m.options, id); return promptLimit(m.options, m.category === 'video' ? 'video' : 'image'); };
+  assert.equal(limit('nano-banana-2-1'), 20000);
+  assert.equal(limit('kling-4-0-reference-to-video'), 8000);
+  assert.equal(limit('hailuo-02-text-to-video-pro'), 1500);
+  assert.equal(limit('veo-3-1'), 4000);
+  // No documented limit: images take 20 000, the longest Kie documents; «up to 20,000 characters» is read too.
+  assert.equal(limit('gpt-image-1-5-text-to-image'), 20000);
+  assert.equal(limit('gpt-image-2-image-to-image'), 20000);
+  for (const m of [...imageModels, ...videoModels].filter(enabledStatus)) assert.ok(promptLimit(m.options, m.category) >= 200, m.id);
+});

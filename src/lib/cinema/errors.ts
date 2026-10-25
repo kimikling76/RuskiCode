@@ -17,6 +17,7 @@ export const cinemaErrorDetails: Record<string, string> = {
   REFERENCE_MISSING: 'Una imagen de referencia ya no está guardada en el estudio. Adjuntala de nuevo.',
   UPLOAD_FAILED: 'No se pudo pasar la imagen de referencia a Kie. Probá de nuevo en un momento.',
   INVALID_REQUEST: 'La solicitud no es válida. Revisá el prompt.',
+  PROMPT_TOO_LONG: 'El texto es más largo de lo que acepta este modelo. Acortalo o elegí otro modelo.',
   GENERATION_FAILED: 'Kie no pudo generar la imagen.',
   NETWORK: 'Se perdió la conexión. Revisá internet y reintentá.',
   STREAM_INTERRUPTED: 'La respuesta del modelo de chat se cortó. Puede haber consumo: revisá los registros de Kie.',
