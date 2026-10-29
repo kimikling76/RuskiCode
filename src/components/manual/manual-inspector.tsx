@@ -31,6 +31,8 @@ export type ManualApi = {
   overflows: Overflow[];
   change: (next: Unit, opts?: {merge?: string}) => void;
   select: (s: Selection) => void;
+  /** Selects without leaving the current tab (to show what a finding is about). */
+  reveal: (s: Selection) => void;
   goToPage: (index: number) => void;
 };
 

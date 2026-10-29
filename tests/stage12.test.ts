@@ -146,8 +146,13 @@ test('/pdf-generator pictures: photos, galleries and comics are read, with a slo
   const prompt = picturePrompt(slots[5], draft.imageStyle);
   assert.match(prompt, /^A boy, 12, red hoodie/);
   assert.match(prompt, /Style: bright realistic photos/);
-  assert.match(prompt, /speech bubbles are added on top later/);
-  assert.match(prompt, /Do not draw any text, letters/);
+  // The author chose that the image model draws the bubbles: a panel with lines gets them, letter for letter.
+  const spoken = picturePrompt(slots[6], draft.imageStyle);
+  assert.match(spoken, /Comic panel with 2 speech bubbles/);
+  assert.match(spoken, /1\. «Привет, Дима! Как дела\?» 2\. «Хорошо!»/);
+  assert.match(spoken, /No other text, letters/);
+  // A picture without lines has no text at all.
+  assert.ok(slots[5].bubbles?.length ? /Comic panel with/.test(prompt) : /Do not draw any text, letters/.test(prompt));
   // Words in labels and bubbles count as words of the draft.
   assert.ok(newWords(draft, new Set(['это', 'мама'])).includes('бабушка'));
   assert.match(skillSummary({skill: 'pdf-generator', request: 'x', state: 'ready', draft}), /y 8 imágenes/);

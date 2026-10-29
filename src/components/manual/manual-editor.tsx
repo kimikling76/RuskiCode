@@ -19,12 +19,29 @@ import {NavTrigger} from '@/components/studio/sidebar';
 import {Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger} from '@/components/ui/menu';
 import {Tip} from '@/components/ui/tooltip';
 import {DocThumbs} from '@/components/pdf/doc-view';
-import {ManualPage, type CompareMode, type Selection, type Zoom} from './manual-page';
+import {ManualPage, type CompareMode, type ReviewMark, type Selection, type Zoom} from './manual-page';
+import type {ReviewFinding} from '@/lib/manual/review';
 import {InspectorTabs, SaveStatus, ZoomControl} from '@/components/pdf/editor-parts';
 import {AddPanel, PagesPanel, SelectionPanel, VersionsPanel, type ManualApi} from './manual-inspector';
 import {EditorBookPanel} from '@/components/kb/editor-book-panel';
+import {ManualAiPanel} from './manual-ai';
+import {useManualReview} from '@/store/manual-review';
 
-type Tab = 'selection' | 'add' | 'pages' | 'versions' | 'book';
+/** Pending findings grouped by the line (or the block, for editor content) they are about. */
+function reviewMarks(findings: ReviewFinding[] | undefined, done: Record<string, string>): ReviewMark[] {
+  const by = new Map<string, ReviewMark>();
+  for (const f of findings || []) {
+    const t = f.text?.target;
+    if (!t || done[f.key]) continue;
+    const element = t.kind === 'element' ? t.elementId : null;
+    const key = t.blockId + ':' + (element || '');
+    const m = by.get(key);
+    if (m) m.count++; else by.set(key, {block: t.blockId, element, count: 1});
+  }
+  return [...by.values()];
+}
+
+type Tab = 'selection' | 'add' | 'ai' | 'pages' | 'versions' | 'book';
 const none: Selection = {block: null, element: null};
 const MAX_UNDO = 100;
 
@@ -252,9 +269,10 @@ export function ManualEditor() {
     toast('Volviste a «' + v.label + '». La anterior quedó guardada como versión.');
   }
 
+  const review = useManualReview();
   const api: ManualApi | null = useMemo(() => unit && fonts && page ? {
     unit, fonts, page, pageIndex: unit.pages.indexOf(page), selection, overflows: pageRender?.result.overflows ?? [],
-    change, select: s => { setSelection(s); if (s.block) setTab('selection'); }, goToPage: setActive,
+    change, select: s => { setSelection(s); if (s.block) setTab('selection'); }, reveal: setSelection, goToPage: setActive,
   } : null, [unit, fonts, page, selection, pageRender, change]);
 
   if (error) {
@@ -267,6 +285,7 @@ export function ManualEditor() {
   }
 
   const count = unit?.pages.length || 0;
+  const marks = reviewMarks(review.pages[(unit?.id || '') + ':' + (page?.id || '')]?.findings, review.done);
   const shown = pageRender && page && pageRender.index === unit?.pages.indexOf(page) ? pageRender : null;
   const canCompare = Boolean(original && page?.sourcePage !== undefined);
   const h = history.current;
@@ -335,7 +354,7 @@ export function ManualEditor() {
               onMove={(dx, dy) => { if (!selection.block) return; change(selection.element ? moveElement(unit, page.id, selection.element, dx, dy) : moveBlock(unit, page.id, selection.block, dx, dy)); }}
               onResize={to => { if (selection.element && fonts) change(resizeElement(fonts, unit, page.id, selection.element, to)); }}
               zoom={zoom} template={unit.template} original={original} sourceIndex={page.sourcePage} compare={canCompare ? compare : 'off'}
-              editable={isEditable} onDiffScore={setScore}
+              editable={isEditable} onDiffScore={setScore} marks={marks}
             />
           ) : <div className="rc-loading" role="status"><span className="rc-skeleton" /><span className="sr-only">Dibujando la página…</span></div>}
           <div className="rc-doc-pager">
@@ -347,10 +366,11 @@ export function ManualEditor() {
 
         <Tabs.Root className="rc-pdf-inspector" value={tab} onValueChange={v => setTab(v as Tab)}>
           <InspectorTabs<Tab> label="Inspector" value={tab} onChange={setTab}
-            tabs={[['selection', 'Selección'], ['add', 'Agregar'], ['pages', 'Páginas']]}
+            tabs={[['selection', 'Selección'], ['add', 'Agregar'], ['ai', 'IA'], ['pages', 'Páginas']]}
             more={[['book', 'Libro'], ['versions', 'Versiones']]} />
           <Tabs.Content value="selection" className="rc-pdf-panel">{api ? <SelectionPanel key={page?.id + ':' + (selection.block || '') + ':' + (selection.element || '')} api={api} /> : null}</Tabs.Content>
           <Tabs.Content value="add" className="rc-pdf-panel">{api ? <AddPanel api={api} /> : null}</Tabs.Content>
+          <Tabs.Content value="ai" className="rc-pdf-panel">{api ? <ManualAiPanel api={api} onVersion={keepVersion} /> : null}</Tabs.Content>
           <Tabs.Content value="pages" className="rc-pdf-panel">{api ? <PagesPanel api={api} /> : null}</Tabs.Content>
           <Tabs.Content value="versions" className="rc-pdf-panel"><VersionsPanel versions={versions} onSave={l => void newVersion(l)} onRestore={v => void restore(v)} /></Tabs.Content>
           <Tabs.Content value="book" className="rc-pdf-panel">{api ? <EditorBookPanel api={api} onVersion={keepVersion} /> : null}</Tabs.Content>

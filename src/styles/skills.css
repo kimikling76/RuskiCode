@@ -100,3 +100,8 @@
 .rc-skill-cast .rc-skill-picture { max-width: 120px; }
 .rc-skill-cast .rc-textarea { font-size: var(--fs-12); }
 .rc-skill-picture .rc-skill-picture-state { z-index: 1; }
+
+/* /revisar-ruso on a unit: one section per page, with the corrections to apply. */
+.rc-skill-review-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-2); padding-top: var(--sp-3); border-top: 1px solid var(--line); }
+.rc-skill-review-page > p { margin: 0; font-size: var(--fs-14); line-height: 1.55; }
+.rc-skill-issue .rc-skill-row { flex-wrap: wrap; }

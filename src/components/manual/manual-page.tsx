@@ -23,7 +23,10 @@ type Drag = {
 
 const SNAP = 4;
 
-export function ManualPage({doc, page, boxes, overflows, selection, onSelect, onMove, onResize, zoom, template, original, sourceIndex, compare, editable, onDiffScore}: {
+/** Pending findings of «Revisar con IA»: a numbered mark on the line or block they are about. */
+export type ReviewMark = {block: string; element: string | null; count: number};
+
+export function ManualPage({doc, page, boxes, overflows, selection, onSelect, onMove, onResize, zoom, template, original, sourceIndex, compare, editable, onDiffScore, marks = []}: {
   doc: PDFDocumentProxy | null;
   page: Page;
   boxes: ElementBox[];
@@ -39,6 +42,7 @@ export function ManualPage({doc, page, boxes, overflows, selection, onSelect, on
   compare: CompareMode;
   editable: (blockId: string) => boolean;
   onDiffScore: (score: number | null) => void;
+  marks?: ReviewMark[];
 }) {
   const stage = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -262,6 +266,12 @@ export function ManualPage({doc, page, boxes, overflows, selection, onSelect, on
                 {resizable ? (['nw', 'ne', 'sw', 'se'] as const).map(c => <span key={c} className="rc-man-handle" data-corner={c} />) : null}
               </div>
             ) : null}
+            {marks.map(m => {
+              const box = m.element ? boxes.find(b => b.element === m.element)?.box : blockBoxes.get(m.block);
+              if (!box) return null;
+              const css = toCss(box);
+              return <span key={m.block + ':' + (m.element || '')} className="rc-man-mark" style={{left: css.left + css.width, top: css.top}}>{m.count}</span>;
+            })}
             {g ? <div className="rc-man-ghost" style={toCss(g)} /> : null}
             {drag?.guides.x !== undefined ? <div className="rc-man-guide rc-man-guide--v" style={{left: drag.guides.x * scale}} /> : null}
             {drag?.guides.y !== undefined ? <div className="rc-man-guide rc-man-guide--h" style={{top: (H - drag.guides.y) * scale}} /> : null}

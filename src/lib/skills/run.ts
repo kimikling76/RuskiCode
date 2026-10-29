@@ -9,17 +9,19 @@ import {getEntry, getProject, listEntries} from '@/lib/kb/store';
 import {uploadEntryFiles} from '@/lib/kb/files';
 import {castOfBook} from '@/lib/kb/picture';
 import {fetchEditorFonts, type EditorFonts} from '@/lib/manual/fonts';
-import {listUnits, saveUnit, saveVersion} from '@/lib/manual/store';
+import {getUnit, listUnits, saveUnit, saveVersion} from '@/lib/manual/store';
+import {applyFinding, parseReview as parsePageReview, reviewRequest as pageReviewRequest, reviewTexts, type ReviewFinding} from '@/lib/manual/review';
+import {pagePicture} from '@/lib/manual/page-picture';
 import {contentWidth, nextExercise} from '@/lib/manual/compose';
 import {blankUnitFrom, layOut} from '@/lib/manual/units';
 import {imageFromFile} from '@/lib/manual/browser';
 import {getAsset} from '@/lib/manual/store';
-import {imageModels} from '@/lib/ai/models';
+import {imageModels, textModels} from '@/lib/ai/models';
 import type {Unit} from '@/lib/manual/model';
 import {useCinema, type CinemaJob} from '@/store/cinema';
 import type {ChatAttachment} from '@/lib/personal-chat/attachments';
 import {
-  autoChecks, draftComponents, keptCast, keptPictures, nearestAspect, newWords, parseDraft, parseReview, pdfContext, pictureSlots, picturePrompt, portraitPrompt,
+  autoChecks, draftComponents, madeFor, slotBubbles, keptCast, keptPictures, nearestAspect, newWords, parseDraft, parseReview, pdfContext, pictureSlots, picturePrompt, portraitPrompt,
   refValue, reviewRequest, skillSummary, slotCharacters, unitPagesText, unitVocabulary,
   type Character, type ImageRun, type MediaRef, type PdfRun, type PdfTarget, type PictureSlot, type PictureState, type ReviewRun, type SkillRun, type VideoRun,
 } from './chat';
@@ -183,7 +185,7 @@ function promptMark(prompt: string) {
   for (let i = 0; i < prompt.length; i++) h = (h * 33 + prompt.charCodeAt(i)) >>> 0;
   return h.toString(36);
 }
-export const pictureTag = (slot: Pick<PictureSlot, 'key' | 'prompt'>) => slot.key + '#' + promptMark(slot.prompt);
+export const pictureTag = (slot: Pick<PictureSlot, 'key' | 'prompt' | 'bubbles'>) => slot.key + '#' + promptMark(slot.prompt + slotBubbles(slot));
 export const portraitTag = (c: Character) => 'cast:' + c.name + '#' + promptMark(c.look);
 
 const hasImage = (p: PictureState | undefined, prompt: string) => Boolean(p?.image && p.prompt === prompt);
@@ -191,7 +193,7 @@ const failed = (j?: CinemaJob) => j?.state === 'error' || j?.state === 'fail';
 
 /** Pictures that still need an image for their current prompt. */
 export function missingPictures(run: PdfRun) {
-  return run.draft ? pictureSlots(run.draft).filter(s => !hasImage(run.pictures?.[s.key], s.prompt)) : [];
+  return run.draft ? pictureSlots(run.draft).filter(s => !madeFor(run.pictures?.[s.key], s)) : [];
 }
 
 /** The draft's characters with the place, style and look the author may have changed in the card. */
@@ -326,7 +328,7 @@ const importing = new Set<string>();
  * the account, so the preview and the other computers have it. It comes from the studio's saved copy (see
  * cinema/keep.ts) or, while that copy is not there, straight from Kie's link through the studio.
  */
-export async function importResult(chatId: string, messageId: string, target: {kind: 'pictures' | 'cast'; key: string; prompt: string}, job: CinemaJob) {
+export async function importResult(chatId: string, messageId: string, target: {kind: 'pictures' | 'cast'; key: string; prompt: string; bubbles?: string}, job: CinemaJob) {
   const saved = job.saved?.[0];
   const source = saved ? '/api/sync/assets?hash=' + saved.hash : job.urls[0] ? '/api/cinema/download?url=' + encodeURIComponent(job.urls[0]) + '&name=' + encodeURIComponent(job.taskId || job.id) : '';
   // Each source is tried once per visit: a broken link is not asked for again on every change.
@@ -346,12 +348,12 @@ export async function importResult(chatId: string, messageId: string, target: {k
     }
     const run = currentRun(chatId, messageId);
     if (!run?.draft) return;
-    const entry = {prompt: target.prompt, image, job: job.id};
+    const entry = {prompt: target.prompt, image, job: job.id, ...(target.kind === 'pictures' ? {bubbles: target.bubbles ?? ''} : {})};
     if (target.kind === 'cast') {
       if (!run.draft.characters.some(c => c.name === target.key && c.look === target.prompt)) return;
       updateRun<PdfRun>(chatId, messageId, {cast: {...run.cast, [target.key]: entry}});
     } else {
-      if (!pictureSlots(run.draft).some(s => s.key === target.key && s.prompt === target.prompt)) return;
+      if (!pictureSlots(run.draft).some(s => s.key === target.key && s.prompt === target.prompt && slotBubbles(s) === (target.bubbles ?? ''))) return;
       updateRun<PdfRun>(chatId, messageId, {pictures: {...run.pictures, [target.key]: entry}});
     }
   } catch {
@@ -360,7 +362,7 @@ export async function importResult(chatId: string, messageId: string, target: {k
 }
 
 export const importPicture = (chatId: string, messageId: string, slot: PictureSlot, job: CinemaJob) =>
-  importResult(chatId, messageId, {kind: 'pictures', key: slot.key, prompt: slot.prompt}, job);
+  importResult(chatId, messageId, {kind: 'pictures', key: slot.key, prompt: slot.prompt, bubbles: slotBubbles(slot)}, job);
 
 /** The draft with another look for one character (their portrait is made again when asked). */
 export function withCharacterLook(run: PdfRun, name: string, look: string): PdfRun['draft'] {
@@ -389,25 +391,18 @@ export async function reviewText(chatId: string, messageId: string, model: strin
   try {
     const run = findMessage(chatId, messageId)?.skill as ReviewRun | undefined;
     if (!run) return;
-    let pages: {page: number | null; text: string}[];
-    let note: string;
-    if (run.source.kind === 'unit') {
-      const unit = (await listUnits()).find(u => u.id === (run.source as {unitId: string}).unitId);
-      if (!unit) { updateRun<ReviewRun>(chatId, messageId, {state: 'error', error: 'UNIT_MISSING'}); return; }
-      pages = unitPagesText(unit, run.source.from, run.source.to);
-      note = 'páginas ' + run.source.from + ' a ' + run.source.to + ' de la unidad «' + unit.title + '» del manual';
-    } else {
-      pages = [{page: null, text: run.source.text}];
-      note = 'texto que pegó o adjuntó el autor';
-    }
-    const docs = run.source.kind === 'text' ? attachments.filter(a => a.kind === 'document') : [];
+    if (run.source.kind === 'unit') { await reviewUnitPages(chatId, messageId, run, model); return; }
+    const pages: {page: number | null; text: string}[] = [{page: null, text: run.source.text}];
+    const note = 'texto que pegó o adjuntó el autor';
+    // Documents go as their text; pictures go too when the model sees images (a page of a PDF as a screenshot).
+    const docs = attachments.filter(a => a.kind === 'document' || (a.kind === 'image' && seesImages(model)));
     // The automatic checks also read the attached documents (their text is stored in the studio).
-    const docTexts = await Promise.all(docs.map(d => fetch('/api/sync/assets?hash=' + d.hash).then(r => r.ok ? r.text() : '').catch(() => '')));
+    const docTexts = await Promise.all(docs.filter(d => d.kind === 'document').map(d => fetch('/api/sync/assets?hash=' + d.hash).then(r => r.ok ? r.text() : '').catch(() => '')));
     const auto = autoChecks([...pages, ...docTexts.map(text => ({page: null, text}))]);
     updateRun<ReviewRun>(chatId, messageId, {auto});
-    const reviewTask = {query: 'Revisá el ruso, los acentos y la tipografía. ' + note, context: pages.map(p => p.text).join('\n').slice(0, 20000)};
+    const reviewTask = {query: 'Revisá el ruso, los acentos, la tipografía y las traducciones al inglés. ' + note, context: pages.map(p => p.text).join('\n').slice(0, 20000)};
     const chatBook = chatProjectOf(chatId);
-    const book = await (chatBook ? bookForProject(chatBook, reviewTask) : run.source.kind === 'unit' ? bookForUnit(run.source.unitId, reviewTask) : Promise.resolve(null)).catch(() => null);
+    const book = await (chatBook ? bookForProject(chatBook, reviewTask) : Promise.resolve(null)).catch(() => null);
     if (book) updateRun<ReviewRun>(chatId, messageId, {book: usedOf(book)});
     const answer = await textAnswer('russian-review', reviewRequest(pages.filter(p => p.text.trim()), note), {model, attachments: docs, webSearch: run.webSearch, book: book?.payload});
     const result = parseReview(answer.text);
@@ -418,4 +413,70 @@ export async function reviewText(chatId: string, messageId: string, model: strin
   } finally {
     running.delete(messageId);
   }
+}
+
+// ---------- /revisar-ruso on a unit of the manual: page by page, as in the editor ----------
+
+/** Whether the text model sees images, as Kie documents it («auto» is the fast Gemini model). */
+export function seesImages(model: string) {
+  const m = textModels.find(x => x.id === (model === 'auto' ? 'kie-flash' : model));
+  return Boolean(m?.inputs?.includes('image'));
+}
+
+/**
+ * Each page of the range: its lines with ids and, for a model that sees images, a picture of the page as it
+ * prints. The answer is checked against the page (manual/review.ts); results appear page by page in the card.
+ */
+async function reviewUnitPages(chatId: string, messageId: string, run: ReviewRun, model: string) {
+  if (run.source.kind !== 'unit') return;
+  const unit = (await listUnits()).find(u => u.id === (run.source as {unitId: string}).unitId);
+  if (!unit) { updateRun<ReviewRun>(chatId, messageId, {state: 'error', error: 'UNIT_MISSING'}); return; }
+  const {from, to} = run.source;
+  const sees = seesImages(model);
+  const fonts = sees ? await fetchEditorFonts() : null;
+  updateRun<ReviewRun>(chatId, messageId, {pages: [], auto: autoChecks(unitPagesText(unit, from, to)), result: undefined});
+  const done: NonNullable<ReviewRun['pages']> = [];
+  let credits = 0, name: string | undefined;
+  for (let n = from; n <= Math.min(to, unit.pages.length); n++) {
+    updateRun<ReviewRun>(chatId, messageId, {at: n});
+    const page = unit.pages[n - 1];
+    const texts = reviewTexts(page);
+    const attachments = fonts ? [await pagePicture(unit, fonts, n - 1)] : [];
+    if (!texts.length && !attachments.length) { done.push({page: n, pageId: page.id, summary: 'La página no tiene texto.', findings: [], picture: false}); continue; }
+    const answer = await textAnswer('manual-review', pageReviewRequest(texts, {unit: unit.title, page: n, pages: unit.pages.length, picture: attachments.length > 0}), {model, attachments});
+    const parsed = parsePageReview(answer.text, texts, page.id);
+    if (!parsed) { updateRun<ReviewRun>(chatId, messageId, {state: 'error', error: 'INVALID_REVIEW', pages: [...done], model: answer.model, credits}); return; }
+    credits += answer.credits || 0; name = answer.model || name;
+    done.push({page: n, pageId: page.id, summary: parsed.summary, findings: parsed.findings, picture: attachments.length > 0, ...(answer.credits !== undefined ? {credits: answer.credits} : {})});
+    updateRun<ReviewRun>(chatId, messageId, {pages: [...done], model: name, credits});
+  }
+  updateRun<ReviewRun>(chatId, messageId, {state: 'ready', at: undefined});
+}
+
+const versioned = new Set<string>();
+/**
+ * Applies corrections of a chat review to the unit, letter by letter, as the editor does. A version is kept before
+ * the first one of each review. Returns how many were applied and the first refusal.
+ */
+export async function applyReviewFindings(chatId: string, messageId: string, list: ReviewFinding[]) {
+  const run = findMessage(chatId, messageId)?.skill as ReviewRun | undefined;
+  if (!run || run.source.kind !== 'unit') return {applied: 0, error: 'La revisión ya no está.'};
+  const unit = await getUnit(run.source.unitId);
+  if (!unit) return {applied: 0, error: 'La unidad ya no está en PDF Studio.'};
+  const fonts = await fetchEditorFonts();
+  let next = unit, applied = 0, error = '';
+  const marked: Record<string, 'applied'> = {};
+  for (const f of list) {
+    const page = run.pages?.find(p => p.findings.some(x => x.key === f.key));
+    if (!f.apply || !page) continue;
+    const out = applyFinding(fonts, next, page.pageId, f.apply);
+    if ('error' in out) { error ||= out.error; continue; }
+    next = out.unit; applied++; marked[f.key] = 'applied';
+  }
+  if (applied) {
+    if (!versioned.has(messageId)) { await saveVersion(unit, 'Antes de la revisión con IA (Chat)'); versioned.add(messageId); }
+    await saveUnit({...next, updatedAt: Date.now()});
+    updateRun<ReviewRun>(chatId, messageId, {done: {...run.done, ...marked}});
+  }
+  return {applied, error};
 }
