@@ -7,13 +7,13 @@ import {Dialog, ConfirmDialog} from '@/components/ui/dialog';
 import {AspectPicker, Field, MediaModelPicker, Segmented, aspectName, optionLabel} from '@/components/cinema/controls';
 import {KieImage, Elapsed} from '@/components/cinema/job-card';
 import {estimate} from '@/components/studio/chat-model-picker';
-import {imageModels, enabledStatus} from '@/lib/ai/models';
+import {imageModels, enabledStatus, promptLimit} from '@/lib/ai/models';
 import {startGeneration} from '@/lib/cinema/client';
 import {errorDetail} from '@/lib/cinema/errors';
 import {useCinema, isActive, type CinemaJob} from '@/store/cinema';
 import {editEntry, getEntry} from '@/lib/kb/store';
 import {storeRefFile, uploadEntryFiles} from '@/lib/kb/files';
-import {approvedRefs, bookPicturePrompt, defaultPicks, pictureWarnings, plannedRefs, type CastPick, type PictureParts} from '@/lib/kb/picture';
+import {approvedRefs, bookPicturePrompt, bubbleLines, defaultPicks, pictureWarnings, plannedRefs, type CastPick, type PictureParts} from '@/lib/kb/picture';
 import type {EntryOf, KbEntry, KbProject} from '@/lib/kb/model';
 import {RefThumb} from './character-refs';
 
@@ -46,8 +46,11 @@ export function SentList({job}: {job: CinemaJob}) {
 type Props = {
   open: boolean;
   onClose: () => void;
-  project: KbProject;
+  /** The unit's book, when it has one: its characters can be chosen with their approved pictures. */
+  project: KbProject | null;
   entries: KbEntry[];
+  /** Speech bubbles drawn by the image model, with their Russian text inside. */
+  bubbles?: boolean;
   /** Characters chosen when the dialog opens (entry ids). */
   initial: string[];
   /** Puts an approved result where the dialog was opened from (a page of the manual). */
@@ -60,11 +63,11 @@ type Props = {
  * characters and files to send (within the model's limit), the prompt with who, what, where and how, the cost when
  * Kie publishes it, a confirmation every time, and a review of the result before it goes anywhere.
  */
-export function BookImageDialog({open, onClose, project, entries, initial, onInsert, insertLabel = 'Insertar en la página'}: Props) {
+export function BookImageDialog({open, onClose, project, entries, initial, onInsert, insertLabel = 'Insertar en la página', bubbles: withBubbles = false}: Props) {
   const characters = useMemo(() => entries.filter((e): e is EntryOf<'character'> => e.kind === 'character' && e.status !== 'superseded').sort((a, b) => a.title.localeCompare(b.title)), [entries]);
   const [modelId, setModelId] = useState('nano-banana-2-1');
   const [picks, setPicks] = useState<CastPick[]>([]);
-  const [parts, setParts] = useState<PictureParts>({action: '', scene: '', composition: '', style: 'Bright, friendly, realistic photograph with natural light, as in a modern language textbook.'});
+  const [parts, setParts] = useState<PictureParts>({action: '', scene: '', composition: '', style: withBubbles ? 'Bright, friendly comic-style illustration with clean lines, as in a modern language textbook.' : 'Bright, friendly, realistic photograph with natural light, as in a modern language textbook.', bubbles: ''});
   const [custom, setCustom] = useState<string | null>(null);
   const [aspect, setAspect] = useState('4:3');
   const [resolution, setResolution] = useState('');
@@ -85,7 +88,9 @@ export function BookImageDialog({open, onClose, project, entries, initial, onIns
   const shownResolution = o.resolutions.includes(resolution) ? resolution : o.resolutions[0];
   const chosen = picks.map(p => characters.find(c => c.id === p.id)).filter((c): c is EntryOf<'character'> => Boolean(c));
   const {sent, left} = plannedRefs(characters, picks, o.maxReferences);
-  const prompt = custom ?? bookPicturePrompt(chosen, sent, parts);
+  const prompt = custom ?? bookPicturePrompt(chosen, sent, withBubbles ? parts : {...parts, bubbles: ''});
+  const limit = promptLimit(o, 'image');
+  const lines = withBubbles ? bubbleLines(parts.bubbles) : [];
   const warnings = pictureWarnings(chosen, sent, left, o.maxReferences);
   const needsImage = !o.modes.includes('create') && !sent.length;
   const jobs = useCinema(s => s.data.jobs).filter(j => batch && j.batchId === batch);
@@ -100,8 +105,8 @@ export function BookImageDialog({open, onClose, project, entries, initial, onIns
       for (const c of chosen) await uploadEntryFiles(c);
       const id = await startGeneration({
         mode: 'create', model: model.id, prompt, aspect: shownAspect as never, resolution: shownResolution as never, count: 1,
-        references: sent.map(s => 'asset:' + s.ref.hash), tag: 'book:' + project.id,
-        book: {project: project.id, name: project.name, characters: chosen.map(c => ({id: c.id, name: c.title, refs: sent.filter(s => s.character === c.id).map(s => ({hash: s.ref.hash, name: s.ref.name}))}))},
+        references: sent.map(s => 'asset:' + s.ref.hash),
+        ...(project ? {tag: 'book:' + project.id, book: {project: project.id, name: project.name, characters: chosen.map(c => ({id: c.id, name: c.title, refs: sent.filter(s => s.character === c.id).map(s => ({hash: s.ref.hash, name: s.ref.name}))}))}} : {}),
       });
       setBatch(id);
     } catch (e) {
@@ -112,15 +117,22 @@ export function BookImageDialog({open, onClose, project, entries, initial, onIns
   const visible = characters.filter(c => !query.trim() || (c.title + ' ' + c.data.aliases.join(' ')).toLowerCase().includes(query.trim().toLowerCase()));
 
   return (
-    <Dialog open={open} onClose={onClose} wide title="Ilustración con personajes del libro"
-      description="Elegís el modelo, los personajes y las imágenes aprobadas que se envían. Cada generación se confirma y consume créditos de Kie. El resultado se revisa antes de usarlo.">
+    <Dialog open={open} onClose={onClose} wide title={withBubbles ? 'Ilustración con globos de diálogo' : 'Ilustración con personajes del libro'}
+      description={(withBubbles ? 'El modelo de imagen dibuja la escena y los globos, con el texto ruso adentro. ' : '') + 'Elegís el modelo' + (project ? ', los personajes y las imágenes aprobadas que se envían' : '') + '. Cada generación se confirma y consume créditos de Kie. El resultado se revisa antes de usarlo.'}>
       <div className="rc-dialog-body rc-kb-picture">
         {batch ? <Results jobs={jobs} onInsert={onInsert} insertLabel={insertLabel} onAgain={() => setBatch(null)} /> : (
           <>
             <Field label="Modelo de imagen"><MediaModelPicker category="image" value={model.id} onChange={setModelId} /></Field>
             <p className="rc-hint">{o.maxReferences ? 'Acepta hasta ' + o.maxReferences + (o.maxReferences === 1 ? ' imagen de referencia' : ' imágenes de referencia') + ' según su documentación.' : 'No acepta imágenes de referencia: solo recibe el texto.'}{o.modes.includes('create') ? '' : ' Necesita al menos una imagen.'}</p>
 
-            <Field label="Personajes">
+            {withBubbles ? (
+              <Field label="Globos de diálogo" hint="Uno por renglón, hasta 6. «Nombre: texto» indica quién habla.">
+                <TextareaAutosize className="rc-textarea" minRows={3} maxRows={8} maxLength={1200} value={parts.bubbles} onChange={e => { setParts(p => ({...p, bubbles: e.target.value})); setCustom(null); }} placeholder={'Иван: Приве́т! Как дела́?\nАнна: Хорошо́, спаси́бо!'} aria-label="Globos de diálogo" />
+                <p className="rc-kb-warning">Los modelos de imagen a veces escriben mal las letras rusas, y el texto queda dentro de la imagen: no se corrige como texto. Revisá el resultado antes de insertarlo; «Revisar con IA» también lee el texto de las imágenes.</p>
+              </Field>
+            ) : null}
+
+            {project ? <Field label="Personajes">
               <input className="rc-input" type="search" placeholder="Buscar personaje" aria-label="Buscar personaje" value={query} onChange={e => setQuery(e.target.value)} />
               <ul className="rc-kb-cast">
                 {visible.map(c => {
@@ -144,7 +156,7 @@ export function BookImageDialog({open, onClose, project, entries, initial, onIns
                   );
                 })}
               </ul>
-            </Field>
+            </Field> : <p className="rc-hint">Esta unidad no está vinculada a un libro: sin personajes ni imágenes de referencia. Describí a las personas en «Qué pasa».</p>}
 
             <div className="rc-kb-parts">
               {([['action', 'Qué pasa'], ['scene', 'Dónde y cuándo'], ['composition', 'Encuadre y luz'], ['style', 'Estilo']] as const).map(([k, label]) => (
@@ -158,12 +170,12 @@ export function BookImageDialog({open, onClose, project, entries, initial, onIns
               {sent.length ? <ol className="rc-kb-sending">{sent.map(s => <li key={s.ref.hash}>Imagen {s.index}: {s.name} · {s.ref.name} · sha256 {s.ref.hash.slice(0, 12)}…</li>)}</ol> : <p className="rc-hint">Ninguna.</p>}
             </Field>
             <Field label="Prompt" action={custom !== null ? <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm" onClick={() => setCustom(null)}><RotateCcw aria-hidden="true" />Volver a armarlo</button> : undefined}>
-              <TextareaAutosize className="rc-textarea" minRows={5} maxRows={14} maxLength={4000} value={prompt} onChange={e => setCustom(e.target.value)} aria-label="Prompt" />
+              <TextareaAutosize className="rc-textarea" minRows={5} maxRows={14} maxLength={limit} value={prompt} onChange={e => setCustom(e.target.value)} aria-label="Prompt" />
             </Field>
             {warnings.length ? <ul className="rc-kb-consequences rc-kb-warnings">{warnings.map(w => <li key={w}>{w}</li>)}</ul> : null}
             <div className="rc-dialog-footer rc-dialog-footer--end">
               <button type="button" className="rc-btn rc-btn--ghost" onClick={onClose}>Cancelar</button>
-              <button type="button" className="rc-btn rc-btn--primary" disabled={sending || needsImage || !prompt.trim() || (!chosen.length && !parts.action.trim())} onClick={() => setConfirm(true)}>{sending ? 'Enviando…' : 'Generar…'}</button>
+              <button type="button" className="rc-btn rc-btn--primary" disabled={sending || needsImage || !prompt.trim() || prompt.length > limit || (!chosen.length && !parts.action.trim() && !lines.length)} onClick={() => setConfirm(true)}>{sending ? 'Enviando…' : 'Generar…'}</button>
             </div>
           </>
         )}
@@ -174,6 +186,7 @@ export function BookImageDialog({open, onClose, project, entries, initial, onIns
           {([
             ['Modelo', model.name],
             ['Personajes', chosen.map(c => c.title).join(', ') || 'ninguno'],
+            ...(lines.length ? [['Globos', lines.length + (lines.length === 1 ? ' globo con texto ruso' : ' globos con texto ruso')]] : []),
             ['Imágenes de referencia', sent.length ? sent.map(s => s.ref.name).join(', ') : 'ninguna'],
             ...(o.aspectRatios.length ? [['Formato', aspectName(shownAspect)]] : []),
             ...(o.resolutions.length ? [[o.resolutionLabel || 'Resolución', optionLabel(shownResolution)]] : []),
@@ -222,12 +235,14 @@ function Results({jobs, onInsert, insertLabel, onAgain}: {jobs: CinemaJob[]; onI
             {job.credits !== undefined ? <p className="rc-hint">Kie informó {job.credits} créditos.</p> : null}
             {job.state === 'success' ? (
               <>
-                <p className="rc-kb-question">¿Mantiene el rostro y el cuerpo de las referencias aprobadas?</p>
+                {job.book?.characters.length ? (
+                  <p className="rc-kb-question">¿Mantiene el rostro y el cuerpo de las referencias aprobadas?</p>
+                ) : <p className="rc-kb-question">¿Está bien? Mirá la escena y, si tiene globos, que cada letra rusa esté bien escrita.</p>}
                 <span className="rc-kb-actions">
-                  <button type="button" className="rc-btn rc-btn--sm rc-btn--secondary" aria-pressed={job.review === 'consistent'} onClick={() => updateJob(job.id, {review: 'consistent'})}><Check aria-hidden="true" />Sí, consistente</button>
-                  <button type="button" className="rc-btn rc-btn--sm rc-btn--ghost" aria-pressed={job.review === 'changed'} onClick={() => updateJob(job.id, {review: 'changed'})}><TriangleAlert aria-hidden="true" />No, cambió rasgos</button>
+                  <button type="button" className="rc-btn rc-btn--sm rc-btn--secondary" aria-pressed={job.review === 'consistent'} onClick={() => updateJob(job.id, {review: 'consistent'})}><Check aria-hidden="true" />{job.book?.characters.length ? 'Sí, consistente' : 'Sí, está bien'}</button>
+                  <button type="button" className="rc-btn rc-btn--sm rc-btn--ghost" aria-pressed={job.review === 'changed'} onClick={() => updateJob(job.id, {review: 'changed'})}><TriangleAlert aria-hidden="true" />{job.book?.characters.length ? 'No, cambió rasgos' : 'No, tiene errores'}</button>
                 </span>
-                {job.review === 'changed' ? <p className="rc-kb-warning">Marcada como no consistente: no se use como referencia del personaje.</p> : null}
+                {job.review === 'changed' ? <p className="rc-kb-warning">{job.book?.characters.length ? 'Marcada como no consistente: no se use como referencia del personaje.' : 'Marcada con errores: mejor generar otra.'}</p> : null}
                 <span className="rc-kb-actions">
                   {onInsert ? <button type="button" className="rc-btn rc-btn--primary rc-btn--sm" disabled={Boolean(busy) || !job.review} onClick={() => void insert(job)}><ImageUp aria-hidden="true" />{busy === 'insert' ? 'Insertando…' : insertLabel}</button> : null}
                   {job.book?.characters.map(c => <button key={c.id} type="button" className="rc-btn rc-btn--ghost rc-btn--sm" disabled={Boolean(busy) || job.review !== 'consistent'} onClick={() => void keep(job, c.id)}>Guardar en la biblioteca de {c.name}</button>)}

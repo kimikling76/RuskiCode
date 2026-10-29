@@ -9,7 +9,19 @@ import type {EntryOf, KbEntry, KbRef} from './model';
 // promise that a face stays the same: the author reviews the result.
 
 export type CastPick = {id: string; refs: string[]};
-export type PictureParts = {action: string; scene: string; composition: string; style: string};
+export type PictureParts = {
+  action: string; scene: string; composition: string; style: string;
+  /** Speech bubbles the image model draws with their text inside, one per line («Name: words» or just the words). */
+  bubbles?: string;
+};
+
+/** The bubble lines: who speaks (when written as «Name: words») and the exact words. */
+export function bubbleLines(text: string | undefined) {
+  return (text || '').split('\n').map(l => l.trim()).filter(Boolean).slice(0, 6).map(line => {
+    const m = /^([^:«»"]{1,40}):\s*(.+)$/.exec(line);
+    return m ? {speaker: m[1].trim(), words: m[2].trim()} : {speaker: '', words: line};
+  });
+}
 
 export const approvedRefs = (c: EntryOf<'character'>) => {
   const ok = c.data.refs.filter(r => r.review === 'approved' && r.mime.startsWith('image/'));
@@ -60,7 +72,13 @@ export function bookPicturePrompt(chars: EntryOf<'character'>[], sent: PlannedRe
   if (parts.scene.trim()) lines.push('Setting: ' + parts.scene.trim());
   if (parts.composition.trim()) lines.push('Composition: ' + parts.composition.trim());
   if (parts.style.trim()) lines.push('Style: ' + parts.style.trim());
-  lines.push('No text, letters, labels, speech bubbles or logos in the picture.');
+  const bubbles = bubbleLines(parts.bubbles);
+  if (bubbles.length) {
+    // Option chosen by the author: the image model draws the bubbles and writes their text, as in the printed manual.
+    lines.push('Speech bubbles: draw ' + (bubbles.length === 1 ? 'one comic-style speech bubble' : bubbles.length + ' comic-style speech bubbles') + ' with a tail pointing at the speaker, white fill and a thin dark outline. Write the text inside each bubble exactly as given below, in Russian Cyrillic, letter for letter, keeping punctuation and any stress marks; do not translate, shorten or add words. Use a clean, highly legible sans-serif lettering, large enough to read in print:');
+    bubbles.forEach((b, i) => lines.push((i + 1) + '. ' + (b.speaker ? b.speaker + ' says: ' : '') + '«' + b.words + '»'));
+    lines.push('No other text, letters, labels or logos in the picture.');
+  } else lines.push('No text, letters, labels, speech bubbles or logos in the picture.');
   return lines.join('\n');
 }
 

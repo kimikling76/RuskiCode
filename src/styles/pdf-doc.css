@@ -156,3 +156,22 @@
 .rc-assist-more { border-top: 1px solid var(--line); }
 .rc-assist-more > summary { padding: var(--sp-4) var(--sp-6); font-size: var(--fs-13); color: var(--fg-2); cursor: pointer; }
 .rc-assist-more > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Manual · IA: review findings, their marks on the page and the exercise preview. */
+.rc-man-mark { position: absolute; transform: translate(-50%, -50%); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--warning); color: #111; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; pointer-events: none; box-shadow: 0 0 0 2px var(--bg-1); }
+.rc-man-ai { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-5); }
+.rc-man-ai-section, .rc-man-ai-results, .rc-man-finding { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-2); }
+.rc-man-ai .rc-pdf-inline { flex-wrap: wrap; }
+.rc-man-ai-section + .rc-man-ai-section { padding-top: var(--sp-4); border-top: 1px solid var(--line); }
+.rc-man-ai-progress { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.rc-man-ai-results { gap: var(--sp-3); }
+.rc-man-finding { padding: var(--sp-3); border: 1px solid var(--line-strong); border-radius: 10px; background: var(--bg-2); }
+.rc-man-finding[data-note] { border-style: dashed; }
+.rc-man-finding header { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.rc-man-finding p { margin: 0; }
+.rc-man-diff-text { display: grid; gap: 4px; font-size: var(--fs-13); overflow-wrap: anywhere; }
+.rc-man-diff-text p { margin: 0; }
+.rc-man-diff-text del { background: color-mix(in srgb, var(--danger) 30%, transparent); text-decoration: line-through; }
+.rc-man-diff-text ins { background: color-mix(in srgb, var(--success) 30%, transparent); text-decoration: none; }
+.rc-man-ai-preview { width: 100%; height: auto; border-radius: 6px; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+.rc-man-ai-pages .rc-chip[aria-current] { outline: 2px solid var(--accent); }

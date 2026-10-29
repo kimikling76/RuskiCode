@@ -5,7 +5,7 @@ import type {Assistant} from '@/store/assistants';
 import type {Source} from './types';
 import type {BookPayload} from '@/lib/kb/prompt';
 
-export type TextPurpose = 'storyboard' | 'prompt' | 'video-prompt' | 'book-review' | 'book-exercises' | 'book-rewrite' | 'pdf-generator' | 'russian-review' | 'book-assist' | 'book-exercise';
+export type TextPurpose = 'storyboard' | 'prompt' | 'video-prompt' | 'book-review' | 'book-exercises' | 'book-rewrite' | 'pdf-generator' | 'russian-review' | 'book-assist' | 'book-exercise' | 'manual-review' | 'manual-exercise';
 
 const usageLabels: Record<TextPurpose, {studio: 'chat' | 'cinema' | 'pdf'; label: string}> = {
   storyboard: {studio: 'cinema', label: 'Plan de planos'},
@@ -18,6 +18,8 @@ const usageLabels: Record<TextPurpose, {studio: 'chat' | 'cinema' | 'pdf'; label
   'russian-review': {studio: 'chat', label: '/revisar-ruso'},
   'book-assist': {studio: 'pdf', label: 'Asistente del libro'},
   'book-exercise': {studio: 'pdf', label: 'Cambio de un ejercicio'},
+  'manual-review': {studio: 'pdf', label: 'Revisión con IA del manual'},
+  'manual-exercise': {studio: 'pdf', label: 'Ejercicio nuevo con IA'},
 };
 
 export type TextAnswer = {text: string; model?: string; credits?: number; sources?: Source[]};
