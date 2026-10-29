@@ -25,3 +25,23 @@ export type VideoRef = z.infer<typeof videoRefSchema>;
 
 /** The limit for one model: its page's, when smaller than the studio's. */
 export const videoLimitBytes = (maxMB?: number) => Math.min(MAX_VIDEO_BYTES, maxMB ? Math.floor(maxMB * 1_000_000) : MAX_VIDEO_BYTES);
+
+/** The part of a video to use, for models that take clips: from `start` to `ends`, in seconds. */
+export const clipSchema = z.object({start: z.number().min(0).max(600), ends: z.number().min(0).max(600)}).strict().refine(c => c.ends > c.start);
+export type Clip = z.infer<typeof clipSchema>;
+
+/** What is wrong with a clip for a model ('' when it fits): the end after the start, its length, the video's. */
+export function clipProblem(c: Clip, o: {videoClipSeconds?: number; videoSeconds?: readonly [number, number]}, seconds?: number) {
+  if (!(c.ends > c.start)) return 'El final tiene que ser después del comienzo.';
+  if (o.videoClipSeconds && c.ends - c.start > o.videoClipSeconds + 1e-6) return 'El tramo dura ' + (c.ends - c.start).toLocaleString('es-AR') + ' s: este modelo toma hasta ' + o.videoClipSeconds + ' s.';
+  const end = seconds || o.videoSeconds?.[1];
+  if (end && c.ends > end + 1e-6) return 'El final pasa el largo del video (' + end.toLocaleString('es-AR') + ' s).';
+  return '';
+}
+
+/** The clip a video starts with: from the beginning, as long as the model takes (or the video lasts). */
+export const defaultClip = (o: {videoClipSeconds?: number}, seconds?: number): Clip => ({start: 0, ends: Math.min(o.videoClipSeconds || 10, seconds || Infinity)});
+
+/** Videos a model can still take: its own count, and with the images, its slots (a Gemini Omni video takes two). */
+export const videoRoom = (o: {maxVideos?: number; maxMedia?: number; videoSlots?: number}, images: number) =>
+  Math.max(0, Math.min(o.maxVideos || 0, o.maxMedia ? Math.floor((o.maxMedia - images) / (o.videoSlots || 1)) : Infinity));

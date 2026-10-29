@@ -89,6 +89,8 @@ type Draft = {
   references: string[];
   /** Reference videos for a video model (Kie links, or `video:<sha256>` kept in this browser). */
   videos?: string[];
+  /** The part of each video to use, by video, for models that take clips. */
+  clips?: Record<string, {start: number; ends: number}>;
   /** The project the results go to from Inicio (a project page always uses its own). */
   project: string | null;
 };

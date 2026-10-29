@@ -72,6 +72,8 @@ export type MediaOptions = {
     /** Reference videos: the field, and whether it takes one link instead of a list. */
     videos?: string;
     videosSingle?: boolean;
+    /** Each video goes as a clip {url, start, ends} (Gemini Omni's `video_list`). */
+    videoClips?: boolean;
   };
   aspectRatios: readonly string[];
   resolutions: readonly string[];
@@ -92,6 +94,10 @@ export type MediaOptions = {
   maxMedia?: number;
   /** It needs at least one image or one video. */
   mediaRequired?: boolean;
+  /** Longest clip of a video, in seconds, when the model takes a trimmed part of it. */
+  videoClipSeconds?: number;
+  /** Image slots one video takes in `maxMedia` (1 when absent). */
+  videoSlots?: number;
   /** The longest prompt Kie accepts for this model, in characters, as its page states it. */
   promptMax?: number;
   /** The duration the page gives as default, when it is not the first one offered. */

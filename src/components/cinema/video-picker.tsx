@@ -4,7 +4,7 @@ import {Check, Film, Loader2, Upload} from 'lucide-react';
 import {useCinema, isDone} from '@/store/cinema';
 import {Dialog} from '@/components/ui/dialog';
 import {addVideoFile, isLocalVideo, localVideo, VideoError, type LocalVideo} from '@/lib/cinema/video-local';
-import {videoLimitBytes} from '@/lib/cinema/video-refs';
+import {clipProblem, defaultClip, videoLimitBytes, type Clip} from '@/lib/cinema/video-refs';
 import type {MediaOptions} from '@/lib/ai/models';
 
 const acceptVideos = 'video/mp4,video/quicktime,.mp4,.mov';
@@ -39,13 +39,15 @@ export function useVideoFit(refs: string[], o?: Pick<MediaOptions, 'videoMaxMB' 
 }
 
 /** What the model's page asks of reference videos, in a sentence. */
-export function videoRules(o: Pick<MediaOptions, 'maxVideos' | 'videoMaxMB' | 'videoSeconds' | 'videoTotalSeconds' | 'maxMedia'>) {
+export function videoRules(o: Pick<MediaOptions, 'maxVideos' | 'videoMaxMB' | 'videoSeconds' | 'videoTotalSeconds' | 'maxMedia' | 'videoClipSeconds' | 'videoSlots'>) {
+  const n = (v: number) => v.toLocaleString('es-AR');
   return [
     'MP4 o MOV',
     'hasta ' + Math.floor(videoLimitBytes(o.videoMaxMB) / 1_000_000) + ' MB cada uno',
-    o.videoSeconds ? 'de ' + o.videoSeconds[0] + ' a ' + o.videoSeconds[1] + ' s cada uno' : '',
-    o.videoTotalSeconds ? 'hasta ' + o.videoTotalSeconds + ' s entre todos' : '',
-    o.maxMedia ? 'hasta ' + o.maxMedia + ' entre imágenes y videos' : '',
+    o.videoSeconds ? (o.videoSeconds[0] < 1 ? 'de hasta ' + n(o.videoSeconds[1]) + ' s' : 'de ' + n(o.videoSeconds[0]) + ' a ' + n(o.videoSeconds[1]) + ' s') + ' cada uno' : '',
+    o.videoTotalSeconds ? 'hasta ' + n(o.videoTotalSeconds) + ' s entre todos' : '',
+    o.videoClipSeconds ? 'se usa un tramo de hasta ' + n(o.videoClipSeconds) + ' s, que elegís' : '',
+    o.maxMedia ? (o.videoSlots && o.videoSlots > 1 ? 'cada video cuenta como ' + o.videoSlots + ' imágenes, hasta ' + o.maxMedia + ' en total' : 'hasta ' + o.maxMedia + ' entre imágenes y videos') : '',
   ].filter(Boolean).join(', ') + '.';
 }
 
@@ -141,5 +143,39 @@ export function VideoPicker({open, onClose, options, initial = [], onChoose, max
         <button type="button" className="rc-btn rc-btn--primary" disabled={reading > 0 || tooLong || (!picked.length && !initial.length)} onClick={() => { onChoose(picked); onClose(); }}>Usar</button>
       </div>
     </Dialog>
+  );
+}
+
+/**
+ * The part of each video to use, for a model that takes clips (Gemini Omni: up to 10 s of a video of up to 30 s).
+ * `stored` is what the author set, by video; the rest start at the beginning. `problem` blocks generating.
+ */
+export function useClips(refs: string[], stored: Record<string, Clip> | undefined, o?: Pick<MediaOptions, 'fields' | 'videoClipSeconds' | 'videoSeconds'>) {
+  const [lengths, setLengths] = useState<Record<string, number>>({});
+  const key = refs.join('|');
+  useEffect(() => { for (const r of refs.filter(isLocalVideo)) void localVideo(r).then(m => { if (m?.seconds) setLengths(x => x[r] ? x : {...x, [r]: m.seconds}); }); }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!o?.fields.videoClips) return {clips: [] as Clip[], problem: '', lengths};
+  const clips = refs.map(r => stored?.[r] ?? defaultClip(o, lengths[r]));
+  const at = clips.findIndex((c, i) => clipProblem(c, o, lengths[refs[i]]));
+  return {clips, problem: at < 0 ? '' : '@video' + (at + 1) + ': ' + clipProblem(clips[at], o, lengths[refs[at]]), lengths};
+}
+
+/** «Tramo de @video1: desde … hasta … s», for each video of a model that takes clips. */
+export function ClipFields({refs, clips, onChange, o, lengths}: {refs: string[]; clips: Clip[]; onChange: (ref: string, clip: Clip) => void; o: Pick<MediaOptions, 'videoClipSeconds'>; lengths: Record<string, number>}) {
+  return (
+    <div className="rc-clip-fields">
+      {refs.map((ref, i) => {
+        const c = clips[i];
+        const set = (k: 'start' | 'ends', v: string) => { const n = Math.max(0, Math.round(Number(v.replace(',', '.')) * 10) / 10); if (Number.isFinite(n)) onChange(ref, {...c, [k]: n}); };
+        return (
+          <fieldset key={ref} className="rc-clip-field">
+            <legend>Tramo de @video{i + 1}{lengths[ref] ? ' (el video dura ' + seconds(lengths[ref]) + ')' : ''}</legend>
+            <label>Desde <input className="rc-input" type="number" inputMode="decimal" min={0} step={0.5} value={c.start} onChange={e => set('start', e.target.value)} aria-label={'Comienzo del tramo de @video' + (i + 1) + ', en segundos'} /> s</label>
+            <label>hasta <input className="rc-input" type="number" inputMode="decimal" min={0} step={0.5} value={c.ends} onChange={e => set('ends', e.target.value)} aria-label={'Final del tramo de @video' + (i + 1) + ', en segundos'} /> s</label>
+            {o.videoClipSeconds ? <span className="rc-hint">hasta {o.videoClipSeconds} s de video</span> : null}
+          </fieldset>
+        );
+      })}
+    </div>
   );
 }

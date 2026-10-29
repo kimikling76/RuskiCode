@@ -11,7 +11,7 @@ type ImageDraft = {model: string; prompt: string; aspect: AspectRatio; resolutio
 type EditDraft = {source: string | null; instruction: string; count: number};
 /** `model` empty: the tab's first video model. Values another model does not offer fall back to its first option. */
 /** `videos`: reference videos (Kie links, or `video:<sha256>` kept in this browser). */
-type VideoDraft = {model: string; prompt: string; aspect: string; resolution: string; duration: string; references: string[]; videos?: string[]};
+type VideoDraft = {model: string; prompt: string; aspect: string; resolution: string; duration: string; references: string[]; videos?: string[]; clips?: Record<string, {start: number; ends: number}>};
 
 type CinemaUi = {
   tab: CinemaTab;

@@ -23,7 +23,18 @@ Leídos de docs.kie.ai el 29 de octubre de 2026:
 
 - **Modelos nuevos:** los marcados así no estaban habilitados porque pedían un video que el estudio no podía dar. Ahora aparecen en la lista. HappyHorse Reference to Video (y su versión 1.1) también se habilitó: pedía imágenes con un nombre de campo que el estudio no conocía.
 - **Límites:** donde la página de Kie no dice el peso máximo, o dice más de 50 MB, el estudio acepta hasta 50 MB por video.
-- **Sin video:** Kling 2.6 Motion Control sigue deshabilitado, porque pide además una orientación del personaje que la pantalla no da. Gemini Omni pide videos con recortes de tiempo y todavía no se ofrece.
+- **Sin video:** Kling 2.6 Motion Control sigue deshabilitado, porque pide además una orientación del personaje que la pantalla no da.
+
+## Gemini Omni (Video y 1.1 Flash)
+
+Gemini Omni toma **un tramo** de un video, no el video entero:
+
+- **Un video** de hasta 30 s, del que se usan **hasta 10 s**.
+- **El tramo se elige** debajo del video, con «Tramo de @video1: desde … hasta … s». Empieza en 0 y dura lo que permite el modelo (o lo que dura el video). Si el tramo pasa los 10 s, termina antes de empezar o pasa el largo del video, un aviso lo dice y Generar queda apagado.
+- **Cada video ocupa el lugar de 2 imágenes:** entre imágenes y videos, hasta 7. Con 5 imágenes entra un video; con 6, ninguno.
+- **Imágenes:** además, ahora acepta hasta 7 imágenes de referencia. El catálogo decía 1, porque la página de Kie lo escribe en la descripción y no en el campo.
+- **Duración:** con un video, Kie decide la duración del resultado, y la opción «Duración» no se aplica.
+- **El pedido a Kie** lleva `video_list: [{url, start, ends}]`, como lo documenta Kie.
 
 ## Cómo se usa
 
@@ -58,4 +69,5 @@ Leídos de docs.kie.ai el 29 de octubre de 2026:
   - **video de 10,8 MB desde la computadora con Seedance 2.0 Fast:** viajó en 3 partes, y Kie recibió el archivo con la misma huella SHA-256 que el original. Después las partes ya no estaban en el servidor;
   - **Wan 2.6 Video to Video:** sin video, Generar quedó apagado. El video de 10,8 MB se rechazó en el selector, porque el límite es 10 MB. Al pasar a ese modelo con el video ya elegido apareció el aviso. Con un video de 0,4 MB, Kie recibió `video_urls`;
   - **Estudio con Kling 4.0:** «Ver lo que se envía» mostró `@video_1`;
-  - **Chat:** un video de la galería llegó como su enlace de Kie en `reference_video_urls`.
+  - **Chat:** un video de la galería llegó como su enlace de Kie en `reference_video_urls`;
+  - **Gemini Omni Video:** un tramo de 14 s quedó bloqueado con su aviso, y con el tramo de 1 a 6 s Kie recibió `video_list: [{url, start: 1, ends: 6}]`.

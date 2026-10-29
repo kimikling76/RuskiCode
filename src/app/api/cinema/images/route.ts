@@ -7,7 +7,7 @@ import {beginRequest, recordRequest} from '@/lib/cinema/ledger';
 import {studioSession} from '@/lib/auth/server';
 import {approvedAssetURL} from '@/lib/pipeline/asset-url';
 import {deleteAssets, getAsset} from '@/lib/sync/server';
-import {videoLimitBytes, videoRefSchema, type UploadedVideo} from '@/lib/cinema/video-refs';
+import {clipProblem, clipSchema, videoLimitBytes, videoRefSchema, type UploadedVideo} from '@/lib/cinema/video-refs';
 import {kieUpload, UploadError} from '@/lib/ai/kie-upload';
 
 export const runtime = 'nodejs';
@@ -28,6 +28,8 @@ const createInput = z.object({
   references: z.array(z.union([z.string().url().max(2000), z.string().regex(/^asset:[a-f0-9]{64}$/)])).max(16).default([]),
   /** Reference videos: Kie links (gallery results) or videos from this computer sent in parts (see cinema/video-refs). */
   videos: z.array(videoRefSchema).max(10).default([]),
+  /** The part of each video to use, for models that take clips (Gemini Omni). */
+  clips: z.array(clipSchema).max(10).optional(),
   count: z.number().int().min(1).max(8),
 }).strict();
 
@@ -46,7 +48,9 @@ function validate(input: z.infer<typeof createInput>) {
   if (input.references.length > o.maxReferences || input.count > o.maxVariants) return {error: 'INVALID_PARAMETERS'} as const;
   // Videos: only to a model that takes them, within its count, its size per file and its total with the images.
   const videos = input.videos.length;
-  if (videos > (o.maxVideos || 0) || (o.maxMedia && input.references.length + videos > o.maxMedia)) return {error: 'INVALID_PARAMETERS'} as const;
+  if (videos > (o.maxVideos || 0) || (o.maxMedia && input.references.length + videos * (o.videoSlots || 1) > o.maxMedia)) return {error: 'INVALID_PARAMETERS'} as const;
+  // A model that takes clips gets one per video, each within its length.
+  if (o.fields.videoClips && videos && (input.clips?.length !== videos || input.clips.some(c => clipProblem(c, o)))) return {error: 'INVALID_PARAMETERS'} as const;
   if (input.videos.some(v => typeof v !== 'string' && v.size > videoLimitBytes(o.videoMaxMB))) return {error: 'VIDEO_TOO_LARGE'} as const;
   if (o.videosRequired && !videos) return {error: 'VIDEO_REQUIRED'} as const;
   if (o.mediaRequired && !videos && !input.references.length) return {error: 'INVALID_REQUEST'} as const;
@@ -139,7 +143,7 @@ export async function POST(req: Request) {
   const tasks: string[] = [];
   for (let i = 0; i < input.count; i++) {
     try {
-      tasks.push(await createJob(model, {prompt: input.prompt, aspect: input.aspect, resolution: input.resolution, duration: input.duration, references, videos}));
+      tasks.push(await createJob(model, {prompt: input.prompt, aspect: input.aspect, resolution: input.resolution, duration: input.duration, references, videos, ...(input.clips ? {clips: input.clips} : {})}));
       if (ledger.state === 'new') await recordRequest(input.requestId, 'pending', tasks);
     } catch (e) {
       const code = e instanceof CinemaError ? e.code : 'PROVIDER_UNAVAILABLE';
