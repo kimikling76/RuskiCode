@@ -10,7 +10,8 @@ const ASK_KEY = 'rc-cinema-ask';
 type ImageDraft = {model: string; prompt: string; aspect: AspectRatio; resolution: Resolution; count: number; references: string[]};
 type EditDraft = {source: string | null; instruction: string; count: number};
 /** `model` empty: the tab's first video model. Values another model does not offer fall back to its first option. */
-type VideoDraft = {model: string; prompt: string; aspect: string; resolution: string; duration: string; references: string[]};
+/** `videos`: reference videos (Kie links, or `video:<sha256>` kept in this browser). */
+type VideoDraft = {model: string; prompt: string; aspect: string; resolution: string; duration: string; references: string[]; videos?: string[]};
 
 type CinemaUi = {
   tab: CinemaTab;

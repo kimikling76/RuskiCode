@@ -26,15 +26,18 @@ function key() {
 }
 
 export type ImageJobInput = {prompt: string; aspect: AspectRatio; resolution: Resolution; references: string[]};
-export type JobInput = {prompt: string; aspect?: string; resolution?: string; duration?: string; references: string[]};
+/** `videos`: links of the reference videos (Kie's own, or uploaded to Kie for this request). */
+export type JobInput = {prompt: string; aspect?: string; resolution?: string; duration?: string; references: string[]; videos?: string[]};
 
 /** Builds Kie's `input` object from a catalog entry: only the fields that model documents. */
 export function jobInput(model: ImageModel | VideoModel, input: JobInput) {
   const f = model.options.fields;
   const images = f.images && model.options.maxReferences && input.references.length ? (f.imagesSingle ? input.references.slice(0, 1) : input.references) : [];
   // Required fields with a documented default go first, so a chosen option always wins.
-  const out: Record<string, unknown> = {...model.options.fixed, [f.prompt]: mentionPrompt(input.prompt, model.options, images.length)};
+  const videos = f.videos && model.options.maxVideos && input.videos?.length ? (f.videosSingle ? input.videos.slice(0, 1) : input.videos) : [];
+  const out: Record<string, unknown> = {...model.options.fixed, [f.prompt]: mentionPrompt(input.prompt, model.options, images.length, videos.length)};
   if (f.images && images.length) out[f.images] = f.imagesSingle ? images[0] : images;
+  if (f.videos && videos.length) out[f.videos] = f.videosSingle ? videos[0] : videos;
   if (f.aspect && input.aspect) out[f.aspect] = input.aspect;
   if (f.resolution && input.resolution) out[f.resolution] = input.resolution;
   if (f.duration && input.duration) out[f.duration] = f.durationNumber ? Number(input.duration) : input.duration;

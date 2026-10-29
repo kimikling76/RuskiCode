@@ -6,6 +6,8 @@ import TextareaAutosize from 'react-textarea-autosize';
 import {toast} from 'sonner';
 import {ArrowUpRight, BookOpenCheck, Check, Clapperboard, Download, Film, ImagePlus, RotateCcw, Sparkles, SpellCheck2, X} from 'lucide-react';
 import {Diff, kindNames} from '@/components/manual/review-diff';
+import {VideoPicker, VideoThumb, useVideoFit, videoRules} from '@/components/cinema/video-picker';
+import {authorVideoName} from '@/lib/cinema/mentions';
 import type {ReviewFinding} from '@/lib/manual/review';
 import type {PDFDocumentProxy} from 'pdfjs-dist';
 import {imageModels, videoModels, enabledStatus, publicModel, findModel, promptLimit} from '@/lib/ai/models';
@@ -112,8 +114,10 @@ function MediaCard({chatId, id, run}: {chatId: string; id: string; run: ImageRun
   const [prompt, setPrompt] = useState(run.prompt);
   const [improving, setImproving] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const [videoPicker, setVideoPicker] = useState(false);
   const lastCost = useLastCost(model?.id || '');
   useEffect(() => { if (model && model.id !== run.model) updateRun(chatId, id, {model: model.id}); }, [model?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const videoFit = useVideoFit(run.skill === 'video-generation' ? (run.videos || []).slice(0, model?.options.maxVideos || 0) : [], model?.options);
 
   if (run.batchId) return <MediaResults chatId={chatId} run={run} jobs={jobs} />;
   if (!model) return <p className="rc-hint">No hay un modelo de {video ? 'video' : 'imagen'} habilitado en el estudio.</p>;
@@ -125,6 +129,8 @@ function MediaCard({chatId, id, run}: {chatId: string; id: string; run: ImageRun
   const count = run.skill === 'image-generation' ? Math.min(run.count, o.maxVariants) : 1;
   const usedRefs = refs.slice(0, o.maxReferences);
   const ignored = refs.length - usedRefs.length;
+  const usedVideos = run.skill === 'video-generation' ? (run.videos || []).slice(0, o.maxVideos || 0) : [];
+  const needsVideo = run.skill === 'video-generation' && Boolean(o.videosRequired && !usedVideos.length || o.mediaRequired && !usedVideos.length && !usedRefs.length);
   const needsImage = !o.modes.includes('create') && !usedRefs.length;
   const set = (patch: RunPatch<ImageRun> | RunPatch<VideoRun>) => updateRun(chatId, id, patch);
   const pickerModels = list.map(m => {
@@ -155,7 +161,7 @@ function MediaCard({chatId, id, run}: {chatId: string; id: string; run: ImageRun
   function generate() {
     setConfirm(false);
     const current = {...run, prompt: prompt.trim(), model: model!.id, aspect: o.aspectRatios.length ? aspect : '', resolution: o.resolutions.length ? resolution : ''} as ImageRun | VideoRun;
-    if (current.skill === 'image-generation') { current.count = count; current.refs = usedRefs; } else { current.duration = o.durations.length ? duration : ''; current.start = usedRefs[0]; }
+    if (current.skill === 'image-generation') { current.count = count; current.refs = usedRefs; } else { current.duration = o.durations.length ? duration : ''; current.start = usedRefs[0]; current.videos = usedVideos; }
     updateRun(chatId, id, current);
     void sendMedia(chatId, id, current);
   }
@@ -189,9 +195,31 @@ function MediaCard({chatId, id, run}: {chatId: string; id: string; run: ImageRun
           {ignored > 0 ? <p className="rc-pdf-warn">{o.maxReferences ? 'Este modelo acepta hasta ' + o.maxReferences + (o.maxReferences === 1 ? ' imagen' : ' imágenes') + ': las demás no se envían.' : 'Este modelo no usa imágenes: no se envían.'}</p> : null}
         </div>
       ) : null}
+      {video && o.maxVideos ? (
+        <div className="rc-field"><span>Videos de referencia</span>
+          {usedVideos.length ? (
+            <ul className="rc-skill-refs">
+              {usedVideos.map((v, i) => (
+                <li key={v}>
+                  <VideoThumb value={v} />
+                  <span className="rc-ref-name">{authorVideoName(i + 1)}</span>
+                  <button type="button" className="rc-icon-btn rc-icon-btn--sm" aria-label={'Quitar el video ' + (i + 1)} onClick={() => set({videos: usedVideos.filter(x => x !== v)})}><X /></button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <span className="rc-skill-row">
+            <button type="button" className="rc-btn rc-btn--secondary rc-btn--sm" onClick={() => setVideoPicker(true)}><Film aria-hidden="true" />{usedVideos.length ? 'Cambiar los videos…' : 'Elegir videos…'}</button>
+            <span className="rc-hint">Hasta {o.maxVideos}: {videoRules(o)} En el prompt, @video1{o.maxVideos > 1 ? ', @video2…' : ''}.</span>
+          </span>
+          <VideoPicker open={videoPicker} onClose={() => setVideoPicker(false)} options={o} max={o.maxVideos} initial={usedVideos} onChoose={v => set({videos: v})} />
+        </div>
+      ) : null}
+      {needsVideo ? <p className="rc-pdf-warn">Este modelo trabaja sobre un video: elegí uno.</p> : null}
+      {videoFit ? <p className="rc-pdf-warn">{videoFit}</p> : null}
       {needsImage ? <p className="rc-pdf-warn">Este modelo necesita una imagen{video ? ' de inicio' : ' para editar'}: adjuntá una en el mensaje.</p> : null}
       <div className="rc-skill-row">
-        <button type="button" className="rc-btn rc-btn--primary rc-btn--sm" disabled={!prompt.trim() || needsImage || prompt.trim().length > promptLimit(o, video ? 'video' : 'image')} onClick={() => setConfirm(true)}>
+        <button type="button" className="rc-btn rc-btn--primary rc-btn--sm" disabled={!prompt.trim() || needsImage || needsVideo || Boolean(videoFit) || prompt.trim().length > promptLimit(o, video ? 'video' : 'image')} onClick={() => setConfirm(true)}>
           {video ? <Film aria-hidden="true" /> : <ImagePlus aria-hidden="true" />}{video ? 'Generar el video…' : count === 1 ? 'Generar la imagen…' : 'Generar ' + count + ' imágenes…'}
         </button>
         <span className="rc-hint">Nada se pide a Kie hasta que confirmes.</span>

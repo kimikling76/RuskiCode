@@ -15,6 +15,8 @@ export type CinemaJob = {
   aspect: AspectRatio;
   resolution: Resolution;
   references: string[];
+  /** Reference videos sent with it (Kie links, or `video:<sha256>` kept in the browser that sent it). */
+  videos?: string[];
   /** Catalog model id (absent on older jobs: the default image model). */
   model?: string;
   duration?: string;

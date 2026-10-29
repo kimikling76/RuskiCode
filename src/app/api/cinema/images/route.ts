@@ -6,7 +6,8 @@ import {createJob, imageJobStatus, jobInput, CinemaError} from '@/lib/cinema/kie
 import {beginRequest, recordRequest} from '@/lib/cinema/ledger';
 import {studioSession} from '@/lib/auth/server';
 import {approvedAssetURL} from '@/lib/pipeline/asset-url';
-import {getAsset} from '@/lib/sync/server';
+import {deleteAssets, getAsset} from '@/lib/sync/server';
+import {videoLimitBytes, videoRefSchema, type UploadedVideo} from '@/lib/cinema/video-refs';
 import {kieUpload, UploadError} from '@/lib/ai/kie-upload';
 
 export const runtime = 'nodejs';
@@ -25,6 +26,8 @@ const createInput = z.object({
   duration: z.string().max(12).optional(),
   /** Kie-hosted results, or `asset:<sha256>`: an image stored in the studio (an attachment), uploaded to Kie here. */
   references: z.array(z.union([z.string().url().max(2000), z.string().regex(/^asset:[a-f0-9]{64}$/)])).max(16).default([]),
+  /** Reference videos: Kie links (gallery results) or videos from this computer sent in parts (see cinema/video-refs). */
+  videos: z.array(videoRefSchema).max(10).default([]),
   count: z.number().int().min(1).max(8),
 }).strict();
 
@@ -41,15 +44,21 @@ function validate(input: z.infer<typeof createInput>) {
   const offered = (value: string | undefined, list: readonly string[]) => list.length ? value !== undefined && list.includes(value) : value === undefined;
   if (!offered(input.aspect, o.aspectRatios) || !offered(input.resolution, o.resolutions) || !offered(input.duration, o.durations)) return {error: 'INVALID_PARAMETERS'} as const;
   if (input.references.length > o.maxReferences || input.count > o.maxVariants) return {error: 'INVALID_PARAMETERS'} as const;
+  // Videos: only to a model that takes them, within its count, its size per file and its total with the images.
+  const videos = input.videos.length;
+  if (videos > (o.maxVideos || 0) || (o.maxMedia && input.references.length + videos > o.maxMedia)) return {error: 'INVALID_PARAMETERS'} as const;
+  if (input.videos.some(v => typeof v !== 'string' && v.size > videoLimitBytes(o.videoMaxMB))) return {error: 'VIDEO_TOO_LARGE'} as const;
+  if (o.videosRequired && !videos) return {error: 'VIDEO_REQUIRED'} as const;
+  if (o.mediaRequired && !videos && !input.references.length) return {error: 'INVALID_REQUEST'} as const;
   // The prompt as Kie gets it (images named in the model's own words) must fit the limit its page documents.
-  if (String(jobInput(model, {prompt: input.prompt, references: input.references})[o.fields.prompt]).length > promptLimit(o, model.category)) return {error: 'PROMPT_TOO_LONG'} as const;
+  if (String(jobInput(model, {prompt: input.prompt, references: input.references, videos: input.videos.map(() => 'v')})[o.fields.prompt]).length > promptLimit(o, model.category)) return {error: 'PROMPT_TOO_LONG'} as const;
   return {model} as const;
 }
 
 const status: Record<string, number> = {
   MODEL_NOT_CONFIGURED: 503, PROVIDER_AUTH_ERROR: 502, INSUFFICIENT_BALANCE: 402, INVALID_PARAMETERS: 422,
   RATE_LIMIT: 429, PROVIDER_UNAVAILABLE: 502, CREATE_UNCERTAIN: 504, STATUS_UNAVAILABLE: 502, TASK_NOT_FOUND: 404, RESULT_INVALID: 502,
-  REFERENCE_MISSING: 422, UPLOAD_FAILED: 502, PROMPT_TOO_LONG: 422,
+  REFERENCE_MISSING: 422, UPLOAD_FAILED: 502, PROMPT_TOO_LONG: 422, VIDEO_TOO_LARGE: 413, VIDEO_REQUIRED: 422, VIDEO_MISSING: 422,
 };
 const fail = (code: string) => Response.json({error: code}, {status: status[code] || 500, headers: {'Cache-Control': 'no-store'}});
 
@@ -68,6 +77,7 @@ export async function POST(req: Request) {
   }
   try {
     for (const reference of input.references) if (!reference.startsWith('asset:')) await approvedAssetURL(reference);
+    for (const video of input.videos) if (typeof video === 'string') await approvedAssetURL(video);
   } catch {
     return Response.json({error: 'REFERENCE_NOT_ALLOWED'}, {status: 400});
   }
@@ -109,10 +119,27 @@ export async function POST(req: Request) {
     }
   }
 
+  // Reference videos: a gallery result goes as its Kie link; a video from this computer is joined from its parts,
+  // checked against its SHA-256, uploaded to Kie (temporary link) and its parts deleted.
+  const videos: string[] = [];
+  for (const video of input.videos) {
+    if (typeof video === 'string') { videos.push(video); sent.push({reference: video, url: video}); continue; }
+    try {
+      const bytes = await joinVideo(session.user.id, video);
+      if (!bytes) return refuse(fail('VIDEO_MISSING'));
+      const url = await kieUpload(bytes, video.mime, video.sha);
+      videos.push(url);
+      sent.push({reference: 'video:' + video.sha, url, sha256: video.sha, size: bytes.length, mime: video.mime});
+      await deleteAssets(session.user.id, video.parts).catch(() => {});
+    } catch (e) {
+      return refuse(fail(e instanceof UploadError ? e.code : 'VIDEO_MISSING'));
+    }
+  }
+
   const tasks: string[] = [];
   for (let i = 0; i < input.count; i++) {
     try {
-      tasks.push(await createJob(model, {prompt: input.prompt, aspect: input.aspect, resolution: input.resolution, duration: input.duration, references}));
+      tasks.push(await createJob(model, {prompt: input.prompt, aspect: input.aspect, resolution: input.resolution, duration: input.duration, references, videos}));
       if (ledger.state === 'new') await recordRequest(input.requestId, 'pending', tasks);
     } catch (e) {
       const code = e instanceof CinemaError ? e.code : 'PROVIDER_UNAVAILABLE';
@@ -124,6 +151,21 @@ export async function POST(req: Request) {
   }
   if (ledger.state === 'new') await recordRequest(input.requestId, 'created', tasks);
   return Response.json({tasks, sent}, {headers: {'Cache-Control': 'no-store'}});
+}
+
+/** A video sent in parts: the whole file, or null when a part is missing or the bytes are not the declared file. */
+async function joinVideo(userId: string, video: UploadedVideo) {
+  const parts: Uint8Array[] = [];
+  for (const hash of video.parts) {
+    const part = await getAsset(userId, hash);
+    if (!part) return null;
+    parts.push(part.data);
+  }
+  const bytes = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let at = 0;
+  for (const p of parts) { bytes.set(p, at); at += p.length; }
+  if (bytes.length !== video.size || createHash('sha256').update(bytes).digest('hex') !== video.sha) return null;
+  return bytes;
 }
 
 /** Real task state from Kie: waiting, queuing, generating, success or fail. */

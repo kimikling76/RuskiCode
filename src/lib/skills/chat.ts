@@ -57,7 +57,8 @@ export const refValue = (r: MediaRef) => r.kind === 'asset' ? 'asset:' + r.hash 
 export const refSrc = (r: MediaRef) => r.kind === 'asset' ? '/api/sync/assets?hash=' + r.hash : r.url;
 
 export type ImageRun = {skill: 'image-generation'; prompt: string; model: string; aspect: string; resolution: string; count: number; refs: MediaRef[]; batchId?: string; sentAt?: number};
-export type VideoRun = {skill: 'video-generation'; prompt: string; model: string; aspect: string; resolution: string; duration: string; start?: MediaRef; batchId?: string; sentAt?: number};
+/** `videos`: reference videos (Kie links of the gallery, or `video:<sha256>` kept in the browser that chose them). */
+export type VideoRun = {skill: 'video-generation'; prompt: string; model: string; aspect: string; resolution: string; duration: string; start?: MediaRef; videos?: string[]; batchId?: string; sentAt?: number};
 export type PdfTarget = {mode: 'new' | 'append'; unitId: string};
 export type PdfRun = {
   skill: 'pdf-generator'; request: string; state: 'writing' | 'ready' | 'error' | 'saved';

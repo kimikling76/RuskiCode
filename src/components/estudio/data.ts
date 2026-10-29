@@ -87,6 +87,8 @@ type Draft = {
   duration: string;
   count: number;
   references: string[];
+  /** Reference videos for a video model (Kie links, or `video:<sha256>` kept in this browser). */
+  videos?: string[];
   /** The project the results go to from Inicio (a project page always uses its own). */
   project: string | null;
 };

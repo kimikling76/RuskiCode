@@ -151,6 +151,14 @@ export function getAsset(userId: string, hash: string) {
   });
 }
 
+/** Removes files of this person (the parts of a reference video, once Kie has the video). */
+export function deleteAssets(userId: string, hashes: string[]) {
+  return run(async () => {
+    if (!hashes.length) return;
+    await database().$executeRaw`DELETE FROM "sync_asset" WHERE "userId" = ${userId} AND "hash" = ANY(${hashes})`;
+  });
+}
+
 export function missingAssets(userId: string, hashes: string[]) {
   return run(async () => {
     if (!hashes.length) return [];

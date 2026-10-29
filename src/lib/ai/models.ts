@@ -69,12 +69,29 @@ export type MediaOptions = {
     imagesSingle?: boolean;
     /** The duration is a number in Kie's request, not a string. */
     durationNumber?: boolean;
+    /** Reference videos: the field, and whether it takes one link instead of a list. */
+    videos?: string;
+    videosSingle?: boolean;
   };
   aspectRatios: readonly string[];
   resolutions: readonly string[];
   /** What the «resolution» field really is for this model (Calidad, Tamaño); «Resolución» when absent. */
   resolutionLabel?: string;
   durations: readonly string[];
+  /** Reference videos the model takes (0 or absent: none), and what its page says about them. */
+  maxVideos?: number;
+  /** The model needs a video (video to video, motion control). */
+  videosRequired?: boolean;
+  /** Largest file per video, in MB; seconds allowed per video; seconds of all videos together. */
+  videoMaxMB?: number;
+  videoSeconds?: readonly [number, number];
+  videoTotalSeconds?: number;
+  /** How the prompt names the videos sent (`@video_{n}`), when the page says it. */
+  videoMention?: string;
+  /** Images and videos together cannot be more than this. */
+  maxMedia?: number;
+  /** It needs at least one image or one video. */
+  mediaRequired?: boolean;
   /** The longest prompt Kie accepts for this model, in characters, as its page states it. */
   promptMax?: number;
   /** The duration the page gives as default, when it is not the first one offered. */

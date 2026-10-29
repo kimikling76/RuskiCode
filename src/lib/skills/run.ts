@@ -68,7 +68,7 @@ export async function sendMedia(chatId: string, messageId: string, run: ImageRun
   if (run.skill === 'image-generation') {
     await startGeneration({mode: 'create', model: run.model, prompt: run.prompt, aspect: run.aspect, resolution: run.resolution, references: run.refs.map(refValue), count: run.count, batchId});
   } else {
-    await startGeneration({mode: 'video', model: run.model, prompt: run.prompt, aspect: run.aspect, resolution: run.resolution, duration: run.duration || undefined, references: run.start ? [refValue(run.start)] : [], count: 1, batchId});
+    await startGeneration({mode: 'video', model: run.model, prompt: run.prompt, aspect: run.aspect, resolution: run.resolution, duration: run.duration || undefined, references: run.start ? [refValue(run.start)] : [], ...(run.videos?.length ? {videos: run.videos} : {}), count: 1, batchId});
   }
 }
 

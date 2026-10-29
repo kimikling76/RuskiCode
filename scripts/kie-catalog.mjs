@@ -132,7 +132,10 @@ function secondsRange(field) {
 }
 
 // The inputs the studio's image and video screens can give a model.
-const arrayImageFields = ['image_input', 'image_urls', 'input_urls', 'reference_image_urls', 'image_url'];
+const arrayImageFields = ['image_input', 'image_urls', 'input_urls', 'reference_image_urls', 'image_url', 'reference_image'];
+// Reference videos: a list of links, or one link.
+const arrayVideoFields = ['reference_video_urls', 'video_urls', 'reference_video'];
+const singleVideoFields = ['video_url'];
 const singleImageFields = ['image_url', 'first_frame_url'];
 
 function mediaEntry(page, s, opPath, op, category) {
@@ -187,6 +190,32 @@ function mediaEntry(page, s, opPath, op, category) {
     const said = String(f(k).description || '').match(/mention (?:them|it) in the prompt as `@([A-Za-z_]+?)(\d+)?`/i);
     if (said) options.mention = '@' + said[1] + (said[2] ? '{n}' : '');
   }
+  // Reference videos (video models only), with the limits the page states for each file.
+  const videoArray = category === 'video' ? arrayVideoFields.find(k => f(k)?.type === 'array') : undefined;
+  const videoSingle = category === 'video' && !videoArray ? singleVideoFields.find(k => f(k)?.type === 'string') : undefined;
+  if (videoArray || videoSingle) {
+    const k = videoArray || videoSingle;
+    used.add(k);
+    const desc = String(f(k).description || '').replace(/\s+/g, ' ');
+    options.fields.videos = k;
+    if (videoSingle) options.fields.videosSingle = true;
+    options.maxVideos = videoArray ? Math.max(1, Number(f(k).maxItems) || 1) : 1;
+    if (required.has(k) || /exactly (?:1|one) video is required|^\(required\)/i.test(desc)) options.videosRequired = true;
+    const mb = desc.match(/(?:not exceed(?:ing)?|cannot exceed|max(?:imum)? size:?|up to|≤|no larger than)\s*`?(\d+(?:\.\d+)?)\s*`?\s*MB/i);
+    if (mb) options.videoMaxMB = Number(mb[1]);
+    const secs = desc.match(/duration[^0-9\[]{0,30}\[\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*\]\s*s/i)
+      || desc.match(/(\d+(?:\.\d+)?)\s*(?:–|-|to|and)\s*(\d+(?:\.\d+)?)\s*(?:seconds|s\b)/i);
+    if (secs && Number(secs[1]) < Number(secs[2])) options.videoSeconds = [Number(secs[1]), Number(secs[2])];
+    const total = desc.match(/(?:total|combined) duration[^0-9]{0,40}(\d+(?:\.\d+)?)\s*(?:seconds|s\b)/i);
+    if (total) options.videoTotalSeconds = Number(total[1]);
+    const said = desc.match(/mention (?:them|it) in the prompt as `@([A-Za-z_]+?)(\d+)?`/i);
+    if (said) options.videoMention = '@' + said[1] + (said[2] ? '{n}' : '');
+    const both = desc.match(/total number of images and videos cannot exceed (\d+)/i);
+    if (both) options.maxMedia = Number(both[1]);
+    // «At least one of reference_image or reference_video must be provided.»
+    if (/at least one of `?\w*image\w*`? or `?\w*video/i.test(desc)) options.mediaRequired = true;
+  }
+
   // «Every @ mention must match an asset included in this request, otherwise the request is rejected.»
   if (/every `?@`? mention must match/i.test(String(f('prompt').description || ''))) options.strictMentions = true;
 
