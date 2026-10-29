@@ -10,7 +10,7 @@ const ASK_KEY = 'rc-cinema-ask';
 type ImageDraft = {model: string; prompt: string; aspect: AspectRatio; resolution: Resolution; count: number; references: string[]};
 type EditDraft = {source: string | null; instruction: string; count: number};
 /** `model` empty: the tab's first video model. Values another model does not offer fall back to its first option. */
-type VideoDraft = {model: string; prompt: string; aspect: string; resolution: string; duration: string; references: string[]};
+type VideoDraft = {model: string; prompt: string; aspect: string; resolution: string; duration: string; references: string[]; videoReferences: string[]};
 
 type CinemaUi = {
   tab: CinemaTab;
@@ -35,7 +35,7 @@ export const useCinemaUi = create<CinemaUi>((set, get) => ({
   askFirst: true,
   image: {model: 'nano-banana-2-1', prompt: '', aspect: 'auto', resolution: '1K', count: 1, references: []},
   edit: {source: null, instruction: '', count: 1},
-  video: {model: '', prompt: '', aspect: '', resolution: '', duration: '', references: []},
+  video: {model: '', prompt: '', aspect: '', resolution: '', duration: '', references: [], videoReferences: []},
   boardId: null,
   setTab: tab => {
     set({tab});

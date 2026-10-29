@@ -485,3 +485,14 @@
 /* Prompt length against the model's limit: quiet near it, warning past it. */
 .rc-prompt-count { margin: var(--sp-1) 0 0; font-size: var(--fs-13); color: var(--text-muted, inherit); font-variant-numeric: tabular-nums; }
 .rc-prompt-count--over { color: var(--warning); }
+
+/* Video references use real, keyboard-accessible native playback controls. */
+.rc-picker-item video { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.rc-picker-item:disabled { cursor: wait; opacity: .65; }
+.rc-gen-refs--videos { flex-wrap: nowrap; overflow-x: auto; padding-bottom: var(--sp-2); }
+.rc-gen-refs .rc-ref--video { flex-shrink: 0; width: min(240px, 100%); height: auto; aspect-ratio: 16 / 9; overflow: hidden; }
+.rc-ref--video video { width: 100%; height: 100%; object-fit: contain; }
+.rc-ref--video .rc-ref-name { top: 6px; bottom: auto; pointer-events: none; }
+
+/* Keep visually hidden setting labels inside the scrolling controls, including on small screens. */
+.rc-gen .rc-chip-setting { position: relative; }

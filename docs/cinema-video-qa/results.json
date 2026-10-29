@@ -1,0 +1,28 @@
+{
+  "checks": [
+    "390px: invalid/oversize rejected; original MP4 uploaded once; preview/removal; confirmation; payload; saved job survives reload; gallery video; keyboard/Escape; no horizontal overflow; reduced motion; generate visible",
+    "768px: invalid/oversize rejected; original MP4 uploaded once; preview/removal; confirmation; payload; saved job survives reload; gallery video; keyboard/Escape; no horizontal overflow; reduced motion; generate visible",
+    "1280px: failed generation retries with the original video reference",
+    "1280px: invalid/oversize rejected; original MP4 uploaded once; preview/removal; confirmation; payload; saved job survives reload; gallery video; keyboard/Escape; no horizontal overflow; reduced motion; generate visible"
+  ],
+  "screenshots": [
+    "video-reference-390.png",
+    "video-reference-768.png",
+    "video-reference-1280.png"
+  ],
+  "axe": [
+    {
+      "width": 390,
+      "violations": []
+    },
+    {
+      "width": 768,
+      "violations": []
+    },
+    {
+      "width": 1280,
+      "violations": []
+    }
+  ],
+  "pageErrors": []
+}

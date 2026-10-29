@@ -15,6 +15,8 @@ export type CinemaJob = {
   aspect: AspectRatio;
   resolution: Resolution;
   references: string[];
+  /** Original video inputs, kept for retry/regeneration and sync (absent on older jobs). */
+  videoReferences?: string[];
   /** Catalog model id (absent on older jobs: the default image model). */
   model?: string;
   duration?: string;

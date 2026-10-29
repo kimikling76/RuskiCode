@@ -1,10 +1,10 @@
-// Kie's File Upload API (docs.kie.ai/file-upload-api): the Gemini chat models through Kie read images only from an
-// https link. The file goes to Kie's temporary storage, which deletes it 24 hours after upload; the studio keeps its
+// Kie's File Upload API (docs.kie.ai/file-upload-api/upload-file-stream): chat images and Cinema reference
+// videos need an https link. The file goes to Kie's temporary storage, which deletes it 24 hours after upload; the studio keeps its
 // own copy and uploads it again when the link is older than that.
 const UPLOAD = 'https://kieai.redpandaai.co';
 const FRESH_MS = 20 * 3600_000;
 const links = new Map<string, {url: string; at: number}>();
-const extension: Record<string, string> = {'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp'};
+const extension: Record<string, string> = {'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'video/mp4': 'mp4'};
 
 export class UploadError extends Error {
   constructor(public code: 'MODEL_NOT_CONFIGURED' | 'UPLOAD_FAILED') { super(code); }
