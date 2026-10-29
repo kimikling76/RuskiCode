@@ -20,7 +20,8 @@ export const uploadedVideoSchema = z.object({
   parts: z.array(hash).min(1).max(Math.ceil(MAX_VIDEO_BYTES / VIDEO_PART_BYTES)),
 }).strict().refine(v => v.parts.length === Math.ceil(v.size / VIDEO_PART_BYTES), {message: 'parts do not match the size'});
 export type UploadedVideo = z.infer<typeof uploadedVideoSchema>;
-export const videoRefSchema = z.union([z.string().url().max(2000), uploadedVideoSchema]);
+/** A gallery link, a video sent in parts, or an MP4 stored whole in the studio by the first version (`asset:<sha256>`). */
+export const videoRefSchema = z.union([z.string().url().max(2000), z.string().regex(/^asset:[a-f0-9]{64}$/), uploadedVideoSchema]);
 export type VideoRef = z.infer<typeof videoRefSchema>;
 
 /** The limit for one model: its page's, when smaller than the studio's. */

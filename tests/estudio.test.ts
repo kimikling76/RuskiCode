@@ -144,7 +144,7 @@ test('reference videos: the models that take them, sent in the model\'s field an
   // The request: videos in their field (a list, or one link), images apart.
   const link = 'https://tempfile.redpandaai.co/kieai/ruskicode/chat/a.mp4';
   assert.deepEqual(jobInput(seedance, {prompt: 'Baila como @video1', duration: '5', references: [], videos: [link]}).reference_video_urls, [link]);
-  assert.equal(jobInput(edit, {prompt: 'Que sea de noche', references: [], videos: [link, link]}).video_url, link);
+  assert.equal(jobInput(edit, {prompt: 'Que sea de noche', references: [], videos: [link]}).video_url, link);
   // Kling 4.0 names them `@video_1`; every video sent is named, and stray «@» are dropped.
   const k4 = video('kling-4-0-reference-to-video');
   assert.equal(k4.options.videoMention, '@video_{n}');

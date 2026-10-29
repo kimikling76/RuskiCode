@@ -107,7 +107,7 @@ export function retryJob(job: CinemaJob) {
   useCinema.getState().removeJobs([job.id]);
   return startGeneration({
     mode: job.mode, model: job.model, duration: job.duration, prompt: job.prompt, aspect: job.aspect, resolution: job.resolution,
-    references: job.references, ...(job.videos?.length ? {videos: job.videos} : {}), ...(job.clips?.length ? {clips: job.clips} : {}), count: 1, source: job.source, boardId: job.boardId, shotId: job.shotId,
+    references: job.references, ...((job.videos || job.videoReferences)?.length ? {videos: job.videos || job.videoReferences} : {}), ...(job.clips?.length ? {clips: job.clips} : {}), count: 1, source: job.source, boardId: job.boardId, shotId: job.shotId,
     // A picture of /pdf-generator stays in its card's batch, in the same slot.
     ...(job.tag ? {tag: job.tag, batchId: job.batchId} : {}),
     // A retried Estudio picture stays in its project.

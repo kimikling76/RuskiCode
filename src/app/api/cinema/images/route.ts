@@ -81,7 +81,7 @@ export async function POST(req: Request) {
   }
   try {
     for (const reference of input.references) if (!reference.startsWith('asset:')) await approvedAssetURL(reference);
-    for (const video of input.videos) if (typeof video === 'string') await approvedAssetURL(video);
+    for (const video of input.videos) if (typeof video === 'string' && !video.startsWith('asset:')) await approvedAssetURL(video);
   } catch {
     return Response.json({error: 'REFERENCE_NOT_ALLOWED'}, {status: 400});
   }
@@ -127,6 +127,19 @@ export async function POST(req: Request) {
   // checked against its SHA-256, uploaded to Kie (temporary link) and its parts deleted.
   const videos: string[] = [];
   for (const video of input.videos) {
+    if (typeof video === 'string' && video.startsWith('asset:')) {
+      const hash = video.slice(6);
+      try {
+        const asset = await getAsset(session.user.id, hash);
+        if (!asset || asset.mime !== 'video/mp4') return refuse(fail('VIDEO_MISSING'));
+        const url = await kieUpload(asset.data, asset.mime, hash);
+        videos.push(url);
+        sent.push({reference: video, url, sha256: createHash('sha256').update(asset.data).digest('hex'), size: asset.data.length, mime: asset.mime});
+      } catch (e) {
+        return refuse(fail(e instanceof UploadError ? e.code : 'VIDEO_MISSING'));
+      }
+      continue;
+    }
     if (typeof video === 'string') { videos.push(video); sent.push({reference: video, url: video}); continue; }
     try {
       const bytes = await joinVideo(session.user.id, video);

@@ -1,6 +1,7 @@
 'use client';
 import {localStore} from '@/lib/books/local-store';
 import {VIDEO_PART_BYTES, videoMimes, type UploadedVideo, type VideoRef} from './video-refs';
+import {isMP4} from './video-reference';
 
 // Reference videos chosen from this computer. The file stays in this browser (IndexedDB) under `video:<sha256>`,
 // which is what drafts and jobs keep. When a request is sent, the video goes to the studio in parts (see
@@ -66,7 +67,9 @@ export async function addVideoFile(file: File, limits: {maxBytes: number; second
   if (limits.seconds && info.seconds && (info.seconds < limits.seconds[0] || info.seconds > limits.seconds[1])) {
     throw new VideoError('«' + file.name + '» dura ' + secondsText(info.seconds) + ': este modelo acepta videos de ' + limits.seconds[0] + ' a ' + limits.seconds[1] + ' segundos.');
   }
-  const sha = await sha256(await file.arrayBuffer());
+  const buffer = await file.arrayBuffer();
+  if (mime === 'video/mp4' && !isMP4(new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 4096)))) throw new VideoError('«' + file.name + '» no es un MP4 válido. Si usás otro formato, exportalo a MP4 primero.');
+  const sha = await sha256(buffer);
   const meta: LocalVideo = {sha, name: file.name.slice(0, 200), mime, size: file.size, ...info};
   await localStore.set(key(sha), {meta, blob: file} satisfies Stored);
   metas.set(sha, meta);
@@ -104,5 +107,6 @@ async function sendParts(sha: string): Promise<UploadedVideo> {
 
 /** The videos as the request sends them: gallery links as they are, videos of this computer in parts. */
 export function resolveVideos(refs: string[]): Promise<VideoRef[]> {
+  // Gallery links and videos already stored in the studio (`asset:`) go as they are.
   return Promise.all(refs.map(ref => isLocalVideo(ref) ? sendParts(ref.slice(6)) : Promise.resolve(ref)));
 }

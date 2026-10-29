@@ -26,7 +26,7 @@ export function ImageViewer({job, onClose}: {job: CinemaJob | null; onClose: () 
     if (!job) return;
     if (job.mode === 'edit' && job.source) { patchEdit({source: job.source, instruction: job.prompt, count: 1}); setTab('edit'); }
     else if (job.mode === 'shot') setTab('direct');
-    else if (job.mode === 'video') { patchVideo({...(job.model ? {model: job.model} : {}), prompt: job.prompt, aspect: job.aspect, resolution: job.resolution, duration: job.duration || '', references: job.references}); setTab('video'); }
+    else if (job.mode === 'video') { patchVideo({...(job.model ? {model: job.model} : {}), prompt: job.prompt, aspect: job.aspect, resolution: job.resolution, duration: job.duration || '', references: job.references, videos: job.videos || job.videoReferences || [], ...(job.clips && (job.videos || []).length ? {clips: Object.fromEntries(job.videos!.map((v, i) => [v, job.clips![i]]))} : {})}); setTab('video'); }
     else { patchImage({...(job.model ? {model: job.model} : {}), prompt: job.prompt, aspect: job.aspect, resolution: job.resolution, references: job.references, count: 1}); setTab('image'); }
     onClose();
   }
@@ -53,6 +53,7 @@ export function ImageViewer({job, onClose}: {job: CinemaJob | null; onClose: () 
                   {job.resolution ? <><dt>Resolución</dt><dd>{job.resolution}</dd></> : null}
                   {job.duration ? <><dt>Duración</dt><dd>{job.duration} s</dd></> : null}
                   {job.references.length ? <><dt>{video ? 'Imágenes de partida' : 'Referencias'}</dt><dd>{job.references.length}</dd></> : null}
+                  {(job.videos || job.videoReferences)?.length ? <><dt>Videos de referencia</dt><dd>{(job.videos || job.videoReferences)!.length}</dd></> : null}
                   {job.credits !== undefined ? <><dt>Costo</dt><dd>{credits(job.credits)} · informado por Kie</dd></> : null}
                   <dt>Creada</dt><dd>{dateFormat.format(new Date(job.createdAt))}</dd>
                 </dl>

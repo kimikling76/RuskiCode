@@ -35,7 +35,9 @@ export function jobInput(model: ImageModel | VideoModel, input: JobInput) {
   const f = model.options.fields;
   const images = f.images && model.options.maxReferences && input.references.length ? (f.imagesSingle ? input.references.slice(0, 1) : input.references) : [];
   // Required fields with a documented default go first, so a chosen option always wins.
-  const videos = f.videos && model.options.maxVideos && input.videos?.length ? (f.videosSingle ? input.videos.slice(0, 1) : input.videos) : [];
+  const videos = input.videos || [];
+  // Never sent to a model that does not document them, nor more than it takes.
+  if (videos.length && (!f.videos || videos.length > (model.options.maxVideos || 0))) throw new CinemaError('INVALID_PARAMETERS');
   const out: Record<string, unknown> = {...model.options.fixed, [f.prompt]: mentionPrompt(input.prompt, model.options, images.length, videos.length)};
   if (f.images && images.length) out[f.images] = f.imagesSingle ? images[0] : images;
   if (f.videos && videos.length) out[f.videos] = f.videoClips ? videos.map((url, i) => ({url, start: input.clips?.[i]?.start ?? 0, ends: input.clips?.[i]?.ends ?? model.options.videoClipSeconds ?? 10})) : f.videosSingle ? videos[0] : videos;
@@ -53,13 +55,15 @@ export function createImageJob(input: ImageJobInput, transport: typeof fetch = f
 /** One Kie task through the unified jobs API. Kie answers HTTP 200 with the real status in body.code. */
 export async function createJob(model: ImageModel | VideoModel, input: JobInput, transport: typeof fetch = fetch): Promise<string> {
   if (model.adapter !== 'kie-jobs') throw new CinemaError('MODEL_NOT_CONFIGURED');
+  // The request is checked before anything else: a refused one never reaches Kie.
+  const payload = jobInput(model, input);
   const secret = key();
   let response: Response;
   try {
     response = await transport(jobsBase() + '/createTask', {
       method: 'POST',
       headers: {Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json'},
-      body: JSON.stringify({model: model.providerModel, input: jobInput(model, input)}),
+      body: JSON.stringify({model: model.providerModel, input: payload}),
       signal: AbortSignal.timeout(30000),
     });
   } catch {

@@ -14,7 +14,8 @@ const seconds = (s: number) => s.toLocaleString('es-AR', {maximumFractionDigits:
 export function VideoThumb({value, className}: {value: string; className?: string}) {
   const [meta, setMeta] = useState<LocalVideo | null | undefined>(undefined);
   useEffect(() => { if (isLocalVideo(value)) void localVideo(value).then(m => setMeta(m ?? null)); }, [value]);
-  if (!isLocalVideo(value)) return <video className={className} src={value} muted playsInline preload="metadata" aria-hidden="true" />;
+  // A gallery result plays from its Kie link; an MP4 stored in the studio by the first version, from the studio.
+  if (!isLocalVideo(value)) return <video className={className} src={value.startsWith('asset:') ? '/api/sync/assets?hash=' + value.slice(6) : value} muted playsInline preload="metadata" aria-hidden="true" />;
   if (meta?.poster) return <img className={className} src={meta.poster} alt="" />;
   return <span className={(className || '') + ' rc-video-thumb-empty'} aria-hidden="true"><Film /></span>;
 }
