@@ -2,7 +2,7 @@
 import {useMemo, useRef, useState, type KeyboardEvent, type ReactNode} from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
 import * as Popover from '@radix-ui/react-popover';
-import {AtSign, Check, Clapperboard, Clock, Gem, Image as ImageIcon, Loader2, MapPin, Minus, Plus, RectangleHorizontal, ScanLine, Sparkles, User, Video, X} from 'lucide-react';
+import {AtSign, Check, Clapperboard, Clock, Film, Gem, Image as ImageIcon, Loader2, MapPin, Minus, Plus, RectangleHorizontal, ScanLine, Sparkles, User, Video, X} from 'lucide-react';
 import {imageModels, videoModels, enabledStatus, publicModel, promptLimit} from '@/lib/ai/models';
 import {startGeneration} from '@/lib/cinema/client';
 import {ChatModelPicker} from '@/components/studio/chat-model-picker';
@@ -14,7 +14,9 @@ import {composePrompt, lookNames, lookOption, lookOptions, mentioned, mentionQue
 import {useStudioItems} from '@/store/cinema-projects';
 import type {JobBook} from '@/store/cinema';
 import {useBalance} from '@/lib/ai/balance';
-import {authorImageName, mentionPrompt} from '@/lib/cinema/mentions';
+import {authorImageName, authorVideoName, mentionPrompt} from '@/lib/cinema/mentions';
+import {ClipFields, VideoPicker, VideoThumb, useClips, useVideoFit, videoRules} from '@/components/cinema/video-picker';
+import {videoRoom} from '@/lib/cinema/video-refs';
 import {useCast, useEstudioDraft, type CastMember} from './data';
 import {LookThumb} from './look-thumbs';
 
@@ -54,7 +56,7 @@ export function EstudioComposer({project}: {project?: string}) {
   const video = d.mode === 'video';
   const enabled = (video ? videoModels : imageModels).filter(enabledStatus);
   const chosenId = video ? d.videoModel : d.imageModel;
-  const model = enabled.find(m => m.id === chosenId) || (video ? enabled.find(m => m.options.modes.includes('create')) : undefined) || enabled[0];
+  const model = enabled.find(m => m.id === chosenId) || (video ? enabled.find(m => m.options.modes.includes('create') && !m.options.videosRequired && !m.options.mediaRequired) : undefined) || enabled[0];
   const o = model?.options;
   const aspect = pick(d.aspect, o?.aspectRatios || []);
   const resolution = pick(d.resolution, o?.resolutions || []);
@@ -65,6 +67,12 @@ export function EstudioComposer({project}: {project?: string}) {
   const called = useMemo(() => mentioned(d.prompt, cast || []), [d.prompt, cast]);
   const references = referencesFor(d.references, called, max);
   const left = called.filter(m => m.reference && !references.includes(m.reference));
+  // Reference videos (video models that take them), within the model's count and, with the images, its total.
+  const refVideos = video && o ? (d.videos || []).slice(0, videoRoom(o, references.length)) : [];
+  const needsVideo = Boolean(video && o?.videosRequired && !refVideos.length);
+  const needsMedia = Boolean(video && o?.mediaRequired && !refVideos.length && !references.length);
+  const videoFit = useVideoFit(refVideos, o);
+  const clip = useClips(refVideos, d.clips, o);
   const editsOnly = Boolean(o && !o.modes.includes('create'));
   const needsImage = editsOnly && !references.length;
   const limit = promptLimit(o, video ? 'video' : 'image');
@@ -79,14 +87,15 @@ export function EstudioComposer({project}: {project?: string}) {
   };
   const prompt = composePrompt(d.prompt, d.looks, called, pictureOf);
   // Kie refuses a prompt longer than the model's documented limit: what is sent (with the cast and the style) must fit.
-  const sentText = prompt && o ? mentionPrompt(prompt, o, o.fields.images ? (o.fields.imagesSingle ? Math.min(1, references.length) : references.length) : 0) : '';
-  const ready = Boolean(model && d.prompt.trim()) && !needsImage && sentText.length <= limit;
+  const sentText = prompt && o ? mentionPrompt(prompt, o, o.fields.images ? (o.fields.imagesSingle ? Math.min(1, references.length) : references.length) : 0, refVideos.length) : '';
+  const ready = Boolean(model && d.prompt.trim()) && !needsImage && !needsVideo && !needsMedia && !videoFit && !clip.problem && sentText.length <= limit;
   const estimate = model?.price ? model.price.credits * count : null;
   // The button's second line: the catalog's estimate when Kie publishes a price, otherwise the real Kie balance.
   const balance = useBalance().data?.credits;
   const label = video ? 'Generar video' : count === 1 ? 'Generar' : 'Generar ' + count;
 
   const [picker, setPicker] = useState<'refs' | 'frame' | null>(null);
+  const [videoPicker, setVideoPicker] = useState(false);
   const [menu, setMenu] = useState<{query: string; index: number} | null>(null);
   const box = useRef<HTMLTextAreaElement>(null);
 
@@ -105,7 +114,7 @@ export function EstudioComposer({project}: {project?: string}) {
       return startGeneration({
         mode: video ? 'video' : 'create', model: model.id, prompt,
         aspect: o.aspectRatios.length ? aspect : '', resolution: o.resolutions.length ? resolution : '', duration: o.durations.length ? duration : undefined,
-        references, count, ...(target ? {studio: target} : {}), ...(book ? {book} : {}),
+        references, ...(refVideos.length ? {videos: refVideos, ...(clip.clips.length ? {clips: clip.clips} : {})} : {}), count, ...(target ? {studio: target} : {}), ...(book ? {book} : {}),
       });
     },
     facts: model && o ? [
@@ -115,6 +124,7 @@ export function EstudioComposer({project}: {project?: string}) {
       ...(o.resolutions.length ? [[o.resolutionLabel || 'Calidad', optionLabel(resolution)] as [string, string]] : []),
       ...(o.durations.length ? [['Duración', duration + ' s'] as [string, string]] : []),
       ...(references.length ? [['Referencias', String(references.length)] as [string, string]] : []),
+      ...(refVideos.length ? [['Videos de referencia', String(refVideos.length)] as [string, string]] : []),
       ...(called.length ? [['Con', called.map(m => m.name).join(', ')] as [string, string]] : []),
       ...(target ? [['Proyecto', projects.find(p => p.id === target)?.name || 'Proyecto'] as [string, string]] : []),
       ...(estimate !== null ? [['Costo', '≈ ' + estimate.toLocaleString('es-AR') + ' créditos estimados; el real lo informa Kie al terminar'] as [string, string]] : []),
@@ -250,6 +260,18 @@ export function EstudioComposer({project}: {project?: string}) {
                 })}
               </div>
             ) : null}
+            {refVideos.length ? (
+              <div className="rc-gen-refs" role="group" aria-label="Videos de referencia que se envían">
+                {refVideos.map((ref, i) => (
+                  <span key={ref} className="rc-ref rc-ref--video">
+                    <VideoThumb value={ref} />
+                    <span className="rc-ref-name">{authorVideoName(i + 1)}</span>
+                    <button type="button" className="rc-ref-remove" aria-label={'Quitar el video ' + (i + 1)} onClick={() => d.patch({videos: (d.videos || []).filter(v => v !== ref)})}><X /></button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            {clip.clips.length && o ? <ClipFields refs={refVideos} clips={clip.clips} lengths={clip.lengths} o={o} onChange={(ref, c) => d.patch({clips: {...d.clips, [ref]: c}})} /> : null}
             <div className="rc-es-write">
               <label className="sr-only" htmlFor="estudio-prompt">Describí la escena</label>
               <TextareaAutosize
@@ -288,6 +310,9 @@ export function EstudioComposer({project}: {project?: string}) {
             {unknownImages.length ? <p className="rc-es-note" role="status">No hay {unknownImages.map(authorImageName).join(' ni ')}: {sentCount ? 'elegiste ' + sentCount + (sentCount === 1 ? ' imagen' : ' imágenes') : max ? 'todavía no elegiste ninguna imagen' : model.name + ' no recibe imágenes'}.</p> : null}
             {left.length ? <p className="rc-es-note" role="status">{model.name} recibe hasta {max} {max === 1 ? 'imagen' : 'imágenes'}: {left.map(m => m.name).join(', ')} va{left.length === 1 ? '' : 'n'} solo con su descripción.</p> : null}
             {needsImage ? <p className="rc-es-note" role="status">{model.name} {video ? 'anima' : 'edita'} una imagen: elegí una con «+» o con el cuadro.</p> : null}
+            {needsVideo ? <p className="rc-es-note" role="status">{model.name} trabaja sobre un video: elegí uno con el botón de video.</p> : null}
+            {needsMedia ? <p className="rc-es-note" role="status">{model.name} necesita al menos una imagen o un video de referencia.</p> : null}
+            {videoFit || clip.problem ? <p className="rc-es-note" role="status">{videoFit || clip.problem}</p> : null}
 
             <div className="rc-es-bar">
               <Tip label={max ? 'Agregar referencias de la galería o de tu computadora' : 'Este modelo no recibe imágenes'}>
@@ -299,6 +324,11 @@ export function EstudioComposer({project}: {project?: string}) {
               <Tip label={max ? (video ? 'Imagen inicial (el primer cuadro del video)' : 'Imagen de partida') : 'Este modelo no recibe imágenes'}>
                 <span className="rc-es-tip"><button type="button" className="rc-es-pill rc-es-pill--icon" aria-label={video ? 'Elegir la imagen inicial' : 'Elegir la imagen de partida'} disabled={!max} onClick={() => setPicker('frame')}><ScanLine /></button></span>
               </Tip>
+              {video && o?.maxVideos ? (
+                <Tip label={'Videos de referencia (hasta ' + o.maxVideos + '): ' + videoRules(o) + ' En la escena se llama' + (o.maxVideos > 1 ? 'n @video1, @video2…' : ' @video1') + '.'}>
+                  <button type="button" className="rc-es-pill rc-es-pill--icon" aria-label="Agregar videos de referencia de la galería o de tu computadora" onClick={() => setVideoPicker(true)}><Film /></button>
+                </Tip>
+              ) : null}
               <div className="rc-es-model">
                 <ChatModelPicker models={video ? videos : images} value={model.id} onChange={id => d.patch(video ? {videoModel: id} : {imageModel: id})} category={video ? 'video' : 'image'} allowAuto={false} title={video ? 'Modelo de video' : 'Modelo de imagen'} />
               </div>
@@ -362,6 +392,7 @@ export function EstudioComposer({project}: {project?: string}) {
         </details>
       </div>
 
+      {video && o?.maxVideos ? <VideoPicker open={videoPicker} onClose={() => setVideoPicker(false)} options={o} max={Math.max(1, videoRoom(o, references.length))} initial={refVideos} onChoose={v => d.patch({videos: v})} /> : null}
       <GalleryPicker
         open={picker !== null}
         onClose={() => setPicker(null)}

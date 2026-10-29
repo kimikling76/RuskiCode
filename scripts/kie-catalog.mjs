@@ -132,7 +132,10 @@ function secondsRange(field) {
 }
 
 // The inputs the studio's image and video screens can give a model.
-const arrayImageFields = ['image_input', 'image_urls', 'input_urls', 'reference_image_urls', 'image_url'];
+const arrayImageFields = ['image_input', 'image_urls', 'input_urls', 'reference_image_urls', 'image_url', 'reference_image'];
+// Reference videos: a list of links, or one link.
+const arrayVideoFields = ['reference_video_urls', 'video_urls', 'reference_video'];
+const singleVideoFields = ['video_url'];
 const singleImageFields = ['image_url', 'first_frame_url'];
 
 function mediaEntry(page, s, opPath, op, category) {
@@ -180,20 +183,60 @@ function mediaEntry(page, s, opPath, op, category) {
     // where an image can be given (/video-generation in the Chat); modes ['edit'] marks that.
     options.fields.images = k;
     if (singleField) options.fields.imagesSingle = true;
-    options.maxReferences = arrayField ? Math.max(1, Number(f(k).maxItems) || 1) : 1;
+    // Without maxItems, the count the description gives («Max 7 images», «Maximum of 7 images»).
+    const saidMax = Number((String(f(k).description || '').match(/max(?:imum)?(?: of)? (\d+) images?/i) || [])[1]);
+    options.maxReferences = arrayField ? Math.max(1, Number(f(k).maxItems) || saidMax || 1) : 1;
     options.modes = imagesRequired ? ['edit'] : ['create', 'edit'];
     // How the prompt names these images, when the page says it: «Mention them in the prompt as `@image_1`, …»
     // (numbered, kept as `@image_{n}`) or «Mention it in the prompt as `@first_frame`».
     const said = String(f(k).description || '').match(/mention (?:them|it) in the prompt as `@([A-Za-z_]+?)(\d+)?`/i);
     if (said) options.mention = '@' + said[1] + (said[2] ? '{n}' : '');
   }
-  // Optional video references verified in Kling 4.0's official page (2026-10-29).
-  // Other video inputs stay unavailable until their complete requirements have been implemented.
-  if (providerModel === 'kling-4.0/reference-to-video' && f('video_urls')?.type === 'array' && f('video_urls').maxItems === 5) {
-    used.add('video_urls');
-    options.fields.videos = 'video_urls';
-    options.videoReferences = {max: 5, minSeconds: 2, maxSeconds: 30, mention: '@video_{n}'};
+  // Reference videos (video models only), with the limits the page states for each file.
+  const videoArray = category === 'video' ? arrayVideoFields.find(k => f(k)?.type === 'array') : undefined;
+  const videoSingle = category === 'video' && !videoArray ? singleVideoFields.find(k => f(k)?.type === 'string') : undefined;
+  if (videoArray || videoSingle) {
+    const k = videoArray || videoSingle;
+    used.add(k);
+    const desc = String(f(k).description || '').replace(/\s+/g, ' ');
+    options.fields.videos = k;
+    if (videoSingle) options.fields.videosSingle = true;
+    options.maxVideos = videoArray ? Math.max(1, Number(f(k).maxItems) || 1) : 1;
+    if (required.has(k) || /exactly (?:1|one) video is required|^\(required\)/i.test(desc)) options.videosRequired = true;
+    const mb = desc.match(/(?:not exceed(?:ing)?|cannot exceed|max(?:imum)? size:?|up to|≤|no larger than)\s*`?(\d+(?:\.\d+)?)\s*`?\s*MB/i);
+    if (mb) options.videoMaxMB = Number(mb[1]);
+    const secs = desc.match(/duration[^0-9\[]{0,30}\[\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*\]\s*s/i)
+      || desc.match(/(\d+(?:\.\d+)?)\s*(?:–|-|to|and)\s*(\d+(?:\.\d+)?)\s*(?:seconds|s\b)/i);
+    if (secs && Number(secs[1]) < Number(secs[2])) options.videoSeconds = [Number(secs[1]), Number(secs[2])];
+    const total = desc.match(/(?:total|combined) duration[^0-9]{0,40}(\d+(?:\.\d+)?)\s*(?:seconds|s\b)/i);
+    if (total) options.videoTotalSeconds = Number(total[1]);
+    const said = desc.match(/mention (?:them|it) in the prompt as `@([A-Za-z_]+?)(\d+)?`/i);
+    if (said) options.videoMention = '@' + said[1] + (said[2] ? '{n}' : '');
+    const both = desc.match(/total number of images and videos cannot exceed (\d+)/i);
+    if (both) options.maxMedia = Number(both[1]);
+    // «At least one of reference_image or reference_video must be provided.»
+    if (/at least one of `?\w*image\w*`? or `?\w*video/i.test(desc)) options.mediaRequired = true;
   }
+
+  // Gemini Omni: `video_list`, clips of a video, each {url, start, ends} with a trim of a few seconds.
+  const clips = category === 'video' && !options.fields.videos && f('video_list')?.type === 'array' ? r(f('video_list').items || {}) : null;
+  if (clips && clips.properties?.url && clips.properties?.start && clips.properties?.ends) {
+    const desc = String(f('video_list').description || '').replace(/\s+/g, ' ');
+    used.add('video_list');
+    options.fields.videos = 'video_list';
+    options.fields.videoClips = true;
+    options.maxVideos = Number(f('video_list').maxItems) || Number((desc.match(/max(?:imum)?(?: of)? (\d+) items?/i) || [])[1]) || 1;
+    const mb = desc.match(/(?:no larger than|not exceed)\s*`?(\d+(?:\.\d+)?)\s*`?\s*MB/i);
+    if (mb) options.videoMaxMB = Number(mb[1]);
+    const long = desc.match(/video duration must not exceed `?(\d+(?:\.\d+)?)\s*s/i);
+    if (long) options.videoSeconds = [0.5, Number(long[1])];
+    const clip = desc.match(/difference between the end (?:time )?and (?:the )?start times? must not exceed `?(\d+(?:\.\d+)?)\s*s/i);
+    if (clip) options.videoClipSeconds = Number(clip[1]);
+    // «Total slots (images + videos × 2 + character slots) ≤ 7»: each video takes two image slots.
+    const slots = String(f('character_ids')?.description || '').match(/videos × (\d+)[^≤]*≤\s*(\d+)/);
+    if (slots) { options.videoSlots = Number(slots[1]); options.maxMedia = Number(slots[2]); }
+  }
+
   // «Every @ mention must match an asset included in this request, otherwise the request is rejected.»
   if (/every `?@`? mention must match/i.test(String(f('prompt').description || ''))) options.strictMentions = true;
 

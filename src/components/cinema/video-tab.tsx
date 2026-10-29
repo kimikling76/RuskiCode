@@ -1,7 +1,7 @@
 'use client';
 import {useMemo, useState} from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
-import {ArrowUpRight, ImagePlus, Video, Sparkles, X} from 'lucide-react';
+import {ArrowUpRight, Film, ImagePlus, Sparkles, X} from 'lucide-react';
 import {videoModels, enabledStatus, publicModel, promptLimit} from '@/lib/ai/models';
 import {useCinema, type CinemaJob} from '@/store/cinema';
 import {useCinemaUi} from '@/store/cinema-ui';
@@ -11,7 +11,9 @@ import {Tip} from '@/components/ui/tooltip';
 import {AskFirst, AspectPicker, PromptCount, Segmented, SettingChip, aspectName, optionLabel, useGenerateConfirm} from './controls';
 import {JobCard} from './job-card';
 import {GalleryPicker, refSrc} from './gallery-picker';
-import {authorImageName} from '@/lib/cinema/mentions';
+import {authorImageName, authorVideoName} from '@/lib/cinema/mentions';
+import {ClipFields, VideoPicker, VideoThumb, useClips, useVideoFit, videoRules} from './video-picker';
+import {videoRoom} from '@/lib/cinema/video-refs';
 import {PromptAssistant} from './prompt-assistant';
 
 // Video: the same frame as Image. The results take the screen and the request is written below them; each setting is
@@ -30,9 +32,8 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
   const [assistant, setAssistant] = useState(false);
   const enabled = videoModels.filter(enabledStatus);
   // Until one is chosen, the first model that works from a prompt alone.
-  const model = enabled.find(m => m.id === draft.model) || enabled.find(m => m.options.modes.includes('create')) || enabled[0];
+  const model = enabled.find(m => m.id === draft.model) || enabled.find(m => m.options.modes.includes('create') && !m.options.videosRequired && !m.options.mediaRequired) || enabled[0];
 
-  const videoPickerModel = model?.options.videoReferences ? model : enabled.find(m => m.options.videoReferences);
   const o = model?.options;
   // A value chosen for another model falls back to this model's first option.
   const pick = (value: string, list: readonly string[]) => list.includes(value) ? value : list[0] || '';
@@ -41,8 +42,12 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
   // The chosen seconds while the model accepts them; otherwise its documented default.
   const duration = pick(o?.durations.includes(draft.duration || '') ? draft.duration || '' : o?.durationDefault || '', o?.durations || []);
   const references = draft.references.slice(0, o?.maxReferences || 0);
-  const videoReferences = draft.videoReferences;
-  const incompatibleVideos = Boolean(videoReferences.length && (!o?.videoReferences || videoReferences.length > o.videoReferences.max));
+  // Reference videos, within the model's count and, with images, its total.
+  const videos = (draft.videos || []).slice(0, o ? videoRoom(o, references.length) : 0);
+  const needsVideo = Boolean(o?.videosRequired && !videos.length);
+  const needsMedia = Boolean(o?.mediaRequired && !videos.length && !references.length);
+  const videoFit = useVideoFit(videos, o);
+  const clip = useClips(videos, draft.clips, o);
   const resolutionLabel = o?.resolutionLabel || 'Resolución';
   // A model that only animates a picture needs its starting image.
   const animates = Boolean(o && !o.modes.includes('create'));
@@ -50,14 +55,14 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
   const start = o?.maxReferences === 1;
   const imagesName = start ? 'Imagen inicial' : 'Referencias';
   const limit = promptLimit(o, 'video');
-  const ready = Boolean(draft.prompt.trim()) && !needsImage && !incompatibleVideos && draft.prompt.trim().length <= limit;
+  const ready = Boolean(draft.prompt.trim()) && !needsImage && !needsVideo && !needsMedia && !videoFit && !clip.problem && draft.prompt.trim().length <= limit;
   const label = 'Generar video';
 
   const {request, dialog, busy} = useGenerateConfirm({
     label,
     onGenerate: () => {
       if (!model || !o) return;
-      return startGeneration({mode: 'video', model: model.id, prompt: draft.prompt.trim(), aspect: o.aspectRatios.length ? aspect : '', resolution: o.resolutions.length ? resolution : '', duration: o.durations.length ? duration : undefined, references, videoReferences, count: 1});
+      return startGeneration({mode: 'video', model: model.id, prompt: draft.prompt.trim(), aspect: o.aspectRatios.length ? aspect : '', resolution: o.resolutions.length ? resolution : '', duration: o.durations.length ? duration : undefined, references, videos, ...(clip.clips.length ? {clips: clip.clips} : {}), count: 1});
     },
     facts: model && o ? [
       ['Modelo', model.name],
@@ -65,7 +70,7 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
       ...(o.resolutions.length ? [[resolutionLabel, optionLabel(resolution)] as [string, string]] : []),
       ...(o.durations.length ? [['Duración', duration + ' s'] as [string, string]] : []),
       ...(references.length ? [[imagesName, String(references.length)] as [string, string]] : []),
-      ...(videoReferences.length ? [['Videos de referencia', String(videoReferences.length)] as [string, string]] : []),
+      ...(videos.length ? [['Videos de referencia', String(videos.length)] as [string, string]] : []),
       ...(model.price ? [['Costo', estimate(model.price) + '; el real lo informa Kie al terminar'] as [string, string]] : []),
     ] : [],
   });
@@ -116,7 +121,13 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
               <span>{model.name} anima una imagen: elegí la imagen inicial de tu galería o de tu computadora.</span>
             </div>
           ) : null}
-          {incompatibleVideos ? <p className="rc-notice" role="status">Este modelo no acepta los videos adjuntos. Elegí uno compatible o quitalos para generar.</p> : null}
+          {needsVideo || needsMedia ? (
+            <div className="rc-notice" role="status">
+              <span className="rc-dot" aria-hidden="true" />
+              <span>{needsVideo ? model.name + ' trabaja sobre un video: elegí uno de tu galería o de tu computadora.' : model.name + ' necesita al menos una imagen o un video de referencia.'}</span>
+            </div>
+          ) : null}
+          {videoFit || clip.problem ? <div className="rc-notice" role="status"><span className="rc-dot" aria-hidden="true" /><span>{videoFit || clip.problem}</span></div> : null}
           <form className="rc-composer rc-gen" aria-label="Generar video" onSubmit={e => { e.preventDefault(); generate(); }}>
             {references.length ? (
               <div className="rc-gen-refs" aria-label={imagesName} role="group">
@@ -129,17 +140,18 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
                 ))}
               </div>
             ) : null}
-            {videoReferences.length ? (
-              <div className="rc-gen-refs rc-gen-refs--videos" role="group" aria-label="Videos de referencia">
-                {videoReferences.map((url, i) => (
-                  <span key={url} className="rc-ref rc-ref--video">
-                    <video src={refSrc(url)} controls playsInline preload="metadata" aria-label={'Vista previa de @video' + (i + 1)} />
-                    <span className="rc-ref-name">@video{i + 1}</span>
-                    <button type="button" className="rc-ref-remove" aria-label={'Quitar video ' + (i + 1)} onClick={() => patch({videoReferences: videoReferences.filter(u => u !== url)})}><X /></button>
+            {videos.length ? (
+              <div className="rc-gen-refs" aria-label="Videos de referencia" role="group">
+                {videos.map((ref, i) => (
+                  <span key={ref} className="rc-ref rc-ref--video">
+                    <VideoThumb value={ref} />
+                    <span className="rc-ref-name">{authorVideoName(i + 1)}</span>
+                    <button type="button" className="rc-ref-remove" aria-label={'Quitar el video ' + (i + 1)} onClick={() => patch({videos: (draft.videos || []).filter(v => v !== ref)})}><X /></button>
                   </span>
                 ))}
               </div>
             ) : null}
+            {clip.clips.length ? <ClipFields refs={videos} clips={clip.clips} lengths={clip.lengths} o={o} onChange={(ref, c) => patch({clips: {...draft.clips, [ref]: c}})} /> : null}
             <label className="sr-only" htmlFor="cinema-video-prompt">Prompt del video</label>
             <TextareaAutosize
               id="cinema-video-prompt"
@@ -162,10 +174,10 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
                     </button>
                   </Tip>
                 ) : null}
-                {videoPickerModel ? (
-                  <Tip label="Agregá un video desde tu computadora o galería. Se usará un modelo compatible; lo verás antes de generar.">
-                    <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm" onClick={() => setVideoPicker(true)}>
-                      <Video aria-hidden="true" />Agregar video{videoReferences.length ? ' · ' + videoReferences.length : ''}
+                {o.maxVideos ? (
+                  <Tip label={'Videos de referencia (hasta ' + o.maxVideos + '): ' + videoRules(o) + ' En el texto se llama' + (o.maxVideos > 1 ? 'n @video1, @video2…' : ' @video1') + '.'}>
+                    <button type="button" className="rc-icon-btn" aria-label="Agregar videos de referencia de la galería o de tu computadora" onClick={() => setVideoPicker(true)}>
+                      <Film />{videos.length ? <span className="rc-gen-count" aria-hidden="true">{videos.length}</span> : null}
                     </button>
                   </Tip>
                 ) : null}
@@ -191,7 +203,7 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
               </div>
               <div className="rc-gen-actions">
                 <AskFirst id="cinema-video-ask-first" />
-                <Tip label={ready ? label : incompatibleVideos ? 'Cambiá de modelo o quitá los videos' : needsImage ? 'Elegí la imagen inicial' : draft.prompt.trim().length > limit ? 'Acortá el texto' : 'Escribí el prompt'} shortcut={ready ? 'Ctrl+Enter' : undefined}>
+                <Tip label={ready ? label : needsImage ? 'Elegí la imagen inicial' : needsVideo ? 'Elegí el video' : needsMedia ? 'Elegí una imagen o un video' : draft.prompt.trim().length > limit ? 'Acortá el texto' : 'Escribí el prompt'} shortcut={ready ? 'Ctrl+Enter' : undefined}>
                   <span className="rc-gen-submit">
                     <button type="submit" className="rc-btn rc-btn--primary" disabled={!ready || busy}>{label}</button>
                   </span>
@@ -212,16 +224,7 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
         upload
         onChoose={references => patch({references})}
       />
-      {videoPickerModel?.options.videoReferences ? <GalleryPicker
-        open={videoPicker}
-        onClose={() => setVideoPicker(false)}
-        max={videoPickerModel.options.videoReferences.max}
-        initial={videoReferences}
-        title={"Agregar video · " + videoPickerModel.name}
-        upload
-        video={videoPickerModel.options.videoReferences}
-        onChoose={videoReferences => patch({videoReferences, ...(videoReferences.length ? {model: videoPickerModel.id} : {})})}
-      /> : null}
+      {o.maxVideos ? <VideoPicker open={videoPicker} onClose={() => setVideoPicker(false)} options={o} max={Math.max(1, videoRoom(o, references.length))} initial={videos} onChoose={videos => patch({videos})} /> : null}
       <PromptAssistant open={assistant} onClose={() => setAssistant(false)} initial={draft.prompt} onUse={prompt => patch({prompt})} video />
     </div>
   );

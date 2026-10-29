@@ -118,3 +118,75 @@ test('each model takes the longest prompt its page documents; without one, 20 00
   assert.equal(limit('gpt-image-2-image-to-image'), 20000);
   for (const m of [...imageModels, ...videoModels].filter(enabledStatus)) assert.ok(promptLimit(m.options, m.category) >= 200, m.id);
 });
+
+test('reference videos: the models that take them, sent in the model\'s field and named @video1, @video2…', async () => {
+  const {jobInput} = await import('../src/lib/cinema/kie-jobs');
+  const {findModel} = await import('../src/lib/ai/models');
+  const {mentionPrompt} = await import('../src/lib/cinema/mentions');
+  const {uploadedVideoSchema, videoLimitBytes, VIDEO_PART_BYTES} = await import('../src/lib/cinema/video-refs');
+  const video = (id: string) => { const m = findModel(id); assert.ok(m && m.category === 'video', id); return m; };
+  // What each page documents: field, count, size per file, seconds per video and in total.
+  const seedance = video('bytedance-seedance-2');
+  assert.equal(seedance.options.fields.videos, 'reference_video_urls');
+  assert.equal(seedance.options.maxVideos, 3);
+  assert.equal(seedance.options.videoMaxMB, 50);
+  assert.deepEqual(seedance.options.videoSeconds, [2, 15]);
+  assert.equal(seedance.options.videoTotalSeconds, 15);
+  const v2v = video('wan-2-6-video-to-video');
+  assert.equal(v2v.status, 'docs');
+  assert.ok(v2v.options.videosRequired);
+  assert.equal(v2v.options.videoMaxMB, 10);
+  const r2v = video('wan-2-7-r2v');
+  assert.equal(r2v.options.maxMedia, 5);
+  assert.ok(r2v.options.mediaRequired);
+  const edit = video('happyhorse-video-edit');
+  assert.ok(edit.options.fields.videosSingle && edit.options.videosRequired);
+  // The request: videos in their field (a list, or one link), images apart.
+  const link = 'https://tempfile.redpandaai.co/kieai/ruskicode/chat/a.mp4';
+  assert.deepEqual(jobInput(seedance, {prompt: 'Baila como @video1', duration: '5', references: [], videos: [link]}).reference_video_urls, [link]);
+  assert.equal(jobInput(edit, {prompt: 'Que sea de noche', references: [], videos: [link]}).video_url, link);
+  // Kling 4.0 names them `@video_1`; every video sent is named, and stray «@» are dropped.
+  const k4 = video('kling-4-0-reference-to-video');
+  assert.equal(k4.options.videoMention, '@video_{n}');
+  assert.equal(jobInput(k4, {prompt: 'Como en @video1, con @image1', duration: '5', references: ['https://tempfile.aiquickdraw.com/a.png'], videos: [link, link]}).prompt, 'Como en @video_1, con @image_1\n\nUse @video_2.');
+  // Elsewhere «@video1» becomes «video 1».
+  assert.equal(mentionPrompt('Como @video1', {}, 0, 1), 'Como video 1');
+  // A video from this computer travels in parts; the parts must match the size.
+  const sha = 'a'.repeat(64);
+  assert.ok(uploadedVideoSchema.safeParse({sha, mime: 'video/mp4', size: VIDEO_PART_BYTES + 1, parts: ['b'.repeat(64), 'c'.repeat(64)]}).success);
+  assert.equal(uploadedVideoSchema.safeParse({sha, mime: 'video/mp4', size: VIDEO_PART_BYTES + 1, parts: ['b'.repeat(64)]}).success, false);
+  assert.equal(uploadedVideoSchema.safeParse({sha, mime: 'video/webm', size: 10, parts: ['b'.repeat(64)]}).success, false);
+  // The studio never passes on more than 50 MB; a page may allow less.
+  assert.equal(videoLimitBytes(200), 50_000_000);
+  assert.equal(videoLimitBytes(10), 10_000_000);
+});
+
+test('Gemini Omni: one video as a clip {url, start, ends} of up to 10 s, taking two of its seven image slots', async () => {
+  const {jobInput} = await import('../src/lib/cinema/kie-jobs');
+  const {findModel} = await import('../src/lib/ai/models');
+  const {clipProblem, defaultClip, videoRoom} = await import('../src/lib/cinema/video-refs');
+  for (const id of ['gemini-omni-video', 'google-gemini-omni-flash-1-1']) {
+    const m = findModel(id);
+    assert.ok(m && m.category === 'video', id);
+    const o = m.options;
+    assert.ok(o.fields.videoClips);
+    assert.equal(o.fields.videos, 'video_list');
+    assert.equal(o.maxReferences, 7);
+    assert.equal(o.maxVideos, 1);
+    assert.equal(o.videoClipSeconds, 10);
+    assert.deepEqual(o.videoSeconds, [0.5, 30]);
+    assert.equal(o.videoSlots, 2);
+    assert.equal(o.maxMedia, 7);
+    // With 5 images there is room for one video (2 slots); with 6, none.
+    assert.equal(videoRoom(o, 5), 1);
+    assert.equal(videoRoom(o, 6), 0);
+    const link = 'https://tempfile.redpandaai.co/kieai/ruskicode/chat/a.mp4';
+    assert.deepEqual(jobInput(m, {prompt: 'Como @video1', duration: '8', references: [], videos: [link], clips: [{start: 2, ends: 9.5}]}).video_list, [{url: link, start: 2, ends: 9.5}]);
+    assert.deepEqual(defaultClip(o, 4), {start: 0, ends: 4});
+    assert.deepEqual(defaultClip(o), {start: 0, ends: 10});
+    assert.equal(clipProblem({start: 0, ends: 12}, o), 'El tramo dura 12 s: este modelo toma hasta 10 s.');
+    assert.match(clipProblem({start: 3, ends: 2}, o), /después del comienzo/);
+    assert.match(clipProblem({start: 20, ends: 28}, o, 25), /pasa el largo del video/);
+    assert.equal(clipProblem({start: 20, ends: 28}, o), '');
+  }
+});

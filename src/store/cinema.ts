@@ -15,8 +15,12 @@ export type CinemaJob = {
   aspect: AspectRatio;
   resolution: Resolution;
   references: string[];
-  /** Original video inputs, kept for retry/regeneration and sync (absent on older jobs). */
+  /** Reference videos sent with it (Kie links, or `video:<sha256>` kept in the browser that sent it). */
+  videos?: string[];
+  /** The same, as the first version of reference videos saved it (MP4 stored in the studio as `asset:<sha256>`). */
   videoReferences?: string[];
+  /** The part of each video used, for models that take clips. */
+  clips?: {start: number; ends: number}[];
   /** Catalog model id (absent on older jobs: the default image model). */
   model?: string;
   duration?: string;

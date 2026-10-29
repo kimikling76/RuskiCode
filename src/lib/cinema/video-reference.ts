@@ -1,6 +1,3 @@
-/** The studio's existing upload limit, below Vercel's request-body limit. Not a Kie model limit. */
-export const MAX_VIDEO_BYTES = 4_000_000;
-
 /** Reject mislabeled files before storing/uploading them. MP4 is an ISO-BMFF file with an ftyp box. */
 export function isMP4(bytes: Uint8Array) {
   if (bytes.length < 16) return false;

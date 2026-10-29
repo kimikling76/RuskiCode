@@ -2,6 +2,7 @@
 import {toast} from 'sonner';
 import {useCinema, type CinemaJob, type JobBook, type JobMode, type SentRef} from '@/store/cinema';
 import type {AspectRatio, Resolution} from './capabilities';
+import {resolveVideos, VideoError} from './video-local';
 
 export type GenerationRequest = {
   mode: JobMode;
@@ -11,7 +12,10 @@ export type GenerationRequest = {
   aspect: AspectRatio;
   resolution: Resolution;
   references: string[];
-  videoReferences?: string[];
+  /** Reference videos: Kie links (gallery) or `video:<sha256>` kept in this browser. */
+  videos?: string[];
+  /** The part of each video to use, for models that take clips. */
+  clips?: {start: number; ends: number}[];
   count: number;
   source?: string;
   boardId?: string;
@@ -42,7 +46,8 @@ export async function startGeneration(request: GenerationRequest) {
     aspect: request.aspect,
     resolution: request.resolution,
     references: request.references,
-    ...(request.videoReferences?.length ? {videoReferences: request.videoReferences} : {}),
+    ...(request.videos?.length ? {videos: request.videos} : {}),
+    ...(request.clips?.length ? {clips: request.clips} : {}),
     model: request.model,
     duration: request.duration,
     source: request.source,
@@ -56,6 +61,15 @@ export async function startGeneration(request: GenerationRequest) {
     createdAt: now,
   }));
   addJobs(jobs);
+  // Videos from this computer go to the studio in parts first (the server joins them for Kie).
+  let videos: Awaited<ReturnType<typeof resolveVideos>> = [];
+  try {
+    if (request.videos?.length) videos = await resolveVideos(request.videos);
+  } catch (e) {
+    const code = e instanceof VideoError && e.message === 'VIDEO_NOT_HERE' ? 'VIDEO_NOT_HERE' : 'UPLOAD_FAILED';
+    jobs.forEach(job => updateJob(job.id, {state: 'error', error: code, finishedAt: Date.now()}));
+    return batchId;
+  }
   // One id per request. If the connection drops, the same id is sent again: the server answers with the
   // tasks it already created instead of creating (and charging) new ones.
   const body = JSON.stringify({
@@ -67,7 +81,8 @@ export async function startGeneration(request: GenerationRequest) {
     ...(request.resolution ? {resolution: request.resolution} : {}),
     ...(request.duration ? {duration: request.duration} : {}),
     references: request.references,
-    ...(request.videoReferences?.length ? {videoReferences: request.videoReferences} : {}),
+    ...(videos.length ? {videos} : {}),
+    ...(videos.length && request.clips?.length ? {clips: request.clips} : {}),
     count: request.count,
   });
   const send = () => fetch('/api/cinema/images', {method: 'POST', headers: {'Content-Type': 'application/json'}, body});
@@ -92,7 +107,7 @@ export function retryJob(job: CinemaJob) {
   useCinema.getState().removeJobs([job.id]);
   return startGeneration({
     mode: job.mode, model: job.model, duration: job.duration, prompt: job.prompt, aspect: job.aspect, resolution: job.resolution,
-    references: job.references, videoReferences: job.videoReferences, count: 1, source: job.source, boardId: job.boardId, shotId: job.shotId,
+    references: job.references, ...((job.videos || job.videoReferences)?.length ? {videos: job.videos || job.videoReferences} : {}), ...(job.clips?.length ? {clips: job.clips} : {}), count: 1, source: job.source, boardId: job.boardId, shotId: job.shotId,
     // A picture of /pdf-generator stays in its card's batch, in the same slot.
     ...(job.tag ? {tag: job.tag, batchId: job.batchId} : {}),
     // A retried Estudio picture stays in its project.

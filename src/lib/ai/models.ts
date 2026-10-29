@@ -64,17 +64,40 @@ export type TextModel = Base & {category: 'text'; inputs?: readonly TextInput[];
 export type MediaOptions = {
   /** Input field names in Kie's request. */
   fields: {
-    prompt: string; images?: string; videos?: string; aspect?: string; resolution?: string; duration?: string; format?: string;
+    prompt: string; images?: string; aspect?: string; resolution?: string; duration?: string; format?: string;
     /** The image field takes one URL, not a list. */
     imagesSingle?: boolean;
     /** The duration is a number in Kie's request, not a string. */
     durationNumber?: boolean;
+    /** Reference videos: the field, and whether it takes one link instead of a list. */
+    videos?: string;
+    videosSingle?: boolean;
+    /** Each video goes as a clip {url, start, ends} (Gemini Omni's `video_list`). */
+    videoClips?: boolean;
   };
   aspectRatios: readonly string[];
   resolutions: readonly string[];
   /** What the «resolution» field really is for this model (Calidad, Tamaño); «Resolución» when absent. */
   resolutionLabel?: string;
   durations: readonly string[];
+  /** Reference videos the model takes (0 or absent: none), and what its page says about them. */
+  maxVideos?: number;
+  /** The model needs a video (video to video, motion control). */
+  videosRequired?: boolean;
+  /** Largest file per video, in MB; seconds allowed per video; seconds of all videos together. */
+  videoMaxMB?: number;
+  videoSeconds?: readonly [number, number];
+  videoTotalSeconds?: number;
+  /** How the prompt names the videos sent (`@video_{n}`), when the page says it. */
+  videoMention?: string;
+  /** Images and videos together cannot be more than this. */
+  maxMedia?: number;
+  /** It needs at least one image or one video. */
+  mediaRequired?: boolean;
+  /** Longest clip of a video, in seconds, when the model takes a trimmed part of it. */
+  videoClipSeconds?: number;
+  /** Image slots one video takes in `maxMedia` (1 when absent). */
+  videoSlots?: number;
   /** The longest prompt Kie accepts for this model, in characters, as its page states it. */
   promptMax?: number;
   /** The duration the page gives as default, when it is not the first one offered. */
@@ -84,8 +107,6 @@ export type MediaOptions = {
   fixed?: Record<string, unknown>;
   /** Reference images: 0 = none. */
   maxReferences: number;
-  /** Verified optional video references; absent on models that cannot accept them. */
-  videoReferences?: {max: number; minSeconds: number; maxSeconds: number; mention: string};
   /** Variants per request. Kie creates one task per variant. */
   maxVariants: number;
   /** 'create' works from text alone; 'edit' needs reference images. */

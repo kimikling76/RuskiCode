@@ -26,18 +26,21 @@ function key() {
 }
 
 export type ImageJobInput = {prompt: string; aspect: AspectRatio; resolution: Resolution; references: string[]};
-export type JobInput = {prompt: string; aspect?: string; resolution?: string; duration?: string; references: string[]; videoReferences?: string[]};
+/** `videos`: links of the reference videos (Kie's own, or uploaded to Kie for this request). */
+/** `clips`: the part of each video to use, for models that take clips (Gemini Omni), in seconds. */
+export type JobInput = {prompt: string; aspect?: string; resolution?: string; duration?: string; references: string[]; videos?: string[]; clips?: {start: number; ends: number}[]};
 
 /** Builds Kie's `input` object from a catalog entry: only the fields that model documents. */
 export function jobInput(model: ImageModel | VideoModel, input: JobInput) {
   const f = model.options.fields;
   const images = f.images && model.options.maxReferences && input.references.length ? (f.imagesSingle ? input.references.slice(0, 1) : input.references) : [];
-  const videos = input.videoReferences || [];
-  if (videos.length && (!f.videos || !model.options.videoReferences || videos.length > model.options.videoReferences.max)) throw new CinemaError('INVALID_PARAMETERS');
   // Required fields with a documented default go first, so a chosen option always wins.
+  const videos = input.videos || [];
+  // Never sent to a model that does not document them, nor more than it takes.
+  if (videos.length && (!f.videos || videos.length > (model.options.maxVideos || 0))) throw new CinemaError('INVALID_PARAMETERS');
   const out: Record<string, unknown> = {...model.options.fixed, [f.prompt]: mentionPrompt(input.prompt, model.options, images.length, videos.length)};
   if (f.images && images.length) out[f.images] = f.imagesSingle ? images[0] : images;
-  if (f.videos && videos.length) out[f.videos] = videos;
+  if (f.videos && videos.length) out[f.videos] = f.videoClips ? videos.map((url, i) => ({url, start: input.clips?.[i]?.start ?? 0, ends: input.clips?.[i]?.ends ?? model.options.videoClipSeconds ?? 10})) : f.videosSingle ? videos[0] : videos;
   if (f.aspect && input.aspect) out[f.aspect] = input.aspect;
   if (f.resolution && input.resolution) out[f.resolution] = input.resolution;
   if (f.duration && input.duration) out[f.duration] = f.durationNumber ? Number(input.duration) : input.duration;
@@ -52,6 +55,7 @@ export function createImageJob(input: ImageJobInput, transport: typeof fetch = f
 /** One Kie task through the unified jobs API. Kie answers HTTP 200 with the real status in body.code. */
 export async function createJob(model: ImageModel | VideoModel, input: JobInput, transport: typeof fetch = fetch): Promise<string> {
   if (model.adapter !== 'kie-jobs') throw new CinemaError('MODEL_NOT_CONFIGURED');
+  // The request is checked before anything else: a refused one never reaches Kie.
   const payload = jobInput(model, input);
   const secret = key();
   let response: Response;
