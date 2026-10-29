@@ -165,3 +165,46 @@ test('the server takes both new requests, with their own instructions: Russian a
   assert.match(systemForPersonal(exercise), /Never write exercise numbers or audio codes/);
   assert.match(systemForPersonal(exercise), /"exercise": \{"instruction"/);
 });
+
+test('chat: /pdf-generator comics have their bubbles drawn by the image model, and a picture counts only for its lines', async () => {
+  const {draftComponents, keptPictures, madeFor, pictureSlots, picturePrompt} = await import('../src/lib/skills/chat');
+  const draft = {title: 't', summary: 's', imageStyle: 'Comic', setting: '', characters: [], blocks: [
+    {type: 'comic' as const, columns: 2 as const, aspect: '4:3' as const, panels: [
+      {prompt: 'Two friends meet', bubbles: ['Приве́т!', 'Как дела́?'], characters: []},
+      {prompt: 'They wave goodbye', bubbles: [], characters: []},
+    ]},
+  ]};
+  const slots = pictureSlots(draft);
+  assert.deepEqual(slots[0].bubbles, ['Приве́т!', 'Как дела́?']);
+  assert.match(picturePrompt(slots[0], 'Comic'), /1\. «Приве́т!» 2\. «Как дела́\?»/);
+  assert.match(picturePrompt(slots[1], 'Comic'), /Do not draw any text, letters, numbers, captions, speech bubbles/);
+  const image = {asset: 'a'.repeat(64), format: 'png' as const, width: 800, height: 600};
+  const withLines = {prompt: 'Two friends meet', image, bubbles: 'Приве́т!\nКак дела́?'};
+  assert.ok(madeFor(withLines, slots[0]));
+  // The same scene with other lines needs a new picture.
+  assert.equal(madeFor({...withLines, bubbles: 'Пока́!'}, slots[0]), false);
+  // A picture made before the image model drew the bubbles keeps the studio's bubbles on top.
+  const legacy = {prompt: 'Two friends meet', image};
+  assert.ok(madeFor(legacy, slots[0]));
+  const comic = (pictures: Record<string, unknown>) => {
+    const c = draftComponents(draft as never, {number: 1, unit: '1', audio: 1}, undefined, pictures as never)[0];
+    return c.type === 'comic' ? c.panels[0] : null;
+  };
+  assert.deepEqual(comic({'0.0': withLines})?.bubbles, []);
+  assert.deepEqual(comic({'0.0': legacy})?.bubbles, ['Приве́т!', 'Как дела́?']);
+  assert.deepEqual(comic({})?.bubbles, ['Приве́т!', 'Как дела́?']);
+  assert.deepEqual(Object.keys(keptPictures(draft as never, {'0.0': {...withLines, bubbles: 'Пока́!'}})), []);
+});
+
+test('chat: /revisar-ruso knows which models see the pages, and its summary counts pages and findings', async () => {
+  const {skillSummary} = await import('../src/lib/skills/chat');
+  const {textModels} = await import('../src/lib/ai/models');
+  // Same rule as the run (lib/skills/run.ts is browser-only): «auto» is the fast Gemini model, which sees images.
+  const sees = (id: string) => Boolean(textModels.find(m => m.id === (id === 'auto' ? 'kie-flash' : id))?.inputs?.includes('image'));
+  assert.ok(sees('auto'));
+  const claude = textModels.find(m => m.adapter === 'anthropic-messages');
+  assert.ok(claude && !sees(claude.id));
+  const run = {skill: 'revisar-ruso' as const, state: 'ready' as const, source: {kind: 'unit' as const, unitId: 'u', title: 'U', from: 1, to: 2},
+    pages: [{page: 1, pageId: 'p1', summary: '', findings: [{key: 'k'}, {key: 'k2'}], picture: true}, {page: 2, pageId: 'p2', summary: '', findings: [], picture: true}]};
+  assert.equal(skillSummary(run as never), '[/revisar-ruso · 2 páginas revisadas, 2 hallazgos]');
+});

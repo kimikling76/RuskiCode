@@ -3,6 +3,7 @@ import type {BookUsed} from '@/lib/kb/context';
 import {aspectValue, pictureAspects, type Component, type ImageData, type PictureAspect, type Unit} from '@/lib/manual/model';
 import {plainText} from '@/lib/manual/elements';
 import type {Source} from '@/lib/ai/types';
+import type {ReviewFinding} from '@/lib/manual/review';
 
 // Skills of the Chat: called with «/» in the composer. Each one does something concrete with the studio's own
 // tools, with a preview and a confirmation before anything is charged or changed. Without a skill the Chat stays
@@ -26,8 +27,8 @@ export const chatSkills = [
     placeholder: 'Qué querés crear: por ejemplo, ejercicios de «Это мой брат» para la unidad 2.',
   },
   {
-    id: 'revisar-ruso', command: '/revisar-ruso', name: 'Revisar el ruso',
-    description: 'Ortografía, gramática, tildes de acento, letras latinas mezcladas y palabras fuera de nivel. No cambia nada solo.',
+    id: 'revisar-ruso', command: '/revisar-ruso', name: 'Revisar ruso e inglés',
+    description: 'El ruso y las traducciones al inglés. En una unidad del manual, la IA ve cada página y podés aplicar las correcciones. No cambia nada solo.',
     placeholder: 'Pegá el texto a revisar o adjuntalo. Sin texto, elegís una unidad del manual.',
   },
 ] as const;
@@ -84,13 +85,27 @@ export type PdfRun = {
 };
 /** A character of the draft found in the book's library. Without `hash`, no approved picture: no portrait is invented. */
 export type BookCastMember = {id: string; title: string; hash?: string; file?: string; age?: string; look?: string};
-export type PictureState = {prompt: string; image?: ImageData; job?: string};
+/**
+ * `bubbles`: the speech-bubble lines a comic picture has drawn in it (see picturePrompt). Pictures made before the
+ * image model drew the bubbles have none: the studio draws their bubbles on top, as it did then.
+ */
+export type PictureState = {prompt: string; image?: ImageData; job?: string; bubbles?: string};
 export type ReviewRun = {
   skill: 'revisar-ruso'; state: 'choose' | 'reviewing' | 'ready' | 'error';
   source: {kind: 'text'; text: string; documents?: number} | {kind: 'unit'; unitId: string; title: string; from: number; to: number};
   result?: Review; auto?: AutoIssue[]; error?: string; model?: string; credits?: number;
   webSearch?: boolean; sources?: Source[]; book?: BookUsed;
+  /**
+   * A unit of the manual, reviewed page by page as in the editor (manual/review.ts): each line's text with an id and,
+   * for models that see images, a picture of the page. Its corrections can be applied to the unit from the chat.
+   */
+  pages?: UnitPageReview[];
+  /** The page being reviewed now, while `state` is 'reviewing'. */
+  at?: number;
+  /** What the author did with each finding (by key). */
+  done?: Record<string, 'applied' | 'dismissed'>;
 };
+export type UnitPageReview = {page: number; pageId: string; summary: string; findings: ReviewFinding[]; picture: boolean; credits?: number};
 export type SkillRun = ImageRun | VideoRun | PdfRun | ReviewRun;
 
 // ---------- /pdf-generator: the draft the model writes ----------
@@ -161,7 +176,13 @@ export function parseDraft(text: string): PdfDraft | null {
 // ---------- /pdf-generator: pictures ----------
 
 type DraftBlock = z.infer<typeof draftBlockSchema>;
-export type PictureSlot = {key: string; prompt: string; aspect: PictureAspect; kind: 'image' | 'gallery' | 'comic'; label: string; characters: string[]};
+export type PictureSlot = {key: string; prompt: string; aspect: PictureAspect; kind: 'image' | 'gallery' | 'comic'; label: string; characters: string[]; /** Comic panels: the lines spoken in it. */ bubbles?: string[]};
+
+/** The speech-bubble lines of a slot as one string ('' for pictures without bubbles). */
+export const slotBubbles = (slot: Pick<PictureSlot, 'bubbles'>) => (slot.bubbles || []).join('\n');
+/** A picture made for this slot: the same prompt and, when it has the bubbles drawn in, the same lines. */
+export const madeFor = (p: PictureState | undefined, slot: Pick<PictureSlot, 'prompt' | 'bubbles'>) =>
+  Boolean(p?.image && p.prompt === slot.prompt && (p.bubbles === undefined || p.bubbles === slotBubbles(slot)));
 export type Character = {name: string; look: string};
 
 /** Every picture of a draft, in reading order: `3` is the image block 3, `5.2` the third picture of block 5. */
@@ -170,7 +191,7 @@ export function pictureSlots(draft: {blocks: DraftBlock[]}): PictureSlot[] {
   draft.blocks.forEach((b, i) => {
     if (b.type === 'image') out.push({key: String(i), prompt: b.prompt, aspect: b.aspect, kind: 'image', label: b.caption?.replace(/\*\*|==/g, '') || 'Imagen', characters: b.characters ?? []});
     if (b.type === 'gallery') b.items.forEach((it, k) => out.push({key: i + '.' + k, prompt: it.prompt, aspect: b.aspect, kind: 'gallery', label: it.label.replace(/\*\*|==/g, '') || (b.numbered ? String(k + 1) : 'Galería ' + (k + 1)), characters: it.characters ?? []}));
-    if (b.type === 'comic') b.panels.forEach((p, k) => out.push({key: i + '.' + k, prompt: p.prompt, aspect: b.aspect, kind: 'comic', label: 'Viñeta ' + (k + 1), characters: p.characters ?? []}));
+    if (b.type === 'comic') b.panels.forEach((p, k) => out.push({key: i + '.' + k, prompt: p.prompt, aspect: b.aspect, kind: 'comic', label: 'Viñeta ' + (k + 1), characters: p.characters ?? [], bubbles: p.bubbles.filter(Boolean)}));
   });
   return out;
 }
@@ -194,8 +215,12 @@ export function picturePrompt(slot: PictureSlot, style?: string, more: {cast?: C
     people.length ? 'Characters: ' + people.map(c => c.name + ' — ' + c.look.trim().replace(/\.$/, '')).join('; ') + '. Keep each character exactly as described' + (more.withPortraits ? ' and identical to the reference portraits (same face, hair and clothes)' : '') + '.' : '',
     more.setting?.trim() ? 'Setting: ' + sentence(more.setting) : '',
     style?.trim() ? 'Style: ' + sentence(style) : '',
-    slot.kind === 'comic' ? 'Comic panel: keep the upper part of the frame calm and uncluttered, because speech bubbles are added on top later.' : '',
-    'Do not draw any text, letters, numbers, captions, speech bubbles, logos or watermarks.',
+    ...(slot.kind === 'comic' && slot.bubbles?.length ? [
+      // The author's choice: the image model draws the bubbles with their Russian text, as in the printed manual.
+      'Comic panel with ' + (slot.bubbles.length === 1 ? 'one speech bubble' : slot.bubbles.length + ' speech bubbles') + ': white fill, thin dark outline, a tail pointing at the speaker. Write the text inside each bubble exactly as given, in Russian Cyrillic, letter for letter, keeping punctuation and stress marks; do not translate, shorten or add words; clean, highly legible lettering:',
+      slot.bubbles.map((b, i) => (i + 1) + '. «' + b + '»').join(' '),
+      'No other text, letters, numbers, captions, logos or watermarks.',
+    ] : ['Do not draw any text, letters, numbers, captions, speech bubbles, logos or watermarks.']),
   ].filter(Boolean).join(' ');
 }
 
@@ -237,10 +262,10 @@ export function keptCast(draft: PdfDraft, cast: PdfRun['cast'], previous?: PdfRu
 export function keptPictures(draft: PdfDraft, pictures: PdfRun['pictures'], previous?: PdfRun['pictures']) {
   const out: Record<string, PictureState> = {};
   const byPrompt = new Map<string, PictureState>();
-  for (const p of Object.values(previous || {})) if (p.image) byPrompt.set(p.prompt, p);
+  for (const p of Object.values(previous || {})) if (p.image) byPrompt.set(p.prompt + '§' + (p.bubbles ?? '-'), p);
   for (const slot of pictureSlots(draft)) {
     const own = pictures?.[slot.key];
-    const found = own?.prompt === slot.prompt ? own : byPrompt.get(slot.prompt);
+    const found = madeFor(own, slot) ? own : byPrompt.get(slot.prompt + '§' + slotBubbles(slot)) ?? byPrompt.get(slot.prompt + '§-');
     if (found) out[slot.key] = found;
   }
   return out;
@@ -265,7 +290,13 @@ export function draftComponents(draft: PdfDraft, start: {number: number; unit: s
       return {type: 'image', width: Math.round(w * 100) / 100, height: Math.round(h * 100) / 100, rounded: true, prompt: b.prompt, ...(b.caption ? {caption: b.caption} : {}), ...picture(String(i), b.prompt)};
     }
     if (b.type === 'gallery') return {type: 'gallery', columns: b.columns, aspect: b.aspect, numbered: b.numbered, cells: b.items.map((it, k) => ({label: it.label, prompt: it.prompt, ...picture(i + '.' + k, it.prompt)}))};
-    if (b.type === 'comic') return {type: 'comic', columns: b.columns, aspect: b.aspect, panels: b.panels.map((p, k) => ({prompt: p.prompt, bubbles: p.bubbles.filter(Boolean), ...picture(i + '.' + k, p.prompt)}))};
+    if (b.type === 'comic') return {type: 'comic', columns: b.columns, aspect: b.aspect, panels: b.panels.map((p, k) => {
+      const lines = p.bubbles.filter(Boolean);
+      const made = pictures[i + '.' + k];
+      const ok = madeFor(made, {prompt: p.prompt, bubbles: lines});
+      // A picture with the bubbles drawn in needs none from the studio; until it exists, the studio's show the lines.
+      return {prompt: p.prompt, bubbles: ok && made?.bubbles !== undefined ? [] : lines, ...(ok ? {image: made!.image} : {})};
+    })};
     if (b.type !== 'exercise') return b.type === 'heading' ? {type: 'heading', text: b.text} : {type: 'text', text: b.text};
     const c: Component = {
       type: 'exercise', number: String(n++), audio: start.unit + '.' + String(a++).padStart(2, '0'),
@@ -330,7 +361,7 @@ export function pdfContext(unit: Unit, target: PdfTarget, request: string, known
 
 // ---------- /revisar-ruso ----------
 
-export const reviewKinds = ['ortografía', 'gramática', 'tilde', 'letra latina', 'nivel', 'consigna', 'otro'] as const;
+export const reviewKinds = ['ortografía', 'gramática', 'tilde', 'letra latina', 'traducción', 'inglés', 'nivel', 'consigna', 'otro'] as const;
 export const reviewSchema = z.object({
   summary: z.string().trim().max(1000),
   issues: z.array(z.object({
@@ -405,6 +436,6 @@ export function skillSummary(run: SkillRun): string {
     case 'image-generation': return '[/image-generation · ' + (run.batchId ? 'pedido a Kie' : 'borrador') + ' · modelo ' + run.model + ' · prompt: «' + run.prompt.slice(0, 400) + '»]';
     case 'video-generation': return '[/video-generation · ' + (run.batchId ? 'pedido a Kie' : 'borrador') + ' · modelo ' + run.model + ' · prompt: «' + run.prompt.slice(0, 400) + '»]';
     case 'pdf-generator': return run.draft ? '[/pdf-generator · borrador «' + run.draft.title + '» con ' + run.draft.blocks.length + ' bloques' + (pictureSlots(run.draft).length ? ' y ' + pictureSlots(run.draft).length + ' imágenes' : '') + (run.saved ? ', guardado en PDF Studio' : '') + ']' : '[/pdf-generator · ' + (run.state === 'error' ? 'no se pudo escribir' : 'escribiendo') + ']';
-    case 'revisar-ruso': return run.result ? '[/revisar-ruso · ' + run.result.issues.length + ' observaciones: ' + run.result.summary.slice(0, 300) + ']' : '[/revisar-ruso]';
+    case 'revisar-ruso': return run.pages?.length ? '[/revisar-ruso · ' + run.pages.length + ' páginas revisadas, ' + run.pages.reduce((n, p) => n + p.findings.length, 0) + ' hallazgos]' : run.result ? '[/revisar-ruso · ' + run.result.issues.length + ' observaciones: ' + run.result.summary.slice(0, 300) + ']' : '[/revisar-ruso]';
   }
 }

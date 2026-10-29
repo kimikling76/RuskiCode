@@ -81,6 +81,38 @@ Elegiste que **el modelo de imagen dibuje todo**: la escena, los globos y el tex
 - **Cada generación se confirma**, porque es paga. El resultado se revisa antes de insertarlo, con «¿Está bien?».
 - **Importante:** los modelos de imagen a veces escriben mal las letras rusas, y ese texto queda dentro de la imagen: no se corrige como texto. Revisalo, o pasá **Revisar con IA**, que lee el texto de las imágenes.
 
+## En el Chat
+
+Lo mismo funciona desde el Chat.
+
+### /revisar-ruso ahora es «Revisar ruso e inglés»
+
+- **Escribí /revisar-ruso sin texto** y elegí una unidad del manual y sus páginas. La revisión es la misma del Manual:
+  - un pedido por página;
+  - cada línea con su código;
+  - la imagen de la página, si el modelo elegido en el Chat ve imágenes.
+- **La tarjeta muestra los hallazgos página por página,** con antes y después. Cada página tiene un enlace para abrirla en el Manual.
+- **«Aplicar en la unidad»** (o «Aplicar las N correcciones») cambia la unidad con las mismas reglas del Manual:
+  - solo esas letras, con el estilo de lo demás;
+  - nunca en bloques aprobados;
+  - antes de la primera corrección guarda la versión **«Antes de la revisión con IA (Chat)»**.
+- **Con texto pegado o archivos adjuntos,** la revisión también cubre el ruso y las traducciones al inglés, sin revisar el español.
+  - Si adjuntás capturas de páginas y el modelo ve imágenes, la IA las lee.
+  - Un PDF adjunto al Chat llega solo como texto. Para que la IA vea sus imágenes, importalo como unidad del manual.
+
+### Ejercicios
+
+**/pdf-generator** ya escribía ejercicios y páginas con el diseño de tu unidad, y los mostraba antes de guardar. Sigue igual.
+
+### Globos en /pdf-generator
+
+En las tiras de cómic de /pdf-generator, ahora **el modelo de imagen dibuja los globos con el texto ruso adentro**, como elegiste.
+
+- Cada viñeta le pide al modelo sus líneas exactas, letra por letra.
+- Si se cambian las líneas de una viñeta, su imagen se vuelve a pedir.
+- Mientras la imagen no existe, la vista previa muestra los globos del estudio, para que se lean las líneas.
+- Las viñetas hechas antes de este cambio conservan los globos del estudio encima.
+
 ## Créditos
 
 - **Cada revisión de página y cada ejercicio** es un pedido a un modelo de texto de Kie.
@@ -104,4 +136,8 @@ Elegiste que **el modelo de imagen dibuje todo**: la escena, los globos y el tex
   - **Claude:** recibió solo el texto, sin imagen;
   - **ejercicio:** vista previa dibujada con la plantilla, e insertado como ejercicio 4 con el audio 9.04;
   - **ilustración con globos:** el pedido llegó a Nano Banana 2.1 con los dos textos rusos exactos y se insertó en la página.
+- **En el Chat**, con la misma Kie de prueba:
+  - /revisar-ruso revisó las 3 páginas de la unidad, cada una con su imagen;
+  - «Aplicar en la unidad» cambió la línea en la unidad y guardó la versión «Antes de la revisión con IA (Chat)»;
+  - la revisión siguió en el chat al recargar la página.
 - **Accesibilidad:** axe sin hallazgos en el panel ni en el diálogo de la ilustración. La página del editor ya tenía un aviso propio: le falta un título principal.

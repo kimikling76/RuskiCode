@@ -25,28 +25,13 @@ import {BookImageDialog} from '@/components/kb/book-image';
 import {pageText} from '@/components/kb/editor-book-panel';
 import type {ManualApi} from './manual-inspector';
 import {pictureComponents, place} from './place';
+import {Diff, kindNames} from './review-diff';
 
 type Exercise = Extract<Component, {type: 'exercise'}>;
-
-const kindNames: Record<string, string> = {ortografía: 'Ortografía', gramática: 'Gramática', tilde: 'Tilde', 'letra latina': 'Letra latina', traducción: 'Traducción', inglés: 'Inglés', otro: 'Otro'};
 
 /** The model a choice means: «Automático» is the fast Gemini model, as on the server. */
 const resolved = (models: ChatModel[], id: string) => id === 'auto' ? models.find(m => m.id === 'kie-flash') || models.find(usable) : models.find(m => m.id === id);
 const seesImages = (m?: ChatModel) => Boolean(m?.inputs?.includes('image'));
-
-/** The changed part of a line, marked: before with the removed words, after with the new ones. */
-function Diff({before, after}: {before: string; after: string}) {
-  let a = 0;
-  while (a < before.length && a < after.length && before[a] === after[a]) a++;
-  let b = 0;
-  while (b < before.length - a && b < after.length - a && before[before.length - 1 - b] === after[after.length - 1 - b]) b++;
-  return (
-    <div className="rc-man-diff-text">
-      <p><span className="rc-hint">Antes </span>{before.slice(0, a)}<del>{before.slice(a, before.length - b)}</del>{before.slice(before.length - b)}</p>
-      <p><span className="rc-hint">Después </span>{after.slice(0, a)}<ins>{after.slice(a, after.length - b)}</ins>{after.slice(after.length - b)}</p>
-    </div>
-  );
-}
 
 /** PDF Studio → Manual → IA: review the Russian and the English, new exercises, illustrations with speech bubbles. */
 export function ManualAiPanel({api, onVersion}: {api: ManualApi; onVersion: (label: string) => Promise<void>}) {

@@ -4,7 +4,9 @@ import {Fragment, useEffect, useMemo, useRef, useState} from 'react';
 import Link from 'next/link';
 import TextareaAutosize from 'react-textarea-autosize';
 import {toast} from 'sonner';
-import {ArrowUpRight, BookOpenCheck, Clapperboard, Download, Film, ImagePlus, RotateCcw, Sparkles, SpellCheck2, X} from 'lucide-react';
+import {ArrowUpRight, BookOpenCheck, Check, Clapperboard, Download, Film, ImagePlus, RotateCcw, Sparkles, SpellCheck2, X} from 'lucide-react';
+import {Diff, kindNames} from '@/components/manual/review-diff';
+import type {ReviewFinding} from '@/lib/manual/review';
 import type {PDFDocumentProxy} from 'pdfjs-dist';
 import {imageModels, videoModels, enabledStatus, publicModel, findModel, promptLimit} from '@/lib/ai/models';
 import {useCinema, isActive, type CinemaJob} from '@/store/cinema';
@@ -20,10 +22,10 @@ import {drawPage, openPdf} from '@/lib/pdf/viewer';
 import type {Unit} from '@/lib/manual/model';
 import type {PersonalMessage} from '@/store/personal-chat';
 import type {ChatAttachment} from '@/lib/personal-chat/attachments';
-import {pictureSlots, refSrc, skillById, slotCharacters, type Character, type ImageRun, type MediaRef, type PdfRun, type PictureSlot, type ReviewRun, type SkillRun, type VideoRun} from '@/lib/skills/chat';
+import {madeFor, pictureSlots, refSrc, skillById, slotCharacters, type Character, type ImageRun, type MediaRef, type PdfRun, type PictureSlot, type ReviewRun, type SkillRun, type VideoRun} from '@/lib/skills/chat';
 import {
   addSkillCard, buildPdf, type RunPatch, designUnits, draftNewWords, generatePictures, importPicture, importResult, isRunning, missingPictures, pictureContext, pictureJobs,
-  reviewText, savePdf, sendMedia, updateRun, useWaitingPictures, withCharacterLook, withPicturePrompt, writePdf,
+  applyReviewFindings, reviewText, savePdf, seesImages, sendMedia, updateRun, useWaitingPictures, withCharacterLook, withPicturePrompt, writePdf,
 } from '@/lib/skills/run';
 import {ChatModelPicker} from './chat-model-picker';
 import {AspectPicker, Segmented, aspectName, optionLabel} from '@/components/cinema/controls';
@@ -340,7 +342,7 @@ function PdfPictures({chatId, id, run, refs}: {chatId: string; id: string; run: 
   const busy = (key: string) => waiting.has(key) || Boolean(jobs.get(key) && isActive(jobs.get(key)!));
   // Done in Kie but not brought in yet: it is on its way, never offered (or paid) again.
   const arriving = (key: string) => jobs.get(key)?.state === 'success';
-  const imageOf = (slot: PictureSlot) => { const p = run.pictures?.[slot.key]; return p?.image && p.prompt === slot.prompt ? p.image : undefined; };
+  const imageOf = (slot: PictureSlot) => { const p = run.pictures?.[slot.key]; return madeFor(p, slot) ? p!.image : undefined; };
   const done = slots.filter(imageOf).length;
   const toSend = missingPictures(run).filter(s => !busy(s.key) && !arriving(s.key));
   const usedRefs = o.maxReferences ? refs.slice(0, o.maxReferences) : [];
@@ -474,7 +476,7 @@ function PdfPictures({chatId, id, run, refs}: {chatId: string; id: string; run: 
 /** After saving: the pictures that went into the unit, to see them (they are changed in the editor). */
 function SavedPictures({run}: {run: PdfRun}) {
   const slots = run.draft ? pictureSlots(run.draft) : [];
-  const shown = slots.filter(s => run.pictures?.[s.key]?.image && run.pictures[s.key].prompt === s.prompt);
+  const shown = slots.filter(s => madeFor(run.pictures?.[s.key], s));
   if (!shown.length) return null;
   return (
     <ul className="rc-skill-picture-grid" aria-label="Imágenes guardadas en la unidad">
@@ -629,14 +631,17 @@ function ReviewCard({chatId, id, run, model, attachments}: {chatId: string; id: 
         </div>
         <div className="rc-skill-row">
           <button type="button" className="rc-btn rc-btn--primary rc-btn--sm" disabled={!unit} onClick={start}><SpellCheck2 aria-hidden="true" />Revisar con IA</button>
-          <span className="rc-hint">Usa el modelo de texto elegido en el chat. Solo informa: no cambia la unidad.</span>
+          <span className="rc-hint">Usa el modelo de texto elegido en el chat, un pedido por página.{seesImages(model) ? ' Ve cada página como imagen.' : ' Este modelo solo lee el texto.'} Nada cambia hasta que apliques una corrección.</span>
         </div>
       </div>
     );
   }
   if (run.state === 'reviewing') {
     return isRunning(id)
-      ? <p className="rc-skill-wait" role="status"><span className="rc-job-pulse" aria-hidden="true" />Revisando el texto…</p>
+      ? <>
+        <p className="rc-skill-wait" role="status"><span className="rc-job-pulse" aria-hidden="true" />{run.source.kind === 'unit' && run.at ? 'Revisando la página ' + run.at + ' (de ' + run.source.from + ' a ' + run.source.to + ')…' : 'Revisando el texto…'}</p>
+        {run.pages?.length ? <UnitReview chatId={chatId} id={id} run={run} /> : null}
+      </>
       : <div className="rc-skill-row"><span className="rc-hint">Se interrumpió antes de terminar.</span><button type="button" className="rc-btn rc-btn--secondary rc-btn--sm" onClick={() => void reviewText(chatId, id, model, attachments || [])}>Volver a intentar</button></div>;
   }
   const link = (page: number | null | undefined) => run.source.kind === 'unit' && page ? '/workspace/manual?id=' + run.source.unitId + '&page=' + page : null;
@@ -654,7 +659,7 @@ function ReviewCard({chatId, id, run, model, attachments}: {chatId: string; id: 
           <p className="rc-skill-error"><span className="rc-dot rc-dot--danger" aria-hidden="true" />{skillError(run.error)}</p>
           <button type="button" className="rc-btn rc-btn--secondary rc-btn--sm" onClick={() => void reviewText(chatId, id, model, attachments || [])}>Volver a intentar</button>
         </div>
-      ) : run.result ? (
+      ) : run.pages ? <UnitReview chatId={chatId} id={id} run={run} /> : run.result ? (
         <div className="rc-skill-review">
           <p className="rc-skill-title">Revisión con IA <small>{run.model || ''}{run.webSearch ? ' · con búsqueda web' : ''}{run.credits !== undefined ? ' · ' + creditText(run.credits) : ''}{run.book ? <> · <BookUsedNote used={run.book} /></> : null}</small></p>
           <p>{run.result.summary}</p>
@@ -663,6 +668,55 @@ function ReviewCard({chatId, id, run, model, attachments}: {chatId: string; id: 
           <p className="rc-hint">Es la opinión del modelo: revisala antes de corregir. Nada se cambió en el texto ni en el manual.</p>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/** A unit reviewed page by page: the findings checked against the page, with the corrections that can be applied. */
+function UnitReview({chatId, id, run}: {chatId: string; id: string; run: ReviewRun}) {
+  const [busy, setBusy] = useState(false);
+  if (run.source.kind !== 'unit') return null;
+  const unitId = run.source.unitId;
+  const open = (f: ReviewFinding) => !run.done?.[f.key];
+  const pending = (run.pages || []).flatMap(p => p.findings.filter(f => open(f) && f.apply));
+  async function apply(list: ReviewFinding[]) {
+    setBusy(true);
+    try {
+      const r = await applyReviewFindings(chatId, id, list);
+      if (r.error) toast(r.error, {duration: 8000});
+      else if (r.applied) toast((r.applied === 1 ? 'Corrección aplicada' : r.applied + ' correcciones aplicadas') + ' en la unidad. La versión anterior quedó en «Versiones».');
+    } finally { setBusy(false); }
+  }
+  const dismiss = (f: ReviewFinding) => updateRun<ReviewRun>(chatId, id, {done: {...run.done, [f.key]: 'dismissed'}});
+  return (
+    <div className="rc-skill-review">
+      <p className="rc-skill-title">Revisión con IA <small>{run.model || ''}{run.credits ? ' · ' + creditText(run.credits) : ''}</small></p>
+      {pending.length > 1 ? <button type="button" className="rc-btn rc-btn--primary rc-btn--sm" disabled={busy} onClick={() => void apply(pending)}><Check aria-hidden="true" />Aplicar las {pending.length} correcciones en la unidad</button> : null}
+      {(run.pages || []).map(p => {
+        const shown = p.findings.filter(open);
+        return (
+          <section key={p.pageId} className="rc-skill-review-page" aria-label={'Página ' + p.page}>
+            <p><Link href={'/workspace/manual?id=' + unitId + '&page=' + p.page} className="rc-skill-page-link">Página {p.page}<ArrowUpRight aria-hidden="true" /></Link> <span className="rc-hint">{p.picture ? 'con la imagen de la página' : 'solo el texto'}</span></p>
+            {p.summary ? <p>{p.summary}</p> : null}
+            {!shown.length ? <p className="rc-hint">{p.findings.length ? 'Sin pendientes.' : 'No encontró problemas en el ruso ni en el inglés.'}</p> : (
+              <ul>{shown.map(f => (
+                <li key={f.key} className="rc-skill-issue">
+                  <span className="rc-skill-kind">{kindNames[f.kind] || f.kind}</span>
+                  <span className="rc-hint">{f.lang === 'en' ? 'Inglés' : 'Ruso'} · {f.text ? f.text.block : 'texto dentro de una imagen'}</span>
+                  <p>{f.problem}</p>
+                  {f.apply ? <Diff before={f.apply.before} after={f.apply.after} /> : <p className="rc-skill-suggestion"><q lang={f.lang}>{f.quote}</q>{f.fix && f.fix !== f.quote ? <> → <span lang={f.lang}>{f.fix}</span></> : null}</p>}
+                  {f.note ? <p className="rc-hint">{f.note}</p> : null}
+                  <span className="rc-skill-row">
+                    {f.apply ? <button type="button" className="rc-btn rc-btn--secondary rc-btn--sm" disabled={busy} onClick={() => void apply([f])}><Check aria-hidden="true" />Aplicar en la unidad</button> : null}
+                    <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm" onClick={() => dismiss(f)}>{f.apply ? 'Descartar' : 'Listo'}</button>
+                  </span>
+                </li>
+              ))}</ul>
+            )}
+          </section>
+        );
+      })}
+      <p className="rc-hint">Las correcciones cambian solo esas letras y conservan el estilo de lo demás. Los bloques aprobados no se cambian desde acá. Antes de la primera se guarda una versión de la unidad.</p>
     </div>
   );
 }
