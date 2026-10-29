@@ -26,15 +26,18 @@ function key() {
 }
 
 export type ImageJobInput = {prompt: string; aspect: AspectRatio; resolution: Resolution; references: string[]};
-export type JobInput = {prompt: string; aspect?: string; resolution?: string; duration?: string; references: string[]};
+export type JobInput = {prompt: string; aspect?: string; resolution?: string; duration?: string; references: string[]; videoReferences?: string[]};
 
 /** Builds Kie's `input` object from a catalog entry: only the fields that model documents. */
 export function jobInput(model: ImageModel | VideoModel, input: JobInput) {
   const f = model.options.fields;
   const images = f.images && model.options.maxReferences && input.references.length ? (f.imagesSingle ? input.references.slice(0, 1) : input.references) : [];
+  const videos = input.videoReferences || [];
+  if (videos.length && (!f.videos || !model.options.videoReferences || videos.length > model.options.videoReferences.max)) throw new CinemaError('INVALID_PARAMETERS');
   // Required fields with a documented default go first, so a chosen option always wins.
-  const out: Record<string, unknown> = {...model.options.fixed, [f.prompt]: mentionPrompt(input.prompt, model.options, images.length)};
+  const out: Record<string, unknown> = {...model.options.fixed, [f.prompt]: mentionPrompt(input.prompt, model.options, images.length, videos.length)};
   if (f.images && images.length) out[f.images] = f.imagesSingle ? images[0] : images;
+  if (f.videos && videos.length) out[f.videos] = videos;
   if (f.aspect && input.aspect) out[f.aspect] = input.aspect;
   if (f.resolution && input.resolution) out[f.resolution] = input.resolution;
   if (f.duration && input.duration) out[f.duration] = f.durationNumber ? Number(input.duration) : input.duration;
@@ -49,13 +52,14 @@ export function createImageJob(input: ImageJobInput, transport: typeof fetch = f
 /** One Kie task through the unified jobs API. Kie answers HTTP 200 with the real status in body.code. */
 export async function createJob(model: ImageModel | VideoModel, input: JobInput, transport: typeof fetch = fetch): Promise<string> {
   if (model.adapter !== 'kie-jobs') throw new CinemaError('MODEL_NOT_CONFIGURED');
+  const payload = jobInput(model, input);
   const secret = key();
   let response: Response;
   try {
     response = await transport(jobsBase() + '/createTask', {
       method: 'POST',
       headers: {Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json'},
-      body: JSON.stringify({model: model.providerModel, input: jobInput(model, input)}),
+      body: JSON.stringify({model: model.providerModel, input: payload}),
       signal: AbortSignal.timeout(30000),
     });
   } catch {

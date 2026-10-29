@@ -15,15 +15,21 @@ const authorImage = /@image_?(\d{1,2})(?![\p{L}\p{N}_])/giu;
  * - Where the page says every «@» must name something sent, any other «@» is dropped (the word stays), since Kie would
  *   reject the request; and each image sent but not named is named in a last sentence, so the model knows to use it.
  */
-export function mentionPrompt(prompt: string, options: Pick<MediaOptions, 'mention' | 'strictMentions'>, sent: number) {
+export function mentionPrompt(prompt: string, options: Pick<MediaOptions, 'mention' | 'strictMentions' | 'videoReferences'>, sent: number, videos = 0) {
   const template = options.mention || '';
   const modelName = (n: number) => template.includes('{n}') ? template.replace('{n}', String(n)) : template && n === 1 ? template : !template ? 'image ' + n : null;
   let text = prompt.replace(authorImage, (whole, digits: string) => {
     const n = Number(digits);
     return n >= 1 && n <= sent ? modelName(n) ?? whole : whole;
   });
-  if (!template && !options.strictMentions) return text;
+  const videoTemplate = options.videoReferences?.mention;
+  if (videoTemplate) text = text.replace(/@video_?(\d{1,2})(?![\p{L}\p{N}_])/giu, (whole, digits: string) => {
+    const n = Number(digits);
+    return n >= 1 && n <= videos ? videoTemplate.replace('{n}', String(n)) : whole;
+  });
+  if (!template && !videoTemplate && !options.strictMentions) return text;
   const names = !template || !sent ? [] : template.includes('{n}') ? Array.from({length: sent}, (_, i) => template.replace('{n}', String(i + 1))) : [template];
+  if (videoTemplate) names.push(...Array.from({length: videos}, (_, i) => videoTemplate.replace('{n}', String(i + 1))));
   // A name is matched whole: «@image_1» is not the start of «@image_10».
   const namedAt = (t: string, i: number) => names.find(n => t.startsWith(n, i) && !wordChar.test(t[i + n.length] || ''));
   if (options.strictMentions) {

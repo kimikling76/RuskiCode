@@ -11,6 +11,7 @@ export type GenerationRequest = {
   aspect: AspectRatio;
   resolution: Resolution;
   references: string[];
+  videoReferences?: string[];
   count: number;
   source?: string;
   boardId?: string;
@@ -41,6 +42,7 @@ export async function startGeneration(request: GenerationRequest) {
     aspect: request.aspect,
     resolution: request.resolution,
     references: request.references,
+    ...(request.videoReferences?.length ? {videoReferences: request.videoReferences} : {}),
     model: request.model,
     duration: request.duration,
     source: request.source,
@@ -65,6 +67,7 @@ export async function startGeneration(request: GenerationRequest) {
     ...(request.resolution ? {resolution: request.resolution} : {}),
     ...(request.duration ? {duration: request.duration} : {}),
     references: request.references,
+    ...(request.videoReferences?.length ? {videoReferences: request.videoReferences} : {}),
     count: request.count,
   });
   const send = () => fetch('/api/cinema/images', {method: 'POST', headers: {'Content-Type': 'application/json'}, body});
@@ -89,7 +92,7 @@ export function retryJob(job: CinemaJob) {
   useCinema.getState().removeJobs([job.id]);
   return startGeneration({
     mode: job.mode, model: job.model, duration: job.duration, prompt: job.prompt, aspect: job.aspect, resolution: job.resolution,
-    references: job.references, count: 1, source: job.source, boardId: job.boardId, shotId: job.shotId,
+    references: job.references, videoReferences: job.videoReferences, count: 1, source: job.source, boardId: job.boardId, shotId: job.shotId,
     // A picture of /pdf-generator stays in its card's batch, in the same slot.
     ...(job.tag ? {tag: job.tag, batchId: job.batchId} : {}),
     // A retried Estudio picture stays in its project.

@@ -1,3 +1,4 @@
+import {isMP4} from '@/lib/cinema/video-reference';
 import {createHash} from 'node:crypto';
 import {sameOrigin, limit} from '@/lib/ai/security';
 import {auth} from '@/lib/auth/server';
@@ -54,6 +55,7 @@ export async function POST(req: Request) {
     if (!await limit('sync-asset:' + id, 120, 60)) return Response.json({error: 'RATE_LIMIT'}, {status: 429, headers});
     const bytes = new Uint8Array(await req.arrayBuffer());
     if (!bytes.length || bytes.length > MAX_ASSET_BYTES) return Response.json({error: 'ITEM_TOO_LARGE'}, {status: 413, headers});
+    if (mime === 'video/mp4' && !isMP4(bytes)) return Response.json({error: 'INVALID_TYPE'}, {status: 415, headers});
     const hash = createHash('sha256').update(bytes).digest('hex');
     await putAsset(id, hash, mime, bytes);
     return Response.json({hash}, {headers});

@@ -64,7 +64,7 @@ export type TextModel = Base & {category: 'text'; inputs?: readonly TextInput[];
 export type MediaOptions = {
   /** Input field names in Kie's request. */
   fields: {
-    prompt: string; images?: string; aspect?: string; resolution?: string; duration?: string; format?: string;
+    prompt: string; images?: string; videos?: string; aspect?: string; resolution?: string; duration?: string; format?: string;
     /** The image field takes one URL, not a list. */
     imagesSingle?: boolean;
     /** The duration is a number in Kie's request, not a string. */
@@ -84,6 +84,8 @@ export type MediaOptions = {
   fixed?: Record<string, unknown>;
   /** Reference images: 0 = none. */
   maxReferences: number;
+  /** Verified optional video references; absent on models that cannot accept them. */
+  videoReferences?: {max: number; minSeconds: number; maxSeconds: number; mention: string};
   /** Variants per request. Kie creates one task per variant. */
   maxVariants: number;
   /** 'create' works from text alone; 'edit' needs reference images. */

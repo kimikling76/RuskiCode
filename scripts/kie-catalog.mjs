@@ -187,6 +187,13 @@ function mediaEntry(page, s, opPath, op, category) {
     const said = String(f(k).description || '').match(/mention (?:them|it) in the prompt as `@([A-Za-z_]+?)(\d+)?`/i);
     if (said) options.mention = '@' + said[1] + (said[2] ? '{n}' : '');
   }
+  // Optional video references verified in Kling 4.0's official page (2026-10-29).
+  // Other video inputs stay unavailable until their complete requirements have been implemented.
+  if (providerModel === 'kling-4.0/reference-to-video' && f('video_urls')?.type === 'array' && f('video_urls').maxItems === 5) {
+    used.add('video_urls');
+    options.fields.videos = 'video_urls';
+    options.videoReferences = {max: 5, minSeconds: 2, maxSeconds: 30, mention: '@video_{n}'};
+  }
   // «Every @ mention must match an asset included in this request, otherwise the request is rejected.»
   if (/every `?@`? mention must match/i.test(String(f('prompt').description || ''))) options.strictMentions = true;
 

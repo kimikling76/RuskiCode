@@ -25,6 +25,7 @@ const createInput = z.object({
   duration: z.string().max(12).optional(),
   /** Kie-hosted results, or `asset:<sha256>`: an image stored in the studio (an attachment), uploaded to Kie here. */
   references: z.array(z.union([z.string().url().max(2000), z.string().regex(/^asset:[a-f0-9]{64}$/)])).max(16).default([]),
+  videoReferences: z.array(z.union([z.string().url().max(2000), z.string().regex(/^asset:[a-f0-9]{64}$/)])).max(5).default([]),
   count: z.number().int().min(1).max(8),
 }).strict();
 
@@ -41,8 +42,9 @@ function validate(input: z.infer<typeof createInput>) {
   const offered = (value: string | undefined, list: readonly string[]) => list.length ? value !== undefined && list.includes(value) : value === undefined;
   if (!offered(input.aspect, o.aspectRatios) || !offered(input.resolution, o.resolutions) || !offered(input.duration, o.durations)) return {error: 'INVALID_PARAMETERS'} as const;
   if (input.references.length > o.maxReferences || input.count > o.maxVariants) return {error: 'INVALID_PARAMETERS'} as const;
+  if (input.videoReferences.length && (!wantVideo || !o.fields.videos || !o.videoReferences || input.videoReferences.length > o.videoReferences.max)) return {error: 'INVALID_PARAMETERS'} as const;
   // The prompt as Kie gets it (images named in the model's own words) must fit the limit its page documents.
-  if (String(jobInput(model, {prompt: input.prompt, references: input.references})[o.fields.prompt]).length > promptLimit(o, model.category)) return {error: 'PROMPT_TOO_LONG'} as const;
+  if (String(jobInput(model, {prompt: input.prompt, references: input.references, videoReferences: input.videoReferences})[o.fields.prompt]).length > promptLimit(o, model.category)) return {error: 'PROMPT_TOO_LONG'} as const;
   return {model} as const;
 }
 
@@ -67,7 +69,7 @@ export async function POST(req: Request) {
     return Response.json({error: 'INVALID_REQUEST'}, {status: 400});
   }
   try {
-    for (const reference of input.references) if (!reference.startsWith('asset:')) await approvedAssetURL(reference);
+    for (const reference of [...input.references, ...input.videoReferences]) if (!reference.startsWith('asset:')) await approvedAssetURL(reference);
   } catch {
     return Response.json({error: 'REFERENCE_NOT_ALLOWED'}, {status: 400});
   }
@@ -109,10 +111,25 @@ export async function POST(req: Request) {
     }
   }
 
+  const videoReferences: string[] = [];
+  for (const reference of input.videoReferences) {
+    if (!reference.startsWith('asset:')) { videoReferences.push(reference); sent.push({reference, url: reference}); continue; }
+    const hash = reference.slice(6);
+    try {
+      const asset = await getAsset(session.user.id, hash);
+      if (!asset || asset.mime !== 'video/mp4') return refuse(fail('REFERENCE_MISSING'));
+      const url = await kieUpload(asset.data, asset.mime, hash);
+      videoReferences.push(url);
+      sent.push({reference, url, sha256: createHash('sha256').update(asset.data).digest('hex'), size: asset.data.length, mime: asset.mime});
+    } catch (e) {
+      return refuse(fail(e instanceof UploadError ? e.code : 'REFERENCE_MISSING'));
+    }
+  }
+
   const tasks: string[] = [];
   for (let i = 0; i < input.count; i++) {
     try {
-      tasks.push(await createJob(model, {prompt: input.prompt, aspect: input.aspect, resolution: input.resolution, duration: input.duration, references}));
+      tasks.push(await createJob(model, {prompt: input.prompt, aspect: input.aspect, resolution: input.resolution, duration: input.duration, references, videoReferences}));
       if (ledger.state === 'new') await recordRequest(input.requestId, 'pending', tasks);
     } catch (e) {
       const code = e instanceof CinemaError ? e.code : 'PROVIDER_UNAVAILABLE';
