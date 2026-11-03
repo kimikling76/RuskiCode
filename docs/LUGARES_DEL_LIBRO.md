@@ -42,3 +42,29 @@ En **Contexto del libro** hay una pestaña nueva, **Lugares**, junto a **Persona
   - La Kie de prueba recibió la imagen de la escuela (la misma huella sha256) y el prompt con «Школа».
   - En el Estudio, «@Шк» mostró la escuela como lugar con su imagen principal.
   - En el celular, la pestaña y la ficha se ven sin desbordes.
+
+## Varios libros y deshacer una importación (3 de noviembre de 2026)
+
+**El problema:** la página tenía un solo libro y no había forma de crear otro. Por eso, el paquete del libro de niños entró dentro de «Русский код»:
+- cambió las fichas de los personajes y las unidades 1 a 8;
+- agregó reglas, lugares y una segunda «Аня».
+
+**Lo nuevo:**
+- **Nuevo libro…** (en el menú «⋯» de Contexto del libro): crea un libro aparte. Arriba se elige con cuál trabajar.
+- **Unidades y asistentes → Archivos importados:**
+  - lista cada archivo importado en ese libro;
+  - se eligen uno o varios y **Deshacer**;
+  - antes de cambiar nada, muestra qué vuelve a como estaba y qué se quita;
+  - avisa si después de esa importación hiciste cambios que también se deshacen.
+  - Varios archivos se deshacen juntos, hasta antes del primero de ellos.
+  - Cada dato que vuelve atrás guarda una versión nueva: se puede rehacer desde su historial.
+- **Importar una base exportada reemplaza los datos del dato entero.** Un campo que el archivo nuevo no trae (por ejemplo, una edad que escribió un archivo anterior) ya no queda pegado.
+
+**Cómo se probó:**
+- **En una copia local:**
+  1. se importó el libro de adultos completo (145 datos);
+  2. se importaron encima las dos versiones del paquete de niños;
+  3. se deshicieron juntas.
+  - La exportación después de deshacer es **idéntica** a la original: los mismos 145 datos y los mismos contenidos.
+  - Después se creó el libro de niños aparte y se importó ahí: 42 datos, con los 8 personajes del manual de adultos y sus fichas aprobadas.
+- **Pruebas automáticas** en `tests/places.test.ts`.

@@ -4,7 +4,7 @@ import {libraryEvents} from '@/lib/books/library';
 import {entrySchema, hasPictures, projectSchema, type KbEntry, type KbProject, type KbRef} from './model';
 import {applyPlan, planImport, refsWithFiles, type ImportFile, type ImportReport} from './import';
 import {refBytes, storeUnpacked, unpackFiles} from './files';
-import {changeEntry, restoreEntry, type EntryChange} from './versions';
+import {changeEntry, planUndo, restoreEntry, type EntryChange} from './versions';
 
 // Book projects and their knowledge base in this browser (IndexedDB), synced to the account as one record per
 // project (`kb-project`) and one per entry (`kb-entry`):
@@ -135,4 +135,36 @@ export async function commitImport(project: KbProject, files: ImportFile[]): Pro
   const at = Date.now();
   await saveProject({...project, imports: [...project.imports, ...plan.files.map(f => ({file: f.name.slice(0, 300), at, entries: f.patches}))].slice(-200)});
   return {report, saved: entries.length, pictures};
+}
+
+// ---------- Undoing an import ----------
+
+/** What undoing the imports of these files would change in the project (nothing is saved). */
+export async function previewUndo(project: KbProject, files: string[]) {
+  return planUndo(await listEntries(project.id), files);
+}
+
+/**
+ * Undoes the imports of these files: entries they created are taken out (in every computer, through sync), entries
+ * they changed go back to their version from before. The import records of those files are taken off the project.
+ */
+export async function undoImport(project: KbProject, files: string[]) {
+  const entries = await listEntries(project.id);
+  const steps = planUndo(entries, files);
+  const now = Date.now();
+  const restored: KbEntry[] = [];
+  let removed = 0;
+  for (const s of steps) {
+    const e = entries.find(x => x.id === s.id)!;
+    if (s.action === 'remove') { await localStore.remove(entryStoreKey(project.id, s.id)); removed++; }
+    if (s.action === 'restore') {
+      const next = restoreEntry(e, s.version!, now);
+      if (next !== e) restored.push({...next, note: ('Deshecha la importación: vuelve la versión ' + s.version).slice(0, 300)} as KbEntry);
+    }
+  }
+  await writeEntries(restored);
+  const fresh = await getProject(project.id);
+  if (fresh) await saveProject({...fresh, imports: fresh.imports.filter(i => !files.includes(i.file))});
+  changed();
+  return {removed, restored: restored.length, missing: steps.filter(s => s.action === 'missing').length};
 }

@@ -38,6 +38,7 @@ export function BookKnowledgePage() {
   const [status, setStatus] = useState<KbStatus | 'all'>('all');
   const [query, setQuery] = useState('');
   const [adding, setAdding] = useState(false);
+  const [newBook, setNewBook] = useState(false);
   const selectedId = params.get('e');
 
   const go = (patch: {p?: string; e?: string | null}) => {
@@ -116,6 +117,7 @@ export function BookKnowledgePage() {
                     <Menu>
                       <MenuTrigger asChild><button type="button" className="rc-icon-btn" aria-label="Más opciones del contexto"><MoreHorizontal /></button></MenuTrigger>
                       <MenuContent align="end">
+                        <MenuItem onSelect={() => setNewBook(true)}>Nuevo libro…</MenuItem>
                         <MenuItem disabled={!entries?.length} onSelect={() => void exportBase().catch(() => toast('No se pudo exportar la base.'))}>Exportar el contexto (.json, con las imágenes)</MenuItem>
                       </MenuContent>
                     </Menu>
@@ -239,6 +241,9 @@ export function BookKnowledgePage() {
                 ) : shownTab === 'settings' ? (
                   <div role="tabpanel" id="kb-panel-settings" aria-labelledby="kb-tab-settings"><ProjectSettings project={project} /></div>
                 ) : null}
+                <Dialog open={newBook} onClose={() => setNewBook(false)} title="Nuevo libro" description="Un libro aparte, con su propio contexto: sus personajes, lugares, reglas y unidades no se mezclan con los de los otros libros.">
+                  <div className="rc-dialog-body"><NewProject defaultName="" onCreated={p => { setNewBook(false); setTab(null); setQuery(''); setKind('all'); setStatus('all'); go({p: p.id, e: null}); toast('Libro «' + p.name + '» creado. Importá sus archivos acá.'); }} /></div>
+                </Dialog>
                 <NewEntry open={adding} project={project} onClose={() => setAdding(false)} onCreated={id => { setAdding(false); setQuery(''); setKind('all'); setStatus('all'); open(id); }} />
               </>
             )}
@@ -248,8 +253,8 @@ export function BookKnowledgePage() {
   );
 }
 
-function NewProject({onCreated}: {onCreated: (p: KbProject) => void}) {
-  const [name, setName] = useState('Русский код');
+function NewProject({onCreated, defaultName = 'Русский код'}: {onCreated: (p: KbProject) => void; defaultName?: string}) {
+  const [name, setName] = useState(defaultName);
   return (
     <form className="rc-kb-new" onSubmit={e => { e.preventDefault(); createProject(name).then(onCreated, () => toast('No se pudo crear el proyecto en este navegador.')); }}>
       <p>Creá el proyecto del libro para guardar su contexto. Después importás los archivos del paquete y elegís qué unidades del manual y qué asistentes lo usan.</p>
