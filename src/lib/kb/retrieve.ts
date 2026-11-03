@@ -103,6 +103,19 @@ function castText(chars: EntryOf<'character'>[], names: Map<string, string>) {
   return 'Personajes del libro, con su nombre como se escribe en el libro. Los personajes con nombre de la historia son estos: no inventes otros ni otra familia. Pueden aparecer personas sin nombre (un vendedor, un médico).\n' + lines.join('\n');
 }
 
+/** Every place of the book in one line each, with the name pictures must use for it. */
+function placesText(places: EntryOf<'place'>[]) {
+  const lines = places.map(p => {
+    const d = p.data;
+    const name = d.nameRu || p.title;
+    return '- ' + name + ' [' + label(p.status) + ']'
+      + (d.aliases.filter(a => a !== name).length ? ' (también: ' + d.aliases.filter(a => a !== name).slice(0, 4).join(', ') + ')' : '')
+      + (d.look ? ' · aspecto confirmado: ' + d.look.slice(0, 300) : p.body ? ' · ' + p.body.replace(/\s+/g, ' ').slice(0, 200) : '')
+      + ' · ' + (d.mainRef ? 'imagen aprobada' : 'sin imagen aprobada');
+  });
+  return 'Lugares del libro. Cuando una imagen pasa en uno de ellos, escribí su nombre tal cual en el campo "place" de esa imagen: el estudio le agrega su imagen aprobada como referencia.\n' + lines.join('\n');
+}
+
 export function placeIn(query: string) {
   const q = fold(query);
   const unit = q.match(/\b(?:unidad|урок|unit)\s*(\d{1,2})\b/)?.[1];
@@ -164,6 +177,8 @@ export function retrieve(entries: KbEntry[], task: BookTask): BookContext {
   // It goes right after the page (or the unit) it is about, before rules and notes.
   const anchor = pageEntry(page) && picked.includes(pageEntry(page)!) ? pageEntry(page) : picked.find(e => e.kind === 'unit');
   if (task.cast && chars.length) push({id: 'cast', kind: 'character', title: 'Reparto del libro', status: 'observed', source: 'Fichas de los personajes de la base', text: castText(chars, names)});
+  const places = live.filter((e): e is EntryOf<'place'> => e.kind === 'place');
+  if (task.cast && places.length) push({id: 'places', kind: 'place', title: 'Lugares del libro', status: 'observed', source: 'Fichas de los lugares de la base', text: placesText(places)});
   for (const e of picked) {
     push(itemOf(e, names));
     if (e === anchor && known) { push(known); known = null; }

@@ -1,6 +1,6 @@
-import {buildIndex, findCharacters} from './names';
+import {buildIndex, findCharacters, fold} from './names';
 import {ageOf} from './characters';
-import type {EntryOf, KbEntry, KbRef} from './model';
+import type {EntryOf, KbEntry, KbRef, Pictured} from './model';
 
 // A picture of the book's characters: which reference files go to the image model, and the prompt that names them.
 //
@@ -23,20 +23,23 @@ export function bubbleLines(text: string | undefined) {
   });
 }
 
-export const approvedRefs = (c: EntryOf<'character'>) => {
+export const approvedRefs = (c: Pictured) => {
   const ok = c.data.refs.filter(r => r.review === 'approved' && r.mime.startsWith('image/'));
   return [...ok.filter(r => r.hash === c.data.mainRef), ...ok.filter(r => r.hash !== c.data.mainRef)];
 };
 
 /** The main approved reference of each chosen character, to start with. */
-export const defaultPicks = (chars: EntryOf<'character'>[]): CastPick[] =>
+export const defaultPicks = (chars: Pictured[]): CastPick[] =>
   chars.map(c => ({id: c.id, refs: approvedRefs(c).filter(r => !r.chunks).slice(0, 1).map(r => r.hash)}));
 
 export type PlannedRef = {character: string; name: string; ref: KbRef; index: number};
 
-/** The files that will be sent, in order, and the ones the model's limit leaves out. */
-export function plannedRefs(chars: EntryOf<'character'>[], picks: CastPick[], max: number) {
-  const order: {c: EntryOf<'character'>; r: KbRef}[] = [];
+/**
+ * The files that will be sent, in order, and the ones the model's limit leaves out. `chars` may also hold the place
+ * of the picture (its pick goes last): it gets its picture after each character's first one.
+ */
+export function plannedRefs(chars: Pictured[], picks: CastPick[], max: number) {
+  const order: {c: Pictured; r: KbRef}[] = [];
   const of = (id: string) => chars.find(c => c.id === id);
   // First every character's first chosen file, then the extra ones: with a small limit each character keeps one.
   for (const round of [0, 1]) for (const p of picks) {
@@ -52,10 +55,10 @@ export function plannedRefs(chars: EntryOf<'character'>[], picks: CastPick[], ma
 }
 
 /** The prompt: who is in the picture and how to tell them apart, then what happens, where, framed how. */
-export function bookPicturePrompt(chars: EntryOf<'character'>[], sent: PlannedRef[], parts: PictureParts) {
+export function bookPicturePrompt(chars: EntryOf<'character'>[], sent: PlannedRef[], parts: PictureParts, place?: EntryOf<'place'>) {
   const lines: string[] = [];
   if (chars.length) {
-    lines.push(sent.length
+    lines.push(sent.some(s => chars.some(c => c.id === s.character))
       ? 'Characters. Keep each one\'s face, hair, body build and age exactly as in their reference image; clothing may change to suit the scene:'
       : 'Characters:');
     for (const c of chars) {
@@ -69,7 +72,8 @@ export function bookPicturePrompt(chars: EntryOf<'character'>[], sent: PlannedRe
     if (apart.length) lines.push('These are different people; do not mix their features: ' + chars.map(c => c.data.nameRu || c.title).join(', ') + '.');
   }
   if (parts.action.trim()) lines.push('Action: ' + parts.action.trim());
-  if (parts.scene.trim()) lines.push('Setting: ' + parts.scene.trim());
+  const where = place ? placeLine(place, sent.filter(s => s.character === place.id).map(s => s.index)) : '';
+  if (where || parts.scene.trim()) lines.push('Setting: ' + [where, parts.scene.trim()].filter(Boolean).join(' '));
   if (parts.composition.trim()) lines.push('Composition: ' + parts.composition.trim());
   if (parts.style.trim()) lines.push('Style: ' + parts.style.trim());
   const bubbles = bubbleLines(parts.bubbles);
@@ -82,14 +86,22 @@ export function bookPicturePrompt(chars: EntryOf<'character'>[], sent: PlannedRe
   return lines.join('\n');
 }
 
+/** How a picture names its place: the book's name, its reference images and its confirmed look. */
+export function placeLine(place: EntryOf<'place'>, refs: number[]) {
+  const name = place.data.nameRu || place.title;
+  const look = place.data.look?.trim().replace(/\.$/, '');
+  return name + (refs.length ? ' — keep the place exactly as in reference image ' + refs.join(' and ') + ' (same architecture, layout, furniture, materials and colors; the camera angle may change)' : '') + (look ? '. ' + look : '') + '.';
+}
+
 /** Warnings for the author before a paid picture: what the model will not see, and who has no verified picture. */
-export function pictureWarnings(chars: EntryOf<'character'>[], sent: PlannedRef[], left: {name: string; ref: KbRef}[], max: number) {
+export function pictureWarnings(chars: EntryOf<'character'>[], sent: PlannedRef[], left: {name: string; ref: KbRef}[], max: number, place?: EntryOf<'place'>) {
   const out: string[] = [];
-  if (!max && chars.some(c => approvedRefs(c).length)) out.push('Este modelo no recibe imágenes de referencia: solo se envía el texto. Elegí uno que las acepte para que vea las fichas.');
+  if (!max && [...chars, ...(place ? [place] : [])].some(c => approvedRefs(c).length)) out.push('Este modelo no recibe imágenes de referencia: solo se envía el texto. Elegí uno que las acepte para que vea las fichas.');
   for (const c of chars) {
     if (c.data.missing && !approvedRefs(c).length) out.push(c.title + ' no tiene imagen verificada: el resultado no es una ficha canónica y no se debe presentar como tal.');
     else if (!sent.some(s => s.character === c.id)) out.push(c.title + ' va sin imagen de referencia' + (c.data.look ? ', solo con su descripción confirmada.' : ' ni descripción confirmada: el modelo lo inventa.'));
   }
+  if (place && !sent.some(s => s.character === place.id)) out.push('El lugar «' + place.title + '» va sin imagen' + (place.data.look ? ', solo con su descripción confirmada.' : ' ni descripción confirmada: el modelo lo inventa.'));
   if (left.length) out.push('El modelo acepta ' + max + (max === 1 ? ' imagen' : ' imágenes') + ': quedan afuera ' + left.map(l => l.ref.name + ' (' + l.name + ')').join(', ') + '.');
   out.push('Ningún modelo garantiza el mismo rostro: revisá el resultado antes de usarlo.');
   return out;
@@ -114,4 +126,20 @@ export function castOfBook(names: string[], entries: KbEntry[]) {
     out[name] = {id: c.id, title: c.title, ...(main ? {hash: main.hash, file: main.name} : {}), ...(age ? {age} : {}), ...(look ? {look} : {})};
   }
   return out;
+}
+
+/** A place of the book by the name a draft or a request gives it (its Russian name or an alias), when only one fits. */
+export function placeOfBook(name: string | undefined, entries: KbEntry[]) {
+  const q = fold(name || '').trim();
+  if (!q) return undefined;
+  const places = entries.filter((e): e is EntryOf<'place'> => e.kind === 'place' && e.status !== 'superseded');
+  const found = places.filter(p => [p.data.nameRu, p.title, ...p.data.aliases].some(n => n && fold(n).trim() === q));
+  return found.length === 1 ? found[0] : undefined;
+}
+
+/** What a /pdf-generator draft keeps of a place of the book: its approved main picture and its confirmed look. */
+export function placeMember(p: EntryOf<'place'>) {
+  const main = approvedRefs(p).find(r => r.hash === p.data.mainRef && !r.chunks);
+  const look = p.data.look?.trim();
+  return {id: p.id, title: p.data.nameRu || p.title, ...(main ? {hash: main.hash, file: main.name} : {}), ...(look ? {look} : {})};
 }

@@ -84,7 +84,7 @@ export function ImportButton({project}: {project: KbProject}) {
               {byKind.length ? <p className="rc-hint">{byKind.map(([k, n]) => kindName[k as KbEntry['kind']] + ': ' + n).join(' · ')}</p> : null}
               {byStatus.length ? <p className="rc-hint">Los nuevos entran como: {byStatus.map(([s, n]) => statusName[s as KbEntry['status']].toLowerCase() + ' ' + n).join(' · ')}.</p> : null}
               {preview.plan.files.some(f => f.kind === 'export') ? <p className="rc-hint rc-kb-warning">Este archivo es una base exportada: trae los estados que tenía (lo aprobado entra aprobado){preview.pictures.approved ? ' y ' + count(preview.pictures.approved, 'imagen aprobada', 'imágenes aprobadas') : ''}. Importalo solo si lo exportaste vos o sabés de dónde viene.</p> : null}
-              {preview.pictures.added ? <p className="rc-hint">Imágenes de personajes: {preview.pictures.added} ({preview.pictures.approved} aprobadas). Se guardan en este navegador y se suben a tu cuenta con los datos.</p> : null}
+              {preview.pictures.added ? <p className="rc-hint">Imágenes de personajes y lugares: {preview.pictures.added} ({preview.pictures.approved} aprobadas). Se guardan en este navegador y se suben a tu cuenta con los datos.</p> : null}
               {preview.pictures.left.length ? <p className="rc-hint rc-kb-warning">No vienen en el archivo ni están en este navegador o tu cuenta, así que no se agregan: {preview.pictures.left.join(', ')}.</p> : null}
               {preview.pictures.bad.length ? <p className="rc-form-error">No coinciden con su huella (archivo dañado o cambiado) y no se importan: {preview.pictures.bad.join(', ')}.</p> : null}
               {preview.report.kept.length ? (

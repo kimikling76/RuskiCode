@@ -16,13 +16,13 @@ import {ImportButton} from './import-dialog';
 import {EntryDetail, StatusBadge, type Names} from './entry-detail';
 import {KnownPanel} from './known-panel';
 import {ProjectSettings} from './project-settings';
-import {People, isCharacter} from './people';
+import {People, isCharacter, isPlace} from './people';
 
-type Tab = 'people' | 'data' | 'known' | 'settings';
-const prefix: Record<KbKind, string> = {identity: 'identity', character: 'char', story: 'story', unit: 'unit', page: 'page', rule: 'rule', decision: 'decision', note: 'note'};
-const order: KbKind[] = ['decision', 'identity', 'character', 'story', 'unit', 'page', 'rule', 'note'];
+type Tab = 'people' | 'places' | 'data' | 'known' | 'settings';
+const prefix: Record<KbKind, string> = {identity: 'identity', character: 'char', place: 'place', story: 'story', unit: 'unit', page: 'page', rule: 'rule', decision: 'decision', note: 'note'};
+const order: KbKind[] = ['decision', 'identity', 'character', 'place', 'story', 'unit', 'page', 'rule', 'note'];
 
-const searchText = (e: KbEntry) => fold([e.title, e.body, e.kind === 'character' ? e.data.aliases.join(' ') : '', e.kind === 'page' ? e.data.text : '', e.kind === 'decision' ? e.data.question : ''].join(' '));
+const searchText = (e: KbEntry) => fold([e.title, e.body, e.kind === 'character' || e.kind === 'place' ? e.data.aliases.join(' ') : '', e.kind === 'page' ? e.data.text : '', e.kind === 'decision' ? e.data.question : ''].join(' '));
 const rank = (e: KbEntry, q: string) => { const t = fold(e.title); return t === q ? 0 : t.startsWith(q) ? 1 : t.includes(q) ? 2 : 3; };
 const sortKey = (e: KbEntry) => e.kind === 'page' ? e.data.number : e.kind === 'unit' ? e.data.number : 0;
 
@@ -57,13 +57,16 @@ export function BookKnowledgePage() {
   }, [entries, kind, status, query]);
   const selected = entries?.find(e => e.id === selectedId) || null;
   const people = useMemo(() => (entries || []).filter(isCharacter).sort((a, b) => a.title.localeCompare(b.title, 'ru')), [entries]);
+  const places = useMemo(() => (entries || []).filter(isPlace).filter(e => e.status !== 'superseded').sort((a, b) => a.title.localeCompare(b.title, 'ru')), [entries]);
+  const home = (k: KbKind | undefined): Tab => k === 'character' ? 'people' : k === 'place' ? 'places' : 'data';
   // Until chosen, the cast comes first when there is one (or the tab of the entry the link opens).
-  const shownTab: Tab = tab || (selected ? (selected.kind === 'character' ? 'people' : 'data') : people.length ? 'people' : 'data');
-  /** Opens an entry where it lives: a character in «Personajes», anything else in «Todos los datos». */
-  const open = (id: string) => { const e = entries?.find(x => x.id === id); setTab(e?.kind === 'character' ? 'people' : 'data'); go({e: id}); };
+  const shownTab: Tab = tab || (selected ? home(selected.kind) : people.length ? 'people' : 'data');
+  /** Opens an entry where it lives: a character in «Personajes», a place in «Lugares», anything else in «Todos los datos». */
+  const open = (id: string) => { const e = entries?.find(x => x.id === id); setTab(home(e?.kind)); go({e: id}); };
   const counts = useMemo(() => kbStatuses.map(s => [s, (entries || []).filter(e => e.status === s).length] as const), [entries]);
   const pendingDecisions = (entries || []).filter(e => e.kind === 'decision' && e.status === 'pending').length;
   const noApprovedPicture = (entries || []).filter(e => e.kind === 'character' && !e.data.missing && !e.data.mainRef).length;
+  const placesWithoutPicture = places.filter(p => !p.data.mainRef).length;
 
   async function exportBase() {
     if (!project || !entries) return;
@@ -128,16 +131,17 @@ export function BookKnowledgePage() {
                       </button>
                     ))}
                   </div>
-                  {pendingDecisions || noApprovedPicture ? (
+                  {pendingDecisions || noApprovedPicture || placesWithoutPicture ? (
                     <p className="rc-kb-todo">
                       {pendingDecisions ? <button type="button" className="rc-kb-link" onClick={() => { setTab('data'); setKind('decision'); setStatus('pending'); }}>{pendingDecisions} {pendingDecisions === 1 ? 'decisión pendiente' : 'decisiones pendientes'}</button> : null}
                       {noApprovedPicture ? <button type="button" className="rc-kb-link" onClick={() => { setTab('people'); go({e: null}); }}>{noApprovedPicture} {noApprovedPicture === 1 ? 'personaje sin foto principal' : 'personajes sin foto principal'}</button> : null}
+                      {placesWithoutPicture ? <button type="button" className="rc-kb-link" onClick={() => { setTab('places'); go({e: null}); }}>{placesWithoutPicture} {placesWithoutPicture === 1 ? 'lugar sin imagen principal' : 'lugares sin imagen principal'}</button> : null}
                     </p>
                   ) : null}
                 </div>
 
                 <div className="rc-kb-tabs" role="tablist" aria-label="Secciones">
-                  {([['people', 'Personajes', people.length], ['data', 'Todos los datos', entries?.length], ['known', '¿Qué sabe el alumno?', undefined], ['settings', 'Unidades y asistentes', undefined]] as [Tab, string, number | undefined][]).map(([t, label, n]) => (
+                  {([['people', 'Personajes', people.length], ['places', 'Lugares', places.length], ['data', 'Todos los datos', entries?.length], ['known', '¿Qué sabe el alumno?', undefined], ['settings', 'Unidades y asistentes', undefined]] as [Tab, string, number | undefined][]).map(([t, label, n]) => (
                     <button key={t} type="button" role="tab" id={'kb-tab-' + t} aria-controls={'kb-panel-' + t} aria-selected={shownTab === t} className="rc-kb-tab" onClick={() => setTab(t)}>
                       {label}{n !== undefined ? <>{' '}<span className="rc-kb-count">{n}</span></> : null}
                     </button>
@@ -161,6 +165,26 @@ export function BookKnowledgePage() {
                           </div>
                         </>
                       ) : <People people={people} current={null} compact={false} onOpen={open} />}
+                  </div>
+                ) : null}
+
+                {shownTab === 'places' ? (
+                  <div role="tabpanel" id="kb-panel-places" aria-labelledby="kb-tab-places" className={selected?.kind === 'place' ? 'rc-kb-grid rc-kb-grid--people' : undefined} data-open={selected?.kind === 'place' ? '' : undefined}>
+                    {entries === null ? <div className="rc-history-loading" role="status" aria-label="Cargando lugares"><span className="rc-skeleton" /></div>
+                      : !places.length ? (
+                        <div className="rc-empty">
+                          <p className="rc-empty-title">Todavía no hay lugares.</p>
+                          <p className="rc-hint">Agregá uno con «Agregar dato» → Lugar (la casa, la escuela, la ciudad…) y sus imágenes. Las aprobadas van como referencia a los modelos de imagen, para que el lugar sea siempre el mismo.</p>
+                        </div>
+                      ) : selected?.kind === 'place' ? (
+                        <>
+                          <div className="rc-kb-list-col"><People people={places} current={selected.id} compact onOpen={open} /></div>
+                          <div className="rc-kb-detail-col">
+                            <button type="button" className="rc-btn rc-btn--ghost rc-btn--sm rc-kb-back rc-kb-back--always" onClick={() => go({e: null})}><ArrowLeft aria-hidden="true" />Todos los lugares</button>
+                            <EntryDetail entry={selected} names={names} all={entries || []} project={project} onOpen={open} />
+                          </div>
+                        </>
+                      ) : <People people={places} current={null} compact={false} onOpen={open} />}
                   </div>
                 ) : null}
 
@@ -243,7 +267,8 @@ function NewEntry({open, project, onClose, onCreated}: {open: boolean; project: 
   async function create() {
     const now = Date.now();
     const id = prefix[kind] + '.' + slug(title, 40) + '-' + Math.random().toString(36).slice(2, 6);
-    const data = kind === 'character' ? {...emptyData('character'), nameRu: title.trim(), aliases: defaultAliases(title)} : emptyData(kind);
+    const data = kind === 'character' ? {...emptyData('character'), nameRu: title.trim(), aliases: defaultAliases(title)}
+      : kind === 'place' ? {...emptyData('place'), nameRu: title.trim(), aliases: [title.trim()].filter(Boolean)} : emptyData(kind);
     const entry = {schema: 1, project: project.id, id, kind, title: title.trim(), body, status: 'proposed', data, sources: [{kind: 'author', label: 'Escrito en el estudio', date: new Date(now).toISOString().slice(0, 10)}], tags: [], version: 1, createdAt: now, updatedAt: now, note: 'Creado en el estudio', history: []} as KbEntry;
     try { await addEntry(entry); onCreated(id); } catch { toast('No se pudo guardar el dato.'); }
   }
@@ -253,7 +278,7 @@ function NewEntry({open, project, onClose, onCreated}: {open: boolean; project: 
         <label className="rc-field"><span>Tipo</span>
           <select className="rc-input" value={kind} onChange={e => setKind(e.target.value as KbKind)}>{kbKinds.filter(k => k !== 'page').map(k => <option key={k} value={k}>{kindName[k]}</option>)}</select>
         </label>
-        <label className="rc-field"><span>{kind === 'character' ? 'Nombre ruso' : 'Título'}</span><input className="rc-input" required maxLength={300} value={title} onChange={e => setTitle(e.target.value)} autoFocus /></label>
+        <label className="rc-field"><span>{kind === 'character' ? 'Nombre ruso' : kind === 'place' ? 'Nombre del lugar (en ruso, como en el libro)' : 'Título'}</span><input className="rc-input" required maxLength={300} value={title} onChange={e => setTitle(e.target.value)} autoFocus /></label>
         <label className="rc-field"><span>Texto</span><textarea className="rc-textarea" rows={4} maxLength={60000} value={body} onChange={e => setBody(e.target.value)} /></label>
         <div className="rc-dialog-footer rc-dialog-footer--end">
           <button type="button" className="rc-btn rc-btn--ghost" onClick={onClose}>Cancelar</button>

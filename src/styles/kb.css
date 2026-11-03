@@ -85,6 +85,12 @@
 .rc-kb-portrait--small .rc-kb-initial { font-size: 17px; }
 .rc-kb-people--compact .rc-kb-person-text { gap: 2px; }
 .rc-kb-people--compact .rc-kb-person-text strong { font-size: var(--fs-14); }
+/* Lugares: the same cards with landscape pictures. */
+.rc-kb-people--places:not(.rc-kb-people--compact) { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.rc-kb-portrait--place { aspect-ratio: 3 / 2; }
+.rc-kb-portrait--place img { object-position: center; }
+.rc-kb-portrait--place.rc-kb-portrait--small { width: 64px; height: 44px; aspect-ratio: auto; border-radius: var(--radius-8); }
+.rc-kb-people--compact.rc-kb-people--places .rc-kb-person { grid-template-columns: 64px minmax(0, 1fr); }
 @media (prefers-reduced-motion: reduce) { .rc-kb-portrait[data-state='loading'] { animation: none; } }
 .rc-kb-pick { margin-top: var(--sp-6); }
 

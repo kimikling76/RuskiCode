@@ -31,7 +31,7 @@ export async function resultBlob(job: CinemaJob) {
 /** What the provider got for each reference: the file name, and whether the hash of the bytes sent matches it. */
 export function SentList({job}: {job: CinemaJob}) {
   if (!job.sent?.length) return job.references.length ? <p className="rc-hint">Referencias enviadas: {job.references.length} (sin detalle de la subida).</p> : <p className="rc-hint">Sin imágenes de referencia: solo el texto.</p>;
-  const names = new Map(job.book?.characters.flatMap(c => c.refs.map(r => [r.hash, c.name + ' · ' + r.name] as [string, string])) || []);
+  const names = new Map([...(job.book?.characters || []), ...(job.book?.place ? [job.book.place] : [])].flatMap(c => c.refs.map(r => [r.hash, c.name + ' · ' + r.name] as [string, string])));
   return (
     <ul className="rc-kb-sent">
       {job.sent.map((s, i) => {
@@ -53,6 +53,8 @@ type Props = {
   bubbles?: boolean;
   /** Characters chosen when the dialog opens (entry ids). */
   initial: string[];
+  /** The place chosen when the dialog opens (entry id). */
+  initialPlace?: string;
   /** Puts an approved result where the dialog was opened from (a page of the manual). */
   onInsert?: (blob: Blob, job: CinemaJob) => Promise<void> | void;
   insertLabel?: string;
@@ -63,8 +65,10 @@ type Props = {
  * characters and files to send (within the model's limit), the prompt with who, what, where and how, the cost when
  * Kie publishes it, a confirmation every time, and a review of the result before it goes anywhere.
  */
-export function BookImageDialog({open, onClose, project, entries, initial, onInsert, insertLabel = 'Insertar en la página', bubbles: withBubbles = false}: Props) {
+export function BookImageDialog({open, onClose, project, entries, initial, initialPlace, onInsert, insertLabel = 'Insertar en la página', bubbles: withBubbles = false}: Props) {
   const characters = useMemo(() => entries.filter((e): e is EntryOf<'character'> => e.kind === 'character' && e.status !== 'superseded').sort((a, b) => a.title.localeCompare(b.title)), [entries]);
+  const places = useMemo(() => entries.filter((e): e is EntryOf<'place'> => e.kind === 'place' && e.status !== 'superseded').sort((a, b) => a.title.localeCompare(b.title, 'ru')), [entries]);
+  const [placePick, setPlacePick] = useState<CastPick | null>(null);
   const [modelId, setModelId] = useState('nano-banana-2-1');
   const [picks, setPicks] = useState<CastPick[]>([]);
   const [parts, setParts] = useState<PictureParts>({action: '', scene: '', composition: '', style: withBubbles ? 'Bright, friendly comic-style illustration with clean lines, as in a modern language textbook.' : 'Bright, friendly, realistic photograph with natural light, as in a modern language textbook.', bubbles: ''});
@@ -79,6 +83,8 @@ export function BookImageDialog({open, onClose, project, entries, initial, onIns
   useEffect(() => {
     if (!open) return;
     setPicks(defaultPicks(characters.filter(c => initial.includes(c.id))));
+    const first = places.find(p => p.id === initialPlace);
+    setPlacePick(first ? defaultPicks([first])[0] : null);
     setBatch(null); setCustom(null); setConfirm(false); setQuery('');
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -87,11 +93,13 @@ export function BookImageDialog({open, onClose, project, entries, initial, onIns
   const shownAspect = o.aspectRatios.includes(aspect) ? aspect : o.aspectRatios[0];
   const shownResolution = o.resolutions.includes(resolution) ? resolution : o.resolutions[0];
   const chosen = picks.map(p => characters.find(c => c.id === p.id)).filter((c): c is EntryOf<'character'> => Boolean(c));
-  const {sent, left} = plannedRefs(characters, picks, o.maxReferences);
-  const prompt = custom ?? bookPicturePrompt(chosen, sent, withBubbles ? parts : {...parts, bubbles: ''});
+  const place = placePick ? places.find(p => p.id === placePick.id) : undefined;
+  // The place's picture goes after each character's first one: with a small limit the faces come first.
+  const {sent, left} = plannedRefs([...characters, ...(place ? [place] : [])], [...picks, ...(place && placePick ? [placePick] : [])], o.maxReferences);
+  const prompt = custom ?? bookPicturePrompt(chosen, sent, withBubbles ? parts : {...parts, bubbles: ''}, place);
   const limit = promptLimit(o, 'image');
   const lines = withBubbles ? bubbleLines(parts.bubbles) : [];
-  const warnings = pictureWarnings(chosen, sent, left, o.maxReferences);
+  const warnings = pictureWarnings(chosen, sent, left, o.maxReferences, place);
   const needsImage = !o.modes.includes('create') && !sent.length;
   const jobs = useCinema(s => s.data.jobs).filter(j => batch && j.batchId === batch);
 
@@ -102,11 +110,11 @@ export function BookImageDialog({open, onClose, project, entries, initial, onIns
     setSending(true);
     try {
       // The files go to the account first (if this computer has not synced them yet): the server reads them from there.
-      for (const c of chosen) await uploadEntryFiles(c);
+      for (const c of [...chosen, ...(place ? [place] : [])]) await uploadEntryFiles(c);
       const id = await startGeneration({
         mode: 'create', model: model.id, prompt, aspect: shownAspect as never, resolution: shownResolution as never, count: 1,
         references: sent.map(s => 'asset:' + s.ref.hash),
-        ...(project ? {tag: 'book:' + project.id, book: {project: project.id, name: project.name, characters: chosen.map(c => ({id: c.id, name: c.title, refs: sent.filter(s => s.character === c.id).map(s => ({hash: s.ref.hash, name: s.ref.name}))}))}} : {}),
+        ...(project ? {tag: 'book:' + project.id, book: {project: project.id, name: project.name, characters: chosen.map(c => ({id: c.id, name: c.title, refs: sent.filter(s => s.character === c.id).map(s => ({hash: s.ref.hash, name: s.ref.name}))})), ...(place ? {place: {id: place.id, name: place.title, refs: sent.filter(s => s.character === place.id).map(s => ({hash: s.ref.hash, name: s.ref.name}))}} : {})}} : {}),
       });
       setBatch(id);
     } catch (e) {
@@ -158,6 +166,24 @@ export function BookImageDialog({open, onClose, project, entries, initial, onIns
               </ul>
             </Field> : <p className="rc-hint">Esta unidad no está vinculada a un libro: sin personajes ni imágenes de referencia. Describí a las personas en «Qué pasa».</p>}
 
+            {project && places.length ? <Field label="Lugar" hint="Su imagen aprobada va como referencia, para que el lugar sea el mismo en cada ilustración.">
+              <select className="rc-input" aria-label="Lugar" value={placePick?.id || ''} onChange={e => { const p = places.find(x => x.id === e.target.value); setPlacePick(p ? defaultPicks([p])[0] : null); setCustom(null); }}>
+                <option value="">Ninguno (lo describe «Dónde y cuándo»)</option>
+                {places.map(p => { const n = approvedRefs(p).length; return <option key={p.id} value={p.id}>{p.title}{n ? ' · ' + n + (n === 1 ? ' imagen aprobada' : ' imágenes aprobadas') : ' · sin imagen aprobada'}</option>; })}
+              </select>
+              {place && placePick && approvedRefs(place).length ? (
+                <div className="rc-kb-cast-refs">
+                  {approvedRefs(place).map(r => (
+                    <label key={r.hash} className="rc-kb-cast-ref">
+                      <input type="checkbox" checked={placePick.refs.includes(r.hash)} disabled={Boolean(r.chunks)} onChange={() => { setPlacePick(p => p && {...p, refs: p.refs.includes(r.hash) ? p.refs.filter(h => h !== r.hash) : [...p.refs, r.hash]}); setCustom(null); }} />
+                      <RefThumb file={r} label={place.title + ': ' + r.name} />
+                      <span>{r.hash === place.data.mainRef ? 'Principal · ' : ''}{r.name}{r.chunks ? ' · más de 4 MB, no se puede enviar' : ''}</span>
+                    </label>
+                  ))}
+                </div>
+              ) : null}
+            </Field> : null}
+
             <div className="rc-kb-parts">
               {([['action', 'Qué pasa'], ['scene', 'Dónde y cuándo'], ['composition', 'Encuadre y luz'], ['style', 'Estilo']] as const).map(([k, label]) => (
                 <label key={k} className="rc-field"><span>{label}</span><input className="rc-input" maxLength={400} value={parts[k]} onChange={e => { setParts(p => ({...p, [k]: e.target.value})); setCustom(null); }} /></label>
@@ -175,7 +201,7 @@ export function BookImageDialog({open, onClose, project, entries, initial, onIns
             {warnings.length ? <ul className="rc-kb-consequences rc-kb-warnings">{warnings.map(w => <li key={w}>{w}</li>)}</ul> : null}
             <div className="rc-dialog-footer rc-dialog-footer--end">
               <button type="button" className="rc-btn rc-btn--ghost" onClick={onClose}>Cancelar</button>
-              <button type="button" className="rc-btn rc-btn--primary" disabled={sending || needsImage || !prompt.trim() || prompt.length > limit || (!chosen.length && !parts.action.trim() && !lines.length)} onClick={() => setConfirm(true)}>{sending ? 'Enviando…' : 'Generar…'}</button>
+              <button type="button" className="rc-btn rc-btn--primary" disabled={sending || needsImage || !prompt.trim() || prompt.length > limit || (!chosen.length && !place && !parts.action.trim() && !lines.length)} onClick={() => setConfirm(true)}>{sending ? 'Enviando…' : 'Generar…'}</button>
             </div>
           </>
         )}
@@ -186,6 +212,7 @@ export function BookImageDialog({open, onClose, project, entries, initial, onIns
           {([
             ['Modelo', model.name],
             ['Personajes', chosen.map(c => c.title).join(', ') || 'ninguno'],
+            ...(place ? [['Lugar', place.title]] : []),
             ...(lines.length ? [['Globos', lines.length + (lines.length === 1 ? ' globo con texto ruso' : ' globos con texto ruso')]] : []),
             ['Imágenes de referencia', sent.length ? sent.map(s => s.ref.name).join(', ') : 'ninguna'],
             ...(o.aspectRatios.length ? [['Formato', aspectName(shownAspect)]] : []),

@@ -1,6 +1,6 @@
 'use client';
 import {getAsset, putAsset, MAX_ASSET} from '@/lib/manual/store';
-import type {KbEntry, KbRef, PackageFile} from './model';
+import {hasPictures, type KbEntry, type KbRef, type PackageFile} from './model';
 
 // Pictures and sheets of the characters, stored unchanged by their content hash in this browser and in the account
 // (/api/sync/assets, the same store as the manual's files). A file over the size of one stored file is kept in parts,
@@ -55,7 +55,7 @@ async function failIfBad(r: Response) {
 
 /** Sends to the account the files of an entry it does not have yet, before the entry itself is synced. */
 export async function uploadEntryFiles(entry: KbEntry) {
-  if (entry.kind !== 'character' || !entry.data.refs.length) return;
+  if (!hasPictures(entry) || !entry.data.refs.length) return;
   const parts = new Map(entry.data.refs.flatMap(refParts));
   const hashes = [...parts.keys()];
   for (let i = 0; i < hashes.length; i += 50) {
@@ -116,13 +116,13 @@ export async function storeUnpacked(files: Iterable<Unpacked>) {
   }
 }
 
-/** The files of the characters' references, for an export that carries its pictures; `missing` names the ones not found. */
+/** The files of the characters' and places' references, for an export that carries its pictures; `missing` names the ones not found. */
 export async function packFiles(entries: KbEntry[]) {
   const files: PackageFile[] = [];
   const missing: string[] = [];
   const seen = new Set<string>();
   for (const e of entries) {
-    if (e.kind !== 'character') continue;
+    if (!hasPictures(e)) continue;
     for (const r of e.data.refs) {
       if (seen.has(r.hash)) continue;
       seen.add(r.hash);

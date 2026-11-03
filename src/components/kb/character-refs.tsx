@@ -4,7 +4,7 @@ import {toast} from 'sonner';
 import {FileText, ImagePlus, Star} from 'lucide-react';
 import {editEntry} from '@/lib/kb/store';
 import {MAX_REF_FILE, refBytes, refMimes, storeRefFile} from '@/lib/kb/files';
-import type {EntryOf, KbRef} from '@/lib/kb/model';
+import type {KbRef, Pictured} from '@/lib/kb/model';
 
 const kindNames: Record<KbRef['kind'], string> = {sheet: 'Ficha', scene: 'Escena', turnaround: 'Vistas (giro)', 'pdf-sheet': 'Ficha en PDF', other: 'Otra'};
 const reviewNames: Record<KbRef['review'], string> = {approved: 'Aprobada', observed: 'Sin revisar', rejected: 'Rechazada'};
@@ -41,15 +41,18 @@ export function RefThumb({file: r, label}: {file: KbRef; label: string}) {
   return url ? <img className="rc-kb-thumb" src={url} alt={label} /> : <span className="rc-kb-thumb rc-skeleton" />;
 }
 
-/** The pictures of a character: originals kept as they are, reviewed by the author, one chosen as the main reference. */
-export function CharacterRefs({entry}: {entry: EntryOf<'character'>}) {
+/** The pictures of a character or a place: originals kept as they are, reviewed by the author, one chosen as the main reference. */
+export function CharacterRefs({entry}: {entry: Pictured}) {
   const d = entry.data;
+  const manifest = entry.kind === 'character' ? entry.data.manifest : undefined;
+  const missing = entry.kind === 'character' && entry.data.missing;
+  const place = entry.kind === 'place';
   const [busy, setBusy] = useState(false);
   const refs = [...d.refs].sort((a, b) => Number(b.hash === d.mainRef) - Number(a.hash === d.mainRef) || a.addedAt - b.addedAt);
 
   async function change(next: KbRef[], mainRef: string | undefined, note: string) {
     const {mainRef: _old, ...rest} = d;
-    try { await editEntry(entry.project, entry.id, {data: {...rest, refs: next, ...(mainRef ? {mainRef} : {})}}, note); }
+    try { await editEntry(entry.project, entry.id, {data: {...rest, refs: next, ...(mainRef ? {mainRef} : {})} as Pictured['data']}, note); }
     catch { toast('No se pudo guardar en este navegador.'); }
   }
 
@@ -62,8 +65,8 @@ export function CharacterRefs({entry}: {entry: EntryOf<'character'>}) {
         const mime = (refMimes as readonly string[]).includes(f.type) ? f.type as KbRef['mime'] : /\.pdf$/i.test(f.name) ? 'application/pdf' : null;
         if (!mime) { toast('«' + f.name + '»: solo PNG, JPEG, WebP o PDF.'); continue; }
         if (f.size > MAX_REF_FILE) { toast('«' + f.name + '» pesa más de ' + mb(MAX_REF_FILE) + '.'); continue; }
-        const kind: KbRef['kind'] = mime === 'application/pdf' ? 'pdf-sheet' : d.manifest?.referenceKind.includes('scene') ? 'scene' : 'sheet';
-        const ref = await storeRefFile(f.name, mime, new Uint8Array(await f.arrayBuffer()), d.manifest?.sha256 ?? null, kind);
+        const kind: KbRef['kind'] = mime === 'application/pdf' ? 'pdf-sheet' : place || manifest?.referenceKind.includes('scene') ? 'scene' : 'sheet';
+        const ref = await storeRefFile(f.name, mime, new Uint8Array(await f.arrayBuffer()), manifest?.sha256 ?? null, kind);
         if (d.refs.some(r => r.hash === ref.hash) || added.some(r => r.hash === ref.hash)) { toast('«' + f.name + '» ya está en la biblioteca.'); continue; }
         added.push(ref);
       }
@@ -86,8 +89,8 @@ export function CharacterRefs({entry}: {entry: EntryOf<'character'>}) {
   return (
     <section className="rc-kb-block rc-kb-refs" aria-labelledby={'refs-' + entry.id}>
       <h3 id={'refs-' + entry.id}>Imágenes de referencia</h3>
-      <p className="rc-hint">Se guardan sin cambios. Solo una imagen aprobada puede ser la principal, y solo las aprobadas que elijas se envían a un modelo de imagen.</p>
-      {d.missing && !d.refs.length ? <p className="rc-kb-warning">Este personaje no tiene imagen verificada. Si agregás una, queda sin revisar hasta que la apruebes.</p> : null}
+      <p className="rc-hint">Se guardan sin cambios. Solo una imagen aprobada puede ser la principal, y solo las aprobadas que elijas se envían a un modelo de imagen{place ? ': la principal va como referencia del lugar, para que se vea igual en cada ilustración' : ''}.</p>
+      {missing && !d.refs.length ? <p className="rc-kb-warning">Este personaje no tiene imagen verificada. Si agregás una, queda sin revisar hasta que la apruebes.</p> : null}
       {refs.length ? (
         <ul className="rc-kb-ref-list">
           {refs.map(r => (
@@ -96,7 +99,7 @@ export function CharacterRefs({entry}: {entry: EntryOf<'character'>}) {
               <div className="rc-kb-ref-info">
                 <strong>{r.hash === d.mainRef ? <><Star aria-hidden="true" />Principal · </> : null}{r.name}</strong>
                 <span className="rc-hint">{reviewNames[r.review]} · {mb(r.size)}{r.chunks ? ' · guardado en ' + r.chunks.length + ' partes' : ''}</span>
-                <span className="rc-hint" data-verified={r.verified}>{verifiedNames[r.verified]} · sha256 {r.hash.slice(0, 12)}…</span>
+                <span className="rc-hint" data-verified={r.verified}>{place ? '' : verifiedNames[r.verified] + ' · '}sha256 {r.hash.slice(0, 12)}…</span>
                 {r.note ? <span className="rc-hint">{r.note}</span> : null}
                 <label className="rc-kb-ref-kind"><span className="sr-only">Tipo de referencia</span>
                   <select className="rc-input" value={r.kind} onChange={e => update(r.hash, {kind: e.target.value as KbRef['kind']}, 'Tipo de «' + r.name + '»: ' + kindNames[e.target.value as KbRef['kind']])}>
@@ -113,12 +116,12 @@ export function CharacterRefs({entry}: {entry: EntryOf<'character'>}) {
             </li>
           ))}
         </ul>
-      ) : <p className="rc-hint">Todavía no hay imágenes guardadas para este personaje.</p>}
+      ) : <p className="rc-hint">Todavía no hay imágenes guardadas para este {place ? 'lugar' : 'personaje'}.</p>}
       <label className="rc-btn rc-btn--secondary rc-btn--sm" aria-disabled={busy}>
-        <ImagePlus aria-hidden="true" />{busy ? 'Guardando…' : 'Agregar imágenes o la ficha en PDF'}
+        <ImagePlus aria-hidden="true" />{busy ? 'Guardando…' : place ? 'Agregar imágenes del lugar' : 'Agregar imágenes o la ficha en PDF'}
         <input type="file" multiple accept="image/png,image/jpeg,image/webp,application/pdf,.pdf" className="sr-only" disabled={busy} onChange={e => { const l = e.target.files; void add(l).finally(() => { e.target.value = ''; }); }} />
       </label>
-      {d.manifest?.sha256 ? <p className="rc-hint">El manifiesto espera «{d.manifest.asset}» con sha256 {d.manifest.sha256.slice(0, 12)}…: al agregar el archivo se comprueba si es el mismo.</p> : null}
+      {manifest?.sha256 ? <p className="rc-hint">El manifiesto espera «{manifest.asset}» con sha256 {manifest.sha256.slice(0, 12)}…: al agregar el archivo se comprueba si es el mismo.</p> : null}
     </section>
   );
 }

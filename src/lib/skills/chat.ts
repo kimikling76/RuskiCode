@@ -84,8 +84,12 @@ export type PdfRun = {
   book?: BookUsed;
   /** Characters of the draft that are the book's: their approved main picture (by hash) goes instead of a new portrait. */
   bookCast?: Record<string, BookCastMember>;
+  /** Places of the draft that are the book's, by the name the draft uses. */
+  bookPlaces?: Record<string, BookPlaceMember>;
   bookProject?: {id: string; name: string};
 };
+/** A place of the draft found in the book: its approved main picture (by hash) goes with every picture there. */
+export type BookPlaceMember = {id: string; title: string; hash?: string; file?: string; look?: string};
 /** A character of the draft found in the book's library. Without `hash`, no approved picture: no portrait is invented. */
 export type BookCastMember = {id: string; title: string; hash?: string; file?: string; age?: string; look?: string};
 /**
@@ -118,6 +122,8 @@ const picturePromptSchema = z.string().trim().min(1).max(1200);
 const aspectSchema = z.enum(pictureAspects).catch('4:3');
 /** Names of the characters a picture shows (see `characters` in the draft). */
 const inPicture = z.array(z.string().trim().min(1).max(60)).max(6).catch([]);
+/** The book's place a picture happens in, by the name the book gives it (see «Lugares del libro»). */
+const inPlace = z.string().trim().max(120).optional().catch(undefined);
 /** Most pictures one draft may ask for: each one is a paid task in Kie. */
 export const MAX_PICTURES = 24;
 export const draftBlockSchema = z.discriminatedUnion('type', [
@@ -133,11 +139,11 @@ export const draftBlockSchema = z.discriminatedUnion('type', [
   }),
   z.object({
     type: z.literal('image'), prompt: picturePromptSchema, caption: z.string().trim().max(200).optional(),
-    size: z.enum(['small', 'medium', 'large', 'full']).catch('medium'), aspect: aspectSchema, characters: inPicture,
+    size: z.enum(['small', 'medium', 'large', 'full']).catch('medium'), aspect: aspectSchema, characters: inPicture, place: inPlace,
   }),
   z.object({
     type: z.literal('gallery'), columns: z.number().int().min(2).max(6).catch(3), aspect: z.enum(pictureAspects).catch('1:1'), numbered: z.boolean().catch(false),
-    items: z.array(z.object({prompt: picturePromptSchema, label: z.string().trim().max(80).catch(''), characters: inPicture})).min(1).max(18),
+    items: z.array(z.object({prompt: picturePromptSchema, label: z.string().trim().max(80).catch(''), characters: inPicture, place: inPlace})).min(1).max(18),
   }),
   z.object({
     type: z.literal('comic'), columns: z.union([z.literal(2), z.literal(3)]).catch(2), aspect: aspectSchema,
@@ -145,6 +151,7 @@ export const draftBlockSchema = z.discriminatedUnion('type', [
       prompt: picturePromptSchema,
       bubbles: z.array(z.union([z.string(), z.object({text: z.string()})]).transform(b => (typeof b === 'string' ? b : b.text).trim().slice(0, 160))).max(3).catch([]),
       characters: inPicture,
+      place: inPlace,
     })).min(1).max(9),
   }),
 ]);
@@ -254,7 +261,7 @@ export const looksCut = (text: string) => { const start = text.indexOf('{'); ret
 // ---------- /pdf-generator: pictures ----------
 
 type DraftBlock = z.infer<typeof draftBlockSchema>;
-export type PictureSlot = {key: string; prompt: string; aspect: PictureAspect; kind: 'image' | 'gallery' | 'comic'; label: string; characters: string[]; /** Comic panels: the lines spoken in it. */ bubbles?: string[]};
+export type PictureSlot = {key: string; prompt: string; aspect: PictureAspect; kind: 'image' | 'gallery' | 'comic'; label: string; characters: string[]; /** Comic panels: the lines spoken in it. */ bubbles?: string[]; /** The book's place it happens in, as the draft names it. */ place?: string};
 
 /** The speech-bubble lines of a slot as one string ('' for pictures without bubbles). */
 export const slotBubbles = (slot: Pick<PictureSlot, 'bubbles'>) => (slot.bubbles || []).join('\n');
@@ -267,9 +274,9 @@ export type Character = {name: string; look: string};
 export function pictureSlots(draft: {blocks: DraftBlock[]}): PictureSlot[] {
   const out: PictureSlot[] = [];
   draft.blocks.forEach((b, i) => {
-    if (b.type === 'image') out.push({key: String(i), prompt: b.prompt, aspect: b.aspect, kind: 'image', label: b.caption?.replace(/\*\*|==/g, '') || 'Imagen', characters: b.characters ?? []});
-    if (b.type === 'gallery') b.items.forEach((it, k) => out.push({key: i + '.' + k, prompt: it.prompt, aspect: b.aspect, kind: 'gallery', label: it.label.replace(/\*\*|==/g, '') || (b.numbered ? String(k + 1) : 'Galería ' + (k + 1)), characters: it.characters ?? []}));
-    if (b.type === 'comic') b.panels.forEach((p, k) => out.push({key: i + '.' + k, prompt: p.prompt, aspect: b.aspect, kind: 'comic', label: 'Viñeta ' + (k + 1), characters: p.characters ?? [], bubbles: p.bubbles.filter(Boolean)}));
+    if (b.type === 'image') out.push({key: String(i), prompt: b.prompt, aspect: b.aspect, kind: 'image', label: b.caption?.replace(/\*\*|==/g, '') || 'Imagen', characters: b.characters ?? [], ...(b.place ? {place: b.place} : {})});
+    if (b.type === 'gallery') b.items.forEach((it, k) => out.push({key: i + '.' + k, prompt: it.prompt, aspect: b.aspect, kind: 'gallery', label: it.label.replace(/\*\*|==/g, '') || (b.numbered ? String(k + 1) : 'Galería ' + (k + 1)), characters: it.characters ?? [], ...(it.place ? {place: it.place} : {})}));
+    if (b.type === 'comic') b.panels.forEach((p, k) => out.push({key: i + '.' + k, prompt: p.prompt, aspect: b.aspect, kind: 'comic', label: 'Viñeta ' + (k + 1), characters: p.characters ?? [], bubbles: p.bubbles.filter(Boolean), ...(p.place ? {place: p.place} : {})}));
   });
   return out;
 }
@@ -286,11 +293,13 @@ export function slotCharacters(slot: Pick<PictureSlot, 'prompt' | 'characters'>,
  * What the image model gets for one slot: its prompt, how its characters look, the shared place and style, and
  * no text inside the picture. `withPortraits`: their reference portraits go with it.
  */
-export function picturePrompt(slot: PictureSlot, style?: string, more: {cast?: Character[]; setting?: string; withPortraits?: boolean} = {}) {
+export function picturePrompt(slot: PictureSlot, style?: string, more: {cast?: Character[]; setting?: string; withPortraits?: boolean; place?: {title: string; look?: string; withPicture: boolean}} = {}) {
   const people = slotCharacters(slot, more.cast || []);
+  const place = more.place;
   return [
     sentence(slot.prompt),
     people.length ? 'Characters: ' + people.map(c => c.name + ' — ' + c.look.trim().replace(/\.$/, '')).join('; ') + '. Keep each character exactly as described' + (more.withPortraits ? ' and identical to the reference portraits (same face, hair and clothes)' : '') + '.' : '',
+    place ? 'Place: ' + place.title + (place.withPicture ? ' — keep the place exactly as in its reference picture (same architecture, layout, furniture, materials and colors; the camera angle may change)' : '') + (place.look?.trim() ? '. ' + sentence(place.look) : '.') : '',
     more.setting?.trim() ? 'Setting: ' + sentence(more.setting) : '',
     style?.trim() ? 'Style: ' + sentence(style) : '',
     ...(slot.kind === 'comic' && slot.bubbles?.length ? [

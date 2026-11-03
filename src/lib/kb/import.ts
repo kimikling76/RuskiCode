@@ -426,7 +426,7 @@ export function planImport(files: ImportFile[], known: NamedCharacter[], unitPag
 export function refsWithFiles(patches: Patch[], stored: Map<string, {chunks?: string[]}>) {
   const left: string[] = [];
   const out = patches.map(p => {
-    if (p.kind !== 'character' || !Array.isArray(p.set?.refs)) return p;
+    if ((p.kind !== 'character' && p.kind !== 'place') || !Array.isArray(p.set?.refs)) return p;
     const refs = (p.set.refs as KbRef[]).flatMap(r => {
       const file = r && typeof r.hash === 'string' ? stored.get(r.hash) : undefined;
       if (!file) { left.push(typeof r?.name === 'string' ? r.name : '?'); return []; }

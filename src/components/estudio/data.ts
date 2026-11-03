@@ -3,7 +3,7 @@ import {useEffect, useMemo, useState} from 'react';
 import {create} from 'zustand';
 import {libraryEvents} from '@/lib/books/library';
 import {listEntries, listProjects} from '@/lib/kb/store';
-import type {EntryOf, KbEntry, KbProject, KbRef} from '@/lib/kb/model';
+import {hasPictures, type EntryOf, type KbEntry, type KbProject, type KbRef, type Pictured} from '@/lib/kb/model';
 import {approvedRefs} from '@/lib/kb/picture';
 import {ageInEnglish, ageOf} from '@/lib/kb/characters';
 import {autoLooks, type Looks, type Mention} from '@/lib/cinema/studio-looks';
@@ -45,8 +45,8 @@ function bookDescription(c: EntryOf<'character'>) {
 export const pictureUrl = (ref: string) => ref.startsWith('asset:') ? '/api/sync/assets?hash=' + ref.slice(6) : ref;
 
 /**
- * The cast for «@»: the book's characters (only an approved main picture is sent, never a rejected or unchecked
- * file) and the Estudio's own characters and places.
+ * The cast for «@»: the book's characters and places (only an approved main picture is sent, never a rejected or
+ * unchecked file) and the Estudio's own characters and places.
  */
 export function useCast() {
   const book = useBook();
@@ -55,11 +55,11 @@ export function useCast() {
     if (!book) return null;
     const names = new Map(book.projects.map(p => [p.id, p.name]));
     const fromBook = book.entries
-      .filter((e): e is EntryOf<'character'> => e.kind === 'character' && e.status !== 'superseded')
+      .filter((e): e is Pictured => hasPictures(e) && e.status !== 'superseded')
       .map((c): CastMember => {
         const main = approvedRefs(c).find(r => r.hash === c.data.mainRef && !r.chunks);
         return {
-          key: 'book:' + c.id, name: c.title, kind: 'character', source: 'book', description: bookDescription(c),
+          key: 'book:' + c.id, name: c.title, kind: c.kind, source: 'book', description: c.kind === 'place' ? c.data.look?.trim() || '' : bookDescription(c),
           ...(main ? {reference: 'asset:' + main.hash} : {}), picture: main ? {ref: main} : null,
           book: {project: c.project, projectName: names.get(c.project) || 'Libro', id: c.id, refs: main ? [{hash: main.hash, name: main.name}] : []},
         };

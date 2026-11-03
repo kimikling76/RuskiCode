@@ -104,7 +104,10 @@ export function EstudioComposer({project}: {project?: string}) {
     const fromBook = called.filter(m => (m as CastMember).book) as CastMember[];
     if (!fromBook.length) return undefined;
     const first = fromBook[0].book!;
-    return {project: first.project, name: first.projectName, characters: fromBook.filter(m => m.book!.project === first.project).map(m => ({id: m.book!.id, name: m.name, refs: m.book!.refs.filter(r => references.includes('asset:' + r.hash))}))};
+    const same = fromBook.filter(m => m.book!.project === first.project);
+    const of = (m: CastMember) => ({id: m.book!.id, name: m.name, refs: m.book!.refs.filter(r => references.includes('asset:' + r.hash))});
+    const place = same.find(m => m.kind === 'place');
+    return {project: first.project, name: first.projectName, characters: same.filter(m => m.kind === 'character').map(of), ...(place ? {place: of(place)} : {})};
   }, [called, references]);
 
   const {request, dialog, busy} = useGenerateConfirm({
@@ -144,7 +147,7 @@ export function EstudioComposer({project}: {project?: string}) {
         pic: member ? <CastPicture member={member} /> : <span className="rc-es-cast-pic" aria-hidden="true"><img src={refSrc(url)} alt="" /></span>};
     }),
     ...(cast || []).map((m): Entry => ({key: m.key, name: m.name, cast: true, pic: <CastPicture member={m} />,
-      sub: m.source === 'book' ? (m.book?.projectName || 'Libro') + (m.reference ? ' · con su foto principal' : ' · sin foto principal') : m.kind === 'place' ? 'Lugar' : 'Personaje'})),
+      sub: m.source === 'book' ? (m.kind === 'place' ? 'Lugar · ' : '') + (m.book?.projectName || 'Libro') + (m.reference ? (m.kind === 'place' ? ' · con su imagen principal' : ' · con su foto principal') : (m.kind === 'place' ? ' · sin imagen principal' : ' · sin foto principal')) : m.kind === 'place' ? 'Lugar' : 'Personaje'})),
   ];
   const options = menu ? entries.filter(e => e.name.toLowerCase().includes(menu.query.toLowerCase())).slice(0, 10) : [];
   // Writing past every name closes the list instead of covering the box with «nada»; a bare «@» still shows it.
