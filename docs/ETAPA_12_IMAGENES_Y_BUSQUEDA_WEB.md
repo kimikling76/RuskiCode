@@ -212,3 +212,18 @@ Pasaba si la unidad de destino ya no estaba, por ejemplo porque se borró o se i
   - cada imagen lleva los retratos de sus personajes, con sus descripciones, el lugar y el estilo;
   - una imagen que no se pudo traer queda «Guardando», no se ofrece de nuevo y entra sola al volver a abrir el chat;
   - «Otra versión» y un prompt cambiado usan los retratos ya hechos.
+
+## Arreglo: «El modelo respondió en un formato que no es el de la plantilla» (3 de noviembre de 2026)
+
+Con pedidos largos (por ejemplo, la mitad del alfabeto con una foto por letra), /pdf-generator descartaba todo el borrador. Pasaba por dos causas:
+
+- **La respuesta se cortaba.** A los modelos Claude se les pedía como máximo 4096 tokens de respuesta, y un borrador largo no entraba. Ahora se piden hasta 16000. Si una respuesta igual se corta, el aviso lo dice («se cortó antes de terminar, por larga») y sugiere pedir menos de una vez.
+- **Un detalle fuera de la plantilla anulaba todo.** Ahora el estudio ajusta el borrador y la tarjeta muestra qué ajustó:
+  - un bloque de otro tipo con texto (una nota, una tabla) se guarda como texto;
+  - uno sin texto se deja afuera;
+  - un ejercicio de más de 16 ítems se divide;
+  - una galería de más de 18 imágenes, también;
+  - los renglones demasiado largos se acortan;
+  - si pide más de 24 imágenes, quedan las primeras 24, y el resto se pide en otra tanda.
+
+Además, si el chat tiene «Contexto del libro» y ese libro tiene una unidad vinculada, las páginas nuevas **se agregan a esa unidad** por defecto, en lugar de crear otra. El destino se puede cambiar en la tarjeta antes de guardar.

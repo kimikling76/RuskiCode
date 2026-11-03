@@ -208,3 +208,36 @@ test('chat: /revisar-ruso knows which models see the pages, and its summary coun
     pages: [{page: 1, pageId: 'p1', summary: '', findings: [{key: 'k'}, {key: 'k2'}], picture: true}, {page: 2, pageId: 'p2', summary: '', findings: [], picture: true}]};
   assert.equal(skillSummary(run as never), '[/revisar-ruso · 2 páginas revisadas, 2 hallazgos]');
 });
+
+test('/pdf-generator: a draft that does not fit the template is adjusted, not thrown away, and a cut answer is told apart', async () => {
+  const {parseDraft, pictureSlots, looksCut, MAX_PICTURES} = await import('../src/lib/skills/chat');
+  const letters = 'АБВГДЕЁЖЗИЙКЛМНОП'.split('');
+  const draft = {
+    title: 'Алфави́т', characters: [], blocks: [
+      {type: 'heading', text: 'Алфави́т'},
+      {type: 'note', text: 'В, Н, Р, С, У, Х look like Latin letters but sound different.'},
+      {type: 'table', rows: [['А', 'а'], ['Б', 'б']]},
+      {type: 'divider'},
+      {type: 'image', prompt: 'Misha and Masha look at a UFO from the window', size: 'large', aspect: '16:9', characters: []},
+      {type: 'gallery', columns: 4, aspect: '1:1', numbered: true, items: [...letters, ...letters].map(l => ({prompt: 'A photo of something that starts with ' + l, label: l + ' ' + 'x'.repeat(120)}))},
+      {type: 'exercise', instruction: 'Прочита́й. Read.', example: [], items: Array.from({length: 20}, (_, i) => 'Слово ' + (i + 1)), answers: [], columns: 2},
+    ],
+  };
+  const r = parseDraft('```json\n' + JSON.stringify(draft) + '\n```');
+  assert.ok(r, 'the draft is kept');
+  assert.equal(pictureSlots(r).length, MAX_PICTURES);
+  const types = r.blocks.map(b => b.type);
+  assert.deepEqual(types.filter(t => t === 'text').length, 2, 'the note and the table become text');
+  assert.equal(types.filter(t => t === 'exercise').length, 2, 'twenty items become two exercises');
+  assert.equal(types.filter(t => t === 'gallery').length, 2, 'a gallery of more than 18 is split');
+  const gallery = r.blocks.filter(b => b.type === 'gallery');
+  assert.ok(gallery.every(g => g.type === 'gallery' && g.items.every(i => i.label.length <= 80)));
+  assert.equal(r.notes!.length >= 4, true);
+  assert.match(r.notes!.join(' '), /«note» se guardó como texto/);
+  assert.match(r.notes!.join(' '), /«divider» sin texto se dejó afuera/);
+  // An answer cut off in the middle of the JSON, and one that is not a draft at all.
+  const cutText = '```json\n' + JSON.stringify(draft).slice(0, 900);
+  assert.equal(parseDraft(cutText), null);
+  assert.ok(looksCut(cutText));
+  assert.equal(looksCut('No puedo hacer eso.'), false);
+});

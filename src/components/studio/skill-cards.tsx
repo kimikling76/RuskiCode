@@ -44,6 +44,7 @@ const skillErrors: Record<string, string> = {
   NO_MANUAL: 'Todavía no hay una unidad del manual en tu cuenta. En PDF Studio, en la sección «Manual», tocá «Importar unidad (PDF)» (no «Importar archivo», que crea un documento aparte). Su diseño es la plantilla de las páginas nuevas. Después tocá «Volver a intentar».',
   NO_DESIGN: 'Las unidades del manual que importaste no tienen un encabezado de ejercicio para copiar (la banda con el número y la consigna). Importá una unidad con ejercicios en PDF Studio → Manual, o en el editor elegí un ejercicio y tocá «Usar este encabezado para los ejercicios nuevos». Después tocá «Volver a intentar».',
   INVALID_DRAFT: 'El modelo respondió en un formato que no es el de la plantilla. No se aplicó nada: probá de nuevo o con otro modelo.',
+  DRAFT_CUT: 'La respuesta del modelo se cortó antes de terminar, por larga. No se aplicó nada: pedí menos de una vez (por ejemplo, la mitad de las letras) o probá con otro modelo.',
   INVALID_REVIEW: 'El modelo respondió en un formato inesperado. No se aplicó nada: probá de nuevo o con otro modelo.',
   UNIT_MISSING: 'Esa unidad ya no está en este navegador.',
   TARGET_MISSING: 'La unidad de destino ya no está en este navegador.',
@@ -571,6 +572,7 @@ function PdfCard({chatId, id, run, model, attachments}: {chatId: string; id: str
     <div className="rc-skill-body">
       <p className="rc-skill-title">{draft.title}</p>
       {draft.summary ? <p className="rc-hint">{draft.summary}</p> : null}
+      {run.adjusted?.length ? <ul className="rc-pdf-warn rc-skill-adjusted">{run.adjusted.map(n => <li key={n}>{n}</li>)}</ul> : null}
       <p className="rc-hint">{draft.blocks.length} bloques · {exercises} {exercises === 1 ? 'ejercicio' : 'ejercicios'}{pictures ? ' · ' + pictures + (pictures === 1 ? ' imagen' : ' imágenes') : ''}{run.model ? ' · escrito con ' + run.model : ''}{run.webSearch ? ' · con búsqueda web' : ''}{run.credits !== undefined ? ' · ' + creditText(run.credits) : ''}{run.book ? <> · <BookUsedNote used={run.book} /></> : null}</p>
       {run.sources?.length ? <MessageSources sources={run.sources} /> : null}
       {run.state === 'saved' && run.saved ? (

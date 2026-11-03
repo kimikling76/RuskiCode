@@ -63,6 +63,8 @@ export type PdfTarget = {mode: 'new' | 'append'; unitId: string};
 export type PdfRun = {
   skill: 'pdf-generator'; request: string; state: 'writing' | 'ready' | 'error' | 'saved';
   draft?: PdfDraft; target?: PdfTarget; error?: string; model?: string; credits?: number;
+  /** What the studio adjusted in the model's draft to fit the template (see repairDraft). */
+  adjusted?: string[];
   /** After saving: the unit and its first new page. */
   saved?: {unitId: string; title: string; page: number};
   /** Asked with web search (the chat had it on and the model documents it), and the pages the API reported. */
@@ -167,12 +169,87 @@ export function jsonAnswer(text: string): unknown {
   try { return JSON.parse(body.slice(start, end + 1)); } catch { return null; }
 }
 
-export function parseDraft(text: string): PdfDraft | null {
-  const r = draftSchema.safeParse(jsonAnswer(text));
+type Loose = Record<string, unknown>;
+const str = (v: unknown) => typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '';
+const cut = (v: unknown, n: number) => str(v).trim().slice(0, n);
+const list = (v: unknown) => Array.isArray(v) ? v : [];
+const chunks = <T,>(xs: T[], n: number) => { const out: T[][] = []; for (let i = 0; i < xs.length; i += n) out.push(xs.slice(i, i + n)); return out; };
+
+/**
+ * The model's draft made to fit the template instead of being thrown away: other block types with text become text,
+ * long lists are split into several blocks, long lines are cut, and pictures beyond the limit are left for another
+ * batch. Each adjustment is said in `notes`, in Spanish, so the author knows what changed.
+ */
+export function repairDraft(raw: unknown): {value: unknown; notes: string[]} {
+  if (!raw || typeof raw !== 'object') return {value: raw, notes: []};
+  const d = raw as Loose;
+  const notes = new Set<string>();
+  const blocks: Loose[] = [];
+  for (const b0 of list(d.blocks)) {
+    if (!b0 || typeof b0 !== 'object') continue;
+    const b = b0 as Loose;
+    const type = str(b.type).toLowerCase();
+    const textOf = () => str(b.text) || str(b.content) || list(b.lines).map(str).join('\n');
+    if (type === 'heading' || type === 'title') { const t = cut(b.text || b.title, 200); if (t) blocks.push({type: 'heading', text: t}); continue; }
+    if (type === 'exercise') {
+      const items = list(b.items).map(i => cut(i, 300)).filter(Boolean);
+      const answers = list(b.answers).map(a => cut(a, 300));
+      const parts = chunks(items, 16);
+      if (parts.length > 1) notes.add('Un ejercicio tenía más de 16 ítems: se dividió en varios.');
+      parts.forEach((part, k) => blocks.push({...b, instruction: cut(b.instruction, 300) || 'Упражнение', example: list(b.example).map(x => cut(x, 300)).filter(Boolean).slice(0, 3), items: part, answers: answers.slice(k * 16, k * 16 + part.length), columns: b.columns === 1 ? 1 : 2}));
+      continue;
+    }
+    if (type === 'image') { blocks.push({...b, prompt: cut(b.prompt, 1200), ...(b.caption !== undefined ? {caption: cut(b.caption, 200)} : {})}); continue; }
+    if (type === 'gallery') {
+      const items = list(b.items).filter(i => i && typeof i === 'object').map(i => ({...(i as Loose), prompt: cut((i as Loose).prompt, 1200), label: cut((i as Loose).label, 80)}));
+      const parts = chunks(items, 18);
+      if (parts.length > 1) notes.add('Una galería tenía más de 18 imágenes: se dividió en varias.');
+      let first = Number(b.first) || 1;
+      for (const part of parts) { blocks.push({...b, items: part, ...(b.numbered ? {first} : {})}); first += part.length; }
+      continue;
+    }
+    if (type === 'comic') {
+      const panels = list(b.panels).filter(p => p && typeof p === 'object').map(p => ({...(p as Loose), prompt: cut((p as Loose).prompt, 1200), bubbles: list((p as Loose).bubbles).slice(0, 3)}));
+      for (const part of chunks(panels, 9)) blocks.push({...b, panels: part});
+      continue;
+    }
+    // A note, a reading, a dialogue or a table: kept as text when it has some.
+    const text = cut(type === 'text' ? b.text : textOf() || list(b.rows).map(r => list(r).map(str).join(' — ')).join('\n'), 4000);
+    if (text) { blocks.push({type: 'text', text}); if (type !== 'text') notes.add('Un bloque de tipo «' + type + '» se guardó como texto.'); }
+    else notes.add('Un bloque de tipo «' + (type || 'desconocido') + '» sin texto se dejó afuera.');
+  }
+  // Pictures: at most MAX_PICTURES per draft, the first ones in reading order.
+  let room = MAX_PICTURES, dropped = 0;
+  const kept: Loose[] = [];
+  for (const b of blocks) {
+    if (b.type === 'image') { if (room > 0) { kept.push(b); room--; } else dropped++; continue; }
+    if (b.type === 'gallery' || b.type === 'comic') {
+      const key = b.type === 'gallery' ? 'items' : 'panels';
+      const all = list(b[key]);
+      const take = all.slice(0, Math.max(0, room));
+      dropped += all.length - take.length; room -= take.length;
+      if (take.length) kept.push({...b, [key]: take});
+      continue;
+    }
+    kept.push(b);
+  }
+  if (dropped) notes.add('Pedía ' + (MAX_PICTURES + dropped) + ' imágenes y el máximo por tanda es ' + MAX_PICTURES + ': quedaron las primeras ' + MAX_PICTURES + '. Pedí el resto en otra tanda.');
+  if (kept.length > 30) notes.add('Tenía ' + kept.length + ' bloques: quedaron los primeros 30. Pedí el resto en otra tanda.');
+  return {value: {...d, title: cut(d.title, 200) || 'Borrador', blocks: kept.slice(0, 30), characters: list(d.characters).slice(0, 6), ...(d.summary !== undefined ? {summary: cut(d.summary, 400)} : {}), ...(d.imageStyle !== undefined ? {imageStyle: cut(d.imageStyle, 400)} : {}), ...(d.setting !== undefined ? {setting: cut(d.setting, 400)} : {})}, notes: [...notes]};
+}
+
+/** The draft, adjusted to the template when needed (`notes` says how); null when the answer has no draft at all. */
+export function parseDraft(text: string): (PdfDraft & {notes?: string[]}) | null {
+  const {value, notes} = repairDraft(jsonAnswer(text));
+  const r = draftSchema.safeParse(value);
   if (!r.success) return null;
   // Items written with their own numbers lose them: the studio numbers them.
-  return {...r.data, blocks: r.data.blocks.map(b => b.type === 'exercise' ? {...b, items: b.items.map(i => i.replace(/^\s*\d+[.)]\s+/, ''))} : b)};
+  const draft = {...r.data, blocks: r.data.blocks.map(b => b.type === 'exercise' ? {...b, items: b.items.map(i => i.replace(/^\s*\d+[.)]\s+/, ''))} : b)};
+  return notes.length ? {...draft, notes} : draft;
 }
+
+/** An answer that opens a JSON object but never closes it: the model was cut off by the length of its answer. */
+export const looksCut = (text: string) => { const start = text.indexOf('{'); return start >= 0 && jsonAnswer(text) === null && !/\}\s*(```)?\s*$/.test(text.trim()); };
 
 // ---------- /pdf-generator: pictures ----------
 
