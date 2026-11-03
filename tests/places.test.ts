@@ -78,3 +78,32 @@ test('/pdf-generator: the text model gets the places and names them in its pictu
   assert.match(text, /Place: Школа — keep the place exactly as in its reference picture .*Red brick building\./);
   assert.doesNotMatch(picturePrompt(slots[1], 'Photo.'), /Place:/);
 });
+
+// ---------- Repairing a book that got another book's file ----------
+import {planUndo} from '../src/lib/kb/versions';
+
+test('an export brings the whole entry: a field an older file wrote is taken out', () => {
+  const first = {name: 'a.json', text: JSON.stringify({format: KB_FORMAT, entries: [{id: 'char.misha', kind: 'character', title: 'Миша', status: 'observed', data: {nameRu: 'Миша', aliases: [], distinct: [], relations: [], refs: [], age: 'unos 11 años (a confirmar)', look: 'A boy of about 11.'}}]})};
+  const second = {name: 'b.json', text: JSON.stringify({format: KB_FORMAT, entries: [{id: 'char.misha', kind: 'character', title: 'Миша', status: 'observed', data: {nameRu: 'Миша', aliases: [], distinct: [], relations: [], refs: [], look: '14 years old.'}}]})};
+  const one = applyPlan('p', new Map(), planImport([first], []).patches, now).entries;
+  const two = applyPlan('p', new Map(one.map(e => [e.id, e])), planImport([second], []).patches, now + 1).entries[0] as EntryOf<'character'>;
+  assert.equal(two.data.age, undefined);
+  assert.equal(two.data.look, '14 years old.');
+});
+
+test('undoing an import: what it created goes, what it changed goes back, and later edits are counted', () => {
+  const adult = {name: 'adultos.json', text: JSON.stringify({format: KB_FORMAT, entries: [{id: 'char.misha', kind: 'character', title: 'Миша', status: 'observed', data: {nameRu: 'Миша', aliases: [], distinct: [], relations: [], refs: [], look: '14 years old.'}}]})};
+  const kids = {name: 'ninos.json', text: JSON.stringify({format: KB_FORMAT, entries: [
+    {id: 'char.misha', kind: 'character', title: 'Миша', status: 'proposed', data: {nameRu: 'Миша', aliases: [], distinct: [], relations: [], refs: [], look: 'About 11.'}},
+    {id: 'place.ufo', kind: 'place', title: 'НЛО', status: 'proposed', data: {nameRu: 'НЛО', aliases: [], refs: []}},
+  ]})};
+  let store = new Map<string, KbEntry>();
+  for (const [f, t] of [[adult, now], [kids, now + 10]] as const) for (const e of applyPlan('p', store, planImport([f], []).patches, t).entries) store.set(e.id, e);
+  const steps = planUndo([...store.values()], ['ninos.json']);
+  assert.deepEqual(steps.map(s => [s.id, s.action, s.version, s.later]), [['place.ufo', 'remove', undefined, 0], ['char.misha', 'restore', 1, 0]]);
+  assert.deepEqual(planUndo([...store.values()], ['otro.json']), []);
+  // An approval after the wrong import is counted, so the author is told it goes too.
+  const misha = store.get('char.misha')!;
+  const approved = {...misha, version: misha.version + 1, status: 'approved', note: 'Aprobado por el autor', history: [...misha.history, {version: misha.version, at: now, status: misha.status, title: misha.title, body: misha.body, data: misha.data, sources: misha.sources, note: misha.note}]} as KbEntry;
+  assert.equal(planUndo([approved], ['ninos.json'])[0].later, 1);
+});

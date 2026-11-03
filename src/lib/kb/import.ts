@@ -30,6 +30,8 @@ export type Patch = {
   status: KbStatus;
   /** Also applies the status to an existing entry (an export of the base). */
   setStatus?: boolean;
+  /** `set` is the whole data (an export): fields it does not have are emptied, so nothing stale is left behind. */
+  replace?: boolean;
   sources: KbSource[];
   tags?: string[];
   note: string;
@@ -347,7 +349,7 @@ function readExport(file: ImportFile, value: unknown): {patches: Patch[]; warnin
     warnings: [],
     assets: parsed.data.files || [],
     patches: parsed.data.entries.map(e => ({
-      id: e.id, kind: e.kind, title: e.title, body: e.body, status: e.status, setStatus: true,
+      id: e.id, kind: e.kind, title: e.title, body: e.body, status: e.status, setStatus: true, replace: true,
       set: e.data && typeof e.data === 'object' ? e.data as Record<string, unknown> : {},
       sources: e.sources.length ? e.sources : [{kind: 'file', label: file.name, file: file.name}], tags: e.tags, note: 'Importado de ' + file.name,
     })),
@@ -479,6 +481,11 @@ export function applyPlan(project: string, existing: Map<string, KbEntry>, patch
     };
     change('title', p.title);
     change('body', p.body);
+    // An export brings the whole entry: a field it leaves out (an age written by an older file) is taken out too.
+    if (p.replace && p.set) for (const k of Object.keys(next.data)) {
+      if (k in p.set || empty(next.data[k])) continue;
+      if (locked) kept.push(k); else delete next.data[k];
+    }
     for (const [k, v] of Object.entries(p.set || {})) {
       if (same(next.data[k], v)) continue;
       if (locked && !empty(next.data[k])) kept.push(k); else next.data[k] = v;

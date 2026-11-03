@@ -57,3 +57,33 @@ export function mergeProjects(local: KbProject, remote: KbProject): KbProject | 
     updatedAt: Math.max(local.updatedAt, remote.updatedAt),
   };
 }
+
+// ---------- Undoing an import ----------
+
+/**
+ * What undoing the imports of some files does to each entry they touched: an entry the files created goes away; one
+ * they changed goes back to its version from before the first of those imports (as a new version, so this can be
+ * undone too). `later` counts the versions made after that import by anything else (an edit, an approval), which
+ * undoing also takes back. `missing`: that version is no longer in the history, so the entry is left as it is.
+ */
+export type UndoStep = {id: string; title: string; kind: KbEntry['kind']; action: 'remove' | 'restore' | 'missing'; version?: number; later: number};
+
+export const importNote = (file: string) => 'Importado de ' + file;
+
+export function planUndo(entries: KbEntry[], files: string[]): UndoStep[] {
+  const notes = new Set(files.map(importNote));
+  const steps: UndoStep[] = [];
+  for (const e of entries) {
+    const versions = [...e.history.map(h => ({version: h.version, note: h.note})), {version: e.version, note: e.note}].sort((a, b) => a.version - b.version);
+    const first = versions.findIndex(v => notes.has(v.note));
+    if (first < 0) continue;
+    const later = versions.slice(first + 1).filter(v => !notes.has(v.note)).length;
+    const base = {id: e.id, title: e.title, kind: e.kind, later};
+    if (versions[first].version === 1) { steps.push({...base, action: 'remove'}); continue; }
+    const before = versions[first - 1];
+    steps.push(before && before.version === versions[first].version - 1 && e.history.some(h => h.version === before.version)
+      ? {...base, action: 'restore', version: before.version}
+      : {...base, action: 'missing'});
+  }
+  return steps.sort((a, b) => a.action.localeCompare(b.action) || a.title.localeCompare(b.title));
+}
