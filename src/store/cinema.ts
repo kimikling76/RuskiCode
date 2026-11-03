@@ -57,6 +57,8 @@ export type JobBook = {
   project: string;
   name: string;
   characters: {id: string; name: string; refs: {hash: string; name: string}[]}[];
+  /** The place of the picture, with the picture of it that was sent. */
+  place?: {id: string; name: string; refs: {hash: string; name: string}[]};
 };
 
 export type Shot = {id: string; title: string; description: string; prompt: string};

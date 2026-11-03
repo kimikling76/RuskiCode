@@ -434,6 +434,7 @@ function PdfPictures({chatId, id, run, refs}: {chatId: string; id: string; run: 
             })}
           </ul>
           {run.bookCast && Object.keys(run.bookCast).length ? <p className="rc-hint">Los personajes del libro «{run.bookProject?.name}» van con su imagen aprobada de la biblioteca como referencia. Ningún modelo garantiza el mismo rostro: revisá cada resultado.</p> : null}
+          {run.bookPlaces && Object.keys(run.bookPlaces).length ? <p className="rc-hint">Lugares del libro en estas imágenes: {Object.values(run.bookPlaces).map(p => p.title + (p.hash ? ' (con su imagen aprobada)' : ' (sin imagen aprobada: solo su descripción)')).join(', ')}.</p> : null}
           {o.maxReferences
             ? <p className="rc-hint">Primero se hace un retrato de cada personaje; después ese retrato va como referencia en cada imagen donde aparece, para que sea la misma persona. Si cambiás cómo es, el retrato se hace de nuevo.</p>
             : <p className="rc-pdf-warn">{model.name} no recibe imágenes de referencia: cada imagen sale solo de su descripción y los personajes pueden verse distintos. Para que sean siempre los mismos, elegí un modelo que acepte referencias, como Nano Banana 2.1.</p>}

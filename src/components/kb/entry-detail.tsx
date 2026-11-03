@@ -77,13 +77,13 @@ export function EntryDetail({entry, names, all, project, onOpen}: {entry: KbEntr
         </>
       )}
 
-      {entry.kind === 'character' && !editing ? (
+      {(entry.kind === 'character' || entry.kind === 'place') && !editing ? (
         <>
           <CharacterRefs entry={entry} />
           <div className="rc-kb-block">
-            <button type="button" className="rc-btn rc-btn--secondary rc-btn--sm" onClick={() => setPicture(true)}><Images aria-hidden="true" />Ilustración con este personaje…</button>
+            <button type="button" className="rc-btn rc-btn--secondary rc-btn--sm" onClick={() => setPicture(true)}><Images aria-hidden="true" />{entry.kind === 'place' ? 'Ilustración en este lugar…' : 'Ilustración con este personaje…'}</button>
           </div>
-          <BookImageDialog open={picture} onClose={() => setPicture(false)} project={project} entries={all} initial={[entry.id]} />
+          <BookImageDialog open={picture} onClose={() => setPicture(false)} project={project} entries={all} initial={entry.kind === 'character' ? [entry.id] : []} initialPlace={entry.kind === 'place' ? entry.id : undefined} />
         </>
       ) : null}
 
@@ -133,6 +133,13 @@ function EntryView({entry, names, all, onOpen, onChoose, onReopen}: {entry: KbEn
     <div className="rc-kb-view">
       {entry.body ? <p className="rc-kb-body">{entry.body}</p> : null}
       {entry.kind === 'character' ? <CharacterView entry={entry} names={names} link={link} /> : null}
+      {entry.kind === 'place' ? (
+        <>
+          <Field label="Nombre ruso">{entry.data.nameRu || '—'}</Field>
+          <Field label="Alias de búsqueda">{entry.data.aliases.join(', ') || '—'}</Field>
+          <Field label="Descripción confirmada">{entry.data.look ? entry.data.look : <span className="rc-hint">Sin descripción confirmada. Los modelos de texto reciben solo lo aprobado; los de imagen, la imagen principal.</span>}</Field>
+        </>
+      ) : null}
       {entry.kind === 'unit' ? (
         <>
           <Field label="Páginas">{entry.data.pages ? entry.data.pages[0] + '–' + entry.data.pages[1] : 'sin datos'}</Field>
@@ -221,6 +228,13 @@ function EntryForm({entry, names, onCancel, onSave}: {entry: KbEntry; names: Nam
           <label className="rc-kb-check"><input type="checkbox" checked={data.missing === '1'} onChange={e => set('missing', e.target.checked ? '1' : '')} />No tiene imagen verificada</label>
         </>
       ) : null}
+      {entry.kind === 'place' ? (
+        <>
+          <label className="rc-field"><span>Nombre ruso</span><input className="rc-input" maxLength={120} value={data.nameRu} onChange={e => set('nameRu', e.target.value)} /></label>
+          <label className="rc-field"><span>Alias de búsqueda (separados por comas)</span><input className="rc-input" value={data.aliases} onChange={e => set('aliases', e.target.value)} /><small className="rc-hint">Otras formas de nombrarlo, en ruso, español o inglés: «la escuela», «school».</small></label>
+          <label className="rc-field"><span>Descripción confirmada (arquitectura, ambientes, colores)</span><textarea className="rc-textarea" rows={3} maxLength={2000} value={data.look} onChange={e => set('look', e.target.value)} /><small className="rc-hint">En inglés funciona mejor con los modelos de imagen. Va en cada prompt de una ilustración en este lugar.</small></label>
+        </>
+      ) : null}
       {entry.kind === 'unit' ? (
         <>
           <label className="rc-field"><span>Título de la unidad</span><input className="rc-input" maxLength={200} value={data.title} onChange={e => set('title', e.target.value)} /></label>
@@ -254,6 +268,7 @@ function formData(e: KbEntry): Record<string, string> {
     nameRu: e.data.nameRu, aliases: e.data.aliases.join(', '), look: e.data.look || '', age: e.data.age || '', distinct: e.data.distinct.join(', '),
     relations: e.data.relations.map(r => r.label + ': ' + r.to).join('\n'), missing: e.data.missing ? '1' : '',
   };
+  if (e.kind === 'place') return {nameRu: e.data.nameRu, aliases: e.data.aliases.join(', '), look: e.data.look || ''};
   if (e.kind === 'unit') return {
     title: e.data.title, pages: e.data.pages ? e.data.pages.join('-') : '', goal: e.data.goal || '',
     grammar: e.data.grammar.join('\n'), expressions: e.data.expressions.join('\n'), notYet: e.data.notYet.join('\n'),
@@ -272,6 +287,10 @@ function parseForm(e: KbEntry, f: Record<string, string>): unknown {
       relations: lines(f.relations).flatMap(l => { const at = l.lastIndexOf(':'); return at > 0 ? [{label: l.slice(0, at).trim(), to: l.slice(at + 1).trim()}] : []; }),
       ...(f.look.trim() ? {look: f.look.trim()} : {}), ...(f.missing ? {missing: true} : {}),
     };
+  }
+  if (e.kind === 'place') {
+    const {look: _look, ...rest} = e.data;
+    return {...rest, nameRu: f.nameRu.trim(), aliases: list(f.aliases), ...(f.look.trim() ? {look: f.look.trim()} : {})};
   }
   if (e.kind === 'unit') {
     const m = f.pages.trim() ? f.pages.match(/^(\d+)\s*[-–]\s*(\d+)$/) : null;

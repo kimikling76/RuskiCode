@@ -15,10 +15,10 @@ export const statusName: Record<KbStatus, string> = {
   approved: 'Aprobado', observed: 'Observado en un archivo', proposed: 'Propuesto', pending: 'Pendiente', superseded: 'Sustituido',
 };
 
-export const kbKinds = ['identity', 'character', 'story', 'unit', 'page', 'rule', 'decision', 'note'] as const;
+export const kbKinds = ['identity', 'character', 'place', 'story', 'unit', 'page', 'rule', 'decision', 'note'] as const;
 export type KbKind = (typeof kbKinds)[number];
 export const kindName: Record<KbKind, string> = {
-  identity: 'Identidad y pedagogía', character: 'Personaje', story: 'Continuidad y escenarios', unit: 'Unidad', page: 'Página',
+  identity: 'Identidad y pedagogía', character: 'Personaje', place: 'Lugar', story: 'Continuidad y escenarios', unit: 'Unidad', page: 'Página',
   rule: 'Regla editorial', decision: 'Decisión o contradicción', note: 'Nota',
 };
 
@@ -39,7 +39,7 @@ export const sourceSchema = z.object({
 }).strict();
 export type KbSource = z.infer<typeof sourceSchema>;
 
-/** A picture or sheet of a character, stored once by its hash. Big files are kept in parts (`chunks`). */
+/** A picture or sheet of a character (or a picture of a place), stored once by its hash. Big files are kept in parts (`chunks`). */
 export const refSchema = z.object({
   hash: sha,
   mime: z.enum(['image/png', 'image/jpeg', 'image/webp', 'application/pdf']),
@@ -83,6 +83,22 @@ export const characterDataSchema = z.object({
   missing: z.boolean().optional(),
 }).strict();
 export type CharacterData = z.infer<typeof characterDataSchema>;
+
+/**
+ * A place of the story (a house, a school, the city, a spaceship): its confirmed look and its pictures. Only an
+ * approved picture goes to image models, as the place, so the same room looks the same in every picture.
+ */
+export const placeDataSchema = z.object({
+  nameRu: short(120),
+  /** Forms to find the place in a request or a draft («Школа», «la escuela», «school»). */
+  aliases: z.array(short(80)).max(40),
+  /** Confirmed look: architecture, rooms, colors, what is always there. What text models receive instead of pictures. */
+  look: short(2000).optional(),
+  refs: z.array(refSchema).max(40),
+  /** Hash of the picture sent to image models; one of the approved refs. */
+  mainRef: sha.optional(),
+}).strict();
+export type PlaceData = z.infer<typeof placeDataSchema>;
 
 export const unitDataSchema = z.object({
   number: z.number().int().min(0).max(99),
@@ -166,6 +182,7 @@ const history = z.array(snapshotSchema).max(MAX_HISTORY);
 export const dataSchemas = {
   identity: z.object({}).strict(),
   character: characterDataSchema,
+  place: placeDataSchema,
   story: z.object({}).strict(),
   unit: unitDataSchema,
   page: pageDataSchema,
@@ -177,6 +194,7 @@ export const dataSchemas = {
 export const entrySchema = z.discriminatedUnion('kind', [
   z.object({...common, kind: z.literal('identity'), data: dataSchemas.identity, history}).strict(),
   z.object({...common, kind: z.literal('character'), data: dataSchemas.character, history}).strict(),
+  z.object({...common, kind: z.literal('place'), data: dataSchemas.place, history}).strict(),
   z.object({...common, kind: z.literal('story'), data: dataSchemas.story, history}).strict(),
   z.object({...common, kind: z.literal('unit'), data: dataSchemas.unit, history}).strict(),
   z.object({...common, kind: z.literal('page'), data: dataSchemas.page, history}).strict(),
@@ -186,6 +204,9 @@ export const entrySchema = z.discriminatedUnion('kind', [
 ]);
 export type KbEntry = z.infer<typeof entrySchema>;
 export type EntryOf<K extends KbKind> = Extract<KbEntry, {kind: K}>;
+/** An entry with reference pictures: a character or a place. */
+export type Pictured = EntryOf<'character'> | EntryOf<'place'>;
+export const hasPictures = (e: KbEntry): e is Pictured => e.kind === 'character' || e.kind === 'place';
 
 /** A book project: its name, the manual units that belong to it and the assistants that bring its context. */
 export const projectSchema = z.object({
@@ -216,7 +237,7 @@ export const exportEntrySchema = z.object({
   tags: z.array(short(60)).max(30).default([]),
 }).strict();
 export type ExportEntry = z.infer<typeof exportEntrySchema>;
-/** A picture or sheet of a character carried in the export, in base64, so another browser or account gets it too. */
+/** A picture or sheet of a character or place carried in the export, in base64, so another browser or account gets it too. */
 export const packageFileSchema = z.object({
   hash: sha,
   mime: refSchema.shape.mime,
@@ -229,7 +250,7 @@ export const exportSchema = z.object({
   project: short(200).optional(),
   exported: short(40).optional(),
   entries: z.array(exportEntrySchema).max(5000),
-  /** The files of the characters' references, by hash. Without them, only this browser and account have the pictures. */
+  /** The files of the characters' and places' references, by hash. Without them, only this browser and account have the pictures. */
   files: z.array(packageFileSchema).max(400).optional(),
 }).strict();
 
@@ -238,6 +259,7 @@ export function emptyData<K extends KbKind>(kind: K): EntryOf<K>['data'] {
   const empty: {[k in KbKind]: unknown} = {
     identity: {}, story: {}, note: {},
     character: {nameRu: '', aliases: [], distinct: [], relations: [], refs: []},
+    place: {nameRu: '', aliases: [], refs: []},
     unit: {number: 0, title: '', grammar: [], expressions: [], notYet: []},
     page: {number: 0, unit: 0, text: '', audios: [], exercises: [], characters: []},
     rule: {area: 'otro'},

@@ -1,7 +1,7 @@
 'use client';
 import {localStore} from '@/lib/books/local-store';
 import {libraryEvents} from '@/lib/books/library';
-import {entrySchema, projectSchema, type KbEntry, type KbProject, type KbRef} from './model';
+import {entrySchema, hasPictures, projectSchema, type KbEntry, type KbProject, type KbRef} from './model';
 import {applyPlan, planImport, refsWithFiles, type ImportFile, type ImportReport} from './import';
 import {refBytes, storeUnpacked, unpackFiles} from './files';
 import {changeEntry, restoreEntry, type EntryChange} from './versions';
@@ -115,14 +115,14 @@ export async function previewImport(project: KbProject, files: ImportFile[]) {
   // An export's pictures: the files it carries, or the ones this browser or the account already has.
   const {ok, bad} = await unpackFiles(plan.assets);
   const stored = new Map<string, {chunks?: string[]}>([...ok].map(([hash, f]) => [hash, f.chunks ? {chunks: f.chunks} : {}]));
-  for (const p of plan.patches) if (p.kind === 'character' && Array.isArray(p.set?.refs)) for (const r of p.set.refs as KbRef[]) {
+  for (const p of plan.patches) if ((p.kind === 'character' || p.kind === 'place') && Array.isArray(p.set?.refs)) for (const r of p.set.refs as KbRef[]) {
     if (typeof r?.hash !== 'string' || stored.has(r.hash)) continue;
     const ref = {hash: r.hash, chunks: Array.isArray(r.chunks) ? r.chunks : undefined};
     if (await refBytes(ref).catch(() => null)) stored.set(r.hash, ref.chunks ? {chunks: ref.chunks} : {});
   }
   const {patches, left} = refsWithFiles(plan.patches, stored);
   const {entries, report} = applyPlan(project.id, new Map(existing.map(e => [e.id, e])), patches, Date.now());
-  const brought = new Map(entries.flatMap(e => e.kind === 'character' ? e.data.refs.filter(r => ok.has(r.hash)).map(r => [r.hash, r] as const) : []));
+  const brought = new Map(entries.flatMap(e => hasPictures(e) ? e.data.refs.filter(r => ok.has(r.hash)).map(r => [r.hash, r] as const) : []));
   const pictures: ImportPictures = {added: brought.size, approved: [...brought.values()].filter(r => r.review === 'approved').length, left, bad};
   return {plan, entries, report, pictures, files: [...brought.keys()].map(h => ok.get(h)!)};
 }

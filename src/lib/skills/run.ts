@@ -7,7 +7,7 @@ import {bookForProject, bookForUnit, usedOf} from '@/lib/kb/context';
 import {bookLook} from '@/lib/kb/characters';
 import {getEntry, getProject, listEntries} from '@/lib/kb/store';
 import {uploadEntryFiles} from '@/lib/kb/files';
-import {castOfBook} from '@/lib/kb/picture';
+import {castOfBook, placeMember, placeOfBook} from '@/lib/kb/picture';
 import {fetchEditorFonts, type EditorFonts} from '@/lib/manual/fonts';
 import {getUnit, listUnits, saveUnit, saveVersion} from '@/lib/manual/store';
 import {applyFinding, parseReview as parsePageReview, reviewRequest as pageReviewRequest, reviewTexts, type ReviewFinding} from '@/lib/manual/review';
@@ -143,7 +143,10 @@ export async function writePdf(chatId: string, messageId: string, model: string)
     if (!parsed) { updateRun<PdfRun>(chatId, messageId, {state: 'error', error: looksCut(answer.text) ? 'DRAFT_CUT' : 'INVALID_DRAFT', model: answer.model, credits: answer.credits}); return; }
     const {notes: adjusted, ...draft} = parsed;
     updateRun<PdfRun>(chatId, messageId, {adjusted: adjusted || []});
-    const bookCast = book ? castOfBook(draft.characters.map(c => c.name), await listEntries(book.project.id)) : undefined;
+    const bookEntries = book ? await listEntries(book.project.id) : [];
+    const bookCast = book ? castOfBook(draft.characters.map(c => c.name), bookEntries) : undefined;
+    // The book's places the pictures name: their approved picture goes with every picture there.
+    const bookPlaces = book ? Object.fromEntries([...new Set(pictureSlots(draft).flatMap(s => s.place ? [s.place] : []))].flatMap(name => { const p = placeOfBook(name, bookEntries); return p ? [[name, placeMember(p)]] : []; })) : undefined;
     // A character of the book keeps its confirmed look and its age in every picture, whatever the text model wrote.
     if (bookCast) draft.characters = draft.characters.map(c => bookCast[c.name] ? {...c, look: bookLook(c.look, bookCast[c.name])} : c);
     // Pictures already made for the same prompt (in this card or the draft it changes) are kept: they are not paid twice.
@@ -152,7 +155,7 @@ export async function writePdf(chatId: string, messageId: string, model: string)
     const cast = keptCast(draft, fresh?.cast, previous?.cast);
     updateRun<PdfRun>(chatId, messageId, {
       state: 'ready', draft, target, model: answer.model, credits: answer.credits, sources: answer.sources, pictures, cast, imageStyle: undefined, setting: undefined,
-      ...(book ? {bookCast, bookProject: {id: book.project.id, name: book.project.name}} : {bookCast: undefined, bookProject: undefined}),
+      ...(book ? {bookCast, bookPlaces, bookProject: {id: book.project.id, name: book.project.name}} : {bookCast: undefined, bookPlaces: undefined, bookProject: undefined}),
       ...(previous?.pictureModel && !fresh?.pictureModel ? {pictureModel: previous.pictureModel, pictureResolution: previous.pictureResolution} : {}),
     });
   } catch (e) {
@@ -261,11 +264,13 @@ export async function generatePictures(chatId: string, messageId: string, opts: 
     const resolution = model.options.resolutions.includes(opts.resolution) ? opts.resolution : model.options.resolutions[0] || '';
     const own = max ? opts.refs.map(refValue) : [];
     let sent = 0;
-    const send = async (prompt: string, aspect: string, references: string[], tag: string, people: string[] = []) => {
+    const send = async (prompt: string, aspect: string, references: string[], tag: string, people: string[] = [], placeName?: string) => {
       // The studio accepts up to 8 new Kie tasks every 10 seconds.
       if (sent++) await pause(1400);
       const members = people.flatMap(n => run.bookCast?.[n] ? [run.bookCast[n]] : []);
-      const book = run.bookProject && members.length ? {project: run.bookProject.id, name: run.bookProject.name, characters: members.map(m => ({id: m.id, name: m.title, refs: m.hash && references.slice(0, max).includes('asset:' + m.hash) ? [{hash: m.hash, name: m.file || m.title}] : []}))} : undefined;
+      const where = placeName ? run.bookPlaces?.[placeName] : undefined;
+      const refsOf = (m: {hash?: string; file?: string; title: string}) => m.hash && references.slice(0, max).includes('asset:' + m.hash) ? [{hash: m.hash, name: m.file || m.title}] : [];
+      const book = run.bookProject && (members.length || where) ? {project: run.bookProject.id, name: run.bookProject.name, characters: members.map(m => ({id: m.id, name: m.title, refs: refsOf(m)})), ...(where ? {place: {id: where.id, name: where.title, refs: refsOf(where)}} : {})} : undefined;
       await startGeneration({mode: 'create', model: model.id, prompt, aspect, resolution, references: references.slice(0, max), count: 1, batchId, tag, ...(book ? {book} : {})});
       changedSending();
     };
@@ -309,14 +314,19 @@ export async function generatePictures(chatId: string, messageId: string, opts: 
     for (const c of missing) queue.delete('cast:' + c.name);
 
     // The library pictures must be in the account for the server to send them (this computer may not have synced yet).
-    if (run.bookProject) for (const m of Object.values(library)) if (m.hash) { const e = await getEntry(run.bookProject.id, m.id).catch(() => undefined); if (e) await uploadEntryFiles(e).catch(() => {}); }
+    if (run.bookProject) for (const m of [...Object.values(library), ...Object.values(run.bookPlaces || {})]) if (m.hash) { const e = await getEntry(run.bookProject.id, m.id).catch(() => undefined); if (e) await uploadEntryFiles(e).catch(() => {}); }
 
     // 2. The pictures, each with the portraits of its characters.
     for (const slot of slots) {
       const people = slotCharacters(slot, cast);
+      const where = slot.place ? run.bookPlaces?.[slot.place] : undefined;
       // The portraits go first: with a model that takes few references they are what keeps the characters the same.
-      const refs = [...people.flatMap(c => portraits.has(c.name) ? ['asset:' + portraits.get(c.name)] : []), ...own];
-      await send(picturePrompt(slot, style, {cast, setting, withPortraits: people.some(c => portraits.has(c.name))}), nearestAspect(slot.aspect, model.options.aspectRatios), refs, pictureTag(slot), people.map(c => c.name));
+      // Then the place's picture, then the author's own references.
+      const faces = people.flatMap(c => portraits.has(c.name) ? ['asset:' + portraits.get(c.name)] : []);
+      const withPlace = Boolean(where?.hash && max > faces.length);
+      const refs = [...faces, ...(withPlace ? ['asset:' + where!.hash] : []), ...own];
+      const place = where ? {title: where.title, look: where.look, withPicture: withPlace} : undefined;
+      await send(picturePrompt(slot, style, {cast, setting, withPortraits: faces.length > 0, place}), nearestAspect(slot.aspect, model.options.aspectRatios), refs, pictureTag(slot), people.map(c => c.name), slot.place);
       queue.delete(slot.key);
     }
   } finally {
