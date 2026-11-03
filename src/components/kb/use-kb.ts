@@ -4,7 +4,7 @@ import {libraryEvents} from '@/lib/books/library';
 import {listEntries, listProjects} from '@/lib/kb/store';
 import type {KbEntry, KbProject} from '@/lib/kb/model';
 
-/** Reloads when this browser saves or sync brings changes from another computer. */
+/** Reloads when this browser saves, sync brings changes from another computer, or the tab is shown again. */
 function useLibrary<T>(load: () => Promise<T>, deps: unknown[]): T | null {
   const [value, setValue] = useState<T | null>(null);
   useEffect(() => {
@@ -13,7 +13,14 @@ function useLibrary<T>(load: () => Promise<T>, deps: unknown[]): T | null {
     run();
     libraryEvents?.addEventListener('change', run);
     libraryEvents?.addEventListener('synced', run);
-    return () => { alive = false; libraryEvents?.removeEventListener('change', run); libraryEvents?.removeEventListener('synced', run); };
+    // A book made in another tab (Contexto del libro next to the Chat) shows up when this tab is looked at again.
+    const seen = () => { if (document.visibilityState === 'visible') run(); };
+    window.addEventListener('focus', run);
+    document.addEventListener('visibilitychange', seen);
+    return () => {
+      alive = false; libraryEvents?.removeEventListener('change', run); libraryEvents?.removeEventListener('synced', run);
+      window.removeEventListener('focus', run); document.removeEventListener('visibilitychange', seen);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
   return value;
