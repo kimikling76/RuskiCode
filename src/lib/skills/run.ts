@@ -21,7 +21,7 @@ import type {Unit} from '@/lib/manual/model';
 import {useCinema, type CinemaJob} from '@/store/cinema';
 import type {ChatAttachment} from '@/lib/personal-chat/attachments';
 import {
-  autoChecks, draftComponents, madeFor, slotBubbles, keptCast, keptPictures, nearestAspect, newWords, parseDraft, parseReview, pdfContext, pictureSlots, picturePrompt, portraitPrompt,
+  autoChecks, draftComponents, looksCut, madeFor, slotBubbles, keptCast, keptPictures, nearestAspect, newWords, parseDraft, parseReview, pdfContext, pictureSlots, picturePrompt, portraitPrompt,
   refValue, reviewRequest, skillSummary, slotCharacters, unitPagesText, unitVocabulary,
   type Character, type ImageRun, type MediaRef, type PdfRun, type PdfTarget, type PictureSlot, type PictureState, type ReviewRun, type SkillRun, type VideoRun,
 } from './chat';
@@ -131,15 +131,18 @@ export async function writePdf(chatId: string, messageId: string, model: string)
     const chatBook = chatProjectOf(chatId);
     const project = chatBook ? await getProject(chatBook).catch(() => undefined) : undefined;
     const ownUnit = project ? models.find(u => u.id in project.units) : undefined;
-    const target: PdfTarget = run.target && models.some(u => u.id === run.target!.unitId) ? run.target : {mode: 'new', unitId: (ownUnit || models[0]).id};
+    // A unit of the chat's book gets the new pages; otherwise a new unit is made with the first design.
+    const target: PdfTarget = run.target && models.some(u => u.id === run.target!.unitId) ? run.target : ownUnit ? {mode: 'append', unitId: ownUnit.id} : {mode: 'new', unitId: models[0].id};
     const unit = models.find(u => u.id === target.unitId)!;
     const previous = previousRun(chatId, messageId);
     const task = {query: run.request, cast: true, ...(project?.units[unit.id] ? {unit: project.units[unit.id]} : {})};
     const book = await (chatBook ? bookForProject(chatBook, task) : bookForUnit(unit.id, task)).catch(() => null);
     if (book) updateRun<PdfRun>(chatId, messageId, {book: usedOf(book)});
     const answer = await textAnswer('pdf-generator', pdfContext(unit, target, run.request, unitVocabulary(units), previous?.draft), {model, webSearch: run.webSearch, book: book?.payload});
-    const draft = parseDraft(answer.text);
-    if (!draft) { updateRun<PdfRun>(chatId, messageId, {state: 'error', error: 'INVALID_DRAFT', model: answer.model, credits: answer.credits}); return; }
+    const parsed = parseDraft(answer.text);
+    if (!parsed) { updateRun<PdfRun>(chatId, messageId, {state: 'error', error: looksCut(answer.text) ? 'DRAFT_CUT' : 'INVALID_DRAFT', model: answer.model, credits: answer.credits}); return; }
+    const {notes: adjusted, ...draft} = parsed;
+    updateRun<PdfRun>(chatId, messageId, {adjusted: adjusted || []});
     const bookCast = book ? castOfBook(draft.characters.map(c => c.name), await listEntries(book.project.id)) : undefined;
     // A character of the book keeps its confirmed look and its age in every picture, whatever the text model wrote.
     if (bookCast) draft.characters = draft.characters.map(c => bookCast[c.name] ? {...c, look: bookLook(c.look, bookCast[c.name])} : c);

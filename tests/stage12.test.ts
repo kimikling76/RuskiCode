@@ -156,9 +156,11 @@ test('/pdf-generator pictures: photos, galleries and comics are read, with a slo
   // Words in labels and bubbles count as words of the draft.
   assert.ok(newWords(draft, new Set(['это', 'мама'])).includes('бабушка'));
   assert.match(skillSummary({skill: 'pdf-generator', request: 'x', state: 'ready', draft}), /y 8 imágenes/);
-  // Each picture is a paid task: a draft asking for more than the limit is not accepted.
+  // Each picture is a paid task: a draft asking for more than the limit keeps the first ones and says so.
   const many = {...pictureDraft, blocks: [{type: 'gallery', columns: 4, aspect: '1:1', items: Array.from({length: 18}, (_, i) => ({prompt: 'p' + i, label: ''}))}, {type: 'gallery', columns: 4, aspect: '1:1', items: Array.from({length: MAX_PICTURES - 17}, (_, i) => ({prompt: 'q' + i, label: ''}))}]};
-  assert.equal(parseDraft(JSON.stringify(many)), null);
+  const trimmed = parseDraft(JSON.stringify(many))!;
+  assert.equal(pictureSlots(trimmed).length, MAX_PICTURES);
+  assert.match(trimmed.notes!.join(' '), /máximo por tanda es 24/);
 });
 
 test('/pdf-generator pictures: the model ratio closest to each slot, and images kept only for the same prompt', () => {
