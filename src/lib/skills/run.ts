@@ -21,7 +21,7 @@ import type {Unit} from '@/lib/manual/model';
 import {useCinema, type CinemaJob} from '@/store/cinema';
 import type {ChatAttachment} from '@/lib/personal-chat/attachments';
 import {
-  autoChecks, draftComponents, looksCut, madeFor, slotBubbles, keptCast, keptPictures, nearestAspect, newWords, parseDraft, parseReview, pdfContext, pictureSlots, picturePrompt, portraitPrompt,
+  autoChecks, draftComponents, looksCut, salvageDraft, madeFor, slotBubbles, keptCast, keptPictures, nearestAspect, newWords, parseDraft, parseReview, pdfContext, pictureSlots, picturePrompt, portraitPrompt,
   refValue, reviewRequest, skillSummary, slotCharacters, unitPagesText, unitVocabulary,
   type Character, type ImageRun, type MediaRef, type PdfRun, type PdfTarget, type PictureSlot, type PictureState, type ReviewRun, type SkillRun, type VideoRun,
 } from './chat';
@@ -138,9 +138,11 @@ export async function writePdf(chatId: string, messageId: string, model: string)
     const task = {query: run.request, cast: true, ...(project?.units[unit.id] ? {unit: project.units[unit.id]} : {})};
     const book = await (chatBook ? bookForProject(chatBook, task) : bookForUnit(unit.id, task)).catch(() => null);
     if (book) updateRun<PdfRun>(chatId, messageId, {book: usedOf(book)});
-    const answer = await textAnswer('pdf-generator', pdfContext(unit, target, run.request, unitVocabulary(units), previous?.draft), {model, webSearch: run.webSearch, book: book?.payload});
-    const parsed = parseDraft(answer.text);
-    if (!parsed) { updateRun<PdfRun>(chatId, messageId, {state: 'error', error: looksCut(answer.text) ? 'DRAFT_CUT' : 'INVALID_DRAFT', model: answer.model, credits: answer.credits}); return; }
+    const answer = await textAnswer('pdf-generator', pdfContext(unit, target, run.request, unitVocabulary(units), previous?.draft), {model, webSearch: run.webSearch, book: book?.payload, partial: true});
+    // A cut answer was paid for: its complete blocks are kept, and the card says to ask for the rest.
+    const saved = answer.cut ? salvageDraft(answer.text) : null;
+    const parsed = answer.cut ? (saved && {...saved.draft, notes: ['La respuesta se cortó antes de terminar (tardó demasiado o se cortó la conexión): quedaron los primeros ' + saved.blocks + (saved.blocks === 1 ? ' bloque' : ' bloques') + '. Pedí lo que falta en otro mensaje.', ...(saved.draft.notes || [])]}) : parseDraft(answer.text);
+    if (!parsed) { updateRun<PdfRun>(chatId, messageId, {state: 'error', error: answer.cut ? 'STREAM_INTERRUPTED' : looksCut(answer.text) ? 'DRAFT_CUT' : 'INVALID_DRAFT', model: answer.model, credits: answer.credits}); return; }
     const {notes: adjusted, ...draft} = parsed;
     updateRun<PdfRun>(chatId, messageId, {adjusted: adjusted || []});
     const bookEntries = book ? await listEntries(book.project.id) : [];

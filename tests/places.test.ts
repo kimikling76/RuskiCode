@@ -107,3 +107,22 @@ test('undoing an import: what it created goes, what it changed goes back, and la
   const approved = {...misha, version: misha.version + 1, status: 'approved', note: 'Aprobado por el autor', history: [...misha.history, {version: misha.version, at: now, status: misha.status, title: misha.title, body: misha.body, data: misha.data, sources: misha.sources, note: misha.note}]} as KbEntry;
   assert.equal(planUndo([approved], ['ninos.json'])[0].later, 1);
 });
+
+// ---------- A /pdf-generator answer cut before its end ----------
+import {salvageDraft} from '../src/lib/skills/chat';
+
+test('a cut draft keeps its complete blocks', () => {
+  const full = JSON.stringify({title: 'Урок 3', summary: 'x', characters: [{name: 'Миша', look: 'A boy of 14.'}], blocks: [
+    {type: 'heading', text: 'Дом'},
+    {type: 'text', text: 'Это мой дом. Он говорит: "привет" \\ {нет}'},
+    {type: 'exercise', instruction: 'Читай.', items: ['дом', 'кот', 'мама']},
+  ]});
+  const cutAt = full.indexOf('"кот"');
+  const saved = salvageDraft(full.slice(0, cutAt))!;
+  assert.equal(saved.blocks, 2);
+  assert.deepEqual(saved.draft.blocks.map(b => b.type), ['heading', 'text']);
+  assert.equal(saved.draft.characters[0].name, 'Миша');
+  assert.match((saved.draft.blocks[1] as {text: string}).text, /\{нет\}/, 'braces and quotes inside a text do not confuse it');
+  assert.equal(salvageDraft(full.slice(0, full.indexOf('"Дом"'))), null, 'no complete block: nothing to keep');
+  assert.equal(salvageDraft('no json at all'), null);
+});

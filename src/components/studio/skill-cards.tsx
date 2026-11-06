@@ -50,7 +50,7 @@ const skillErrors: Record<string, string> = {
   TARGET_MISSING: 'La unidad de destino ya no está en este navegador.',
   INSUFFICIENT_BALANCE: 'Kie informó saldo insuficiente.',
   RATE_LIMIT: 'Kie o el estudio limitó las solicitudes. Esperá unos segundos.',
-  STREAM_INTERRUPTED: 'La respuesta se cortó. Puede haber consumo: revisá los registros de Kie.',
+  STREAM_INTERRUPTED: 'La respuesta se cortó antes de que llegara un bloque completo (tardó demasiado o se cortó la conexión). Kie cobra lo que el modelo alcanzó a escribir: pedí menos de una vez, por ejemplo la mitad de las páginas.',
   PROVIDER_AUTH_ERROR: 'Kie rechazó la clave del servidor (KIE_API_KEY en Vercel).',
   MODEL_NOT_CONFIGURED: 'No hay un modelo de Kie configurado para esta selección.',
   SEARCH_NOT_SUPPORTED: 'El modelo elegido no busca en la web en Kie. Elegí uno que diga «busca en la web» o apagá la búsqueda del chat.',

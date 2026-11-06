@@ -227,3 +227,14 @@ Con pedidos largos (por ejemplo, la mitad del alfabeto con una foto por letra), 
   - si pide más de 24 imágenes, quedan las primeras 24, y el resto se pide en otra tanda.
 
 Además, si el chat tiene «Contexto del libro» y ese libro tiene una unidad vinculada, las páginas nuevas **se agregan a esa unidad** por defecto, en lugar de crear otra. El destino se puede cambiar en la tarjeta antes de guardar.
+
+## Arreglo: respuestas que se cortaban por tiempo (6 de noviembre de 2026)
+
+- **Qué pasaba:** el estudio cortaba cada pedido a un modelo de texto a los **105 segundos**.
+  - Una unidad entera con un modelo grande (Claude Opus) tarda más que eso.
+  - El pedido se cortaba con «La respuesta se cortó», no se guardaba nada, y Kie cobraba igual lo que el modelo había escrito.
+- **Ahora:** el límite es de **casi 5 minutos**, el máximo del plan de Vercel.
+- **Si igual se corta** (por tiempo o porque se cae la conexión), /pdf-generator **conserva los bloques que llegaron completos**.
+  - La tarjeta los muestra con un aviso: «quedaron los primeros N bloques; pedí lo que falta en otro mensaje».
+  - Si no llegó ni un bloque completo, el aviso sugiere pedir menos de una vez.
+- **Prueba automática:** un borrador cortado a mitad de un ejercicio conserva el título, los personajes y los dos bloques anteriores. Las comillas y llaves dentro de un texto no lo confunden.

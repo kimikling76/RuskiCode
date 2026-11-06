@@ -255,6 +255,30 @@ export function parseDraft(text: string): (PdfDraft & {notes?: string[]}) | null
   return notes.length ? {...draft, notes} : draft;
 }
 
+/**
+ * What can be kept of a draft whose answer was cut before its end: the object up to its last complete block, closed.
+ * The draft's fields come before "blocks" (as the instructions ask), so the title, the looks and the place are there.
+ * Null when not even one block arrived whole.
+ */
+export function salvageDraft(text: string): {draft: PdfDraft & {notes?: string[]}; blocks: number} | null {
+  const start = text.indexOf('{');
+  const at = start < 0 ? -1 : text.indexOf('"blocks"', start);
+  if (at < 0) return null;
+  const open = text.indexOf('[', at);
+  if (open < 0) return null;
+  let depth = 0, inString = false, escaped = false, last = -1, count = 0;
+  for (let i = open + 1; i < text.length; i++) {
+    const c = text[i];
+    if (inString) { if (escaped) escaped = false; else if (c === '\\') escaped = true; else if (c === '"') inString = false; continue; }
+    if (c === '"') inString = true;
+    else if (c === '{' || c === '[') depth++;
+    else if (c === '}' || c === ']') { if (depth === 0) break; depth--; if (depth === 0 && c === '}') { last = i; count++; } }
+  }
+  if (last < 0) return null;
+  const draft = parseDraft(text.slice(start, last + 1) + ']}');
+  return draft ? {draft, blocks: count} : null;
+}
+
 /** An answer that opens a JSON object but never closes it: the model was cut off by the length of its answer. */
 export const looksCut = (text: string) => { const start = text.indexOf('{'); return start >= 0 && jsonAnswer(text) === null && !/\}\s*(```)?\s*$/.test(text.trim()); };
 

@@ -22,7 +22,8 @@ const usageLabels: Record<TextPurpose, {studio: 'chat' | 'cinema' | 'pdf'; label
   'manual-exercise': {studio: 'pdf', label: 'Ejercicio nuevo con IA'},
 };
 
-export type TextAnswer = {text: string; model?: string; credits?: number; sources?: Source[]};
+/** `cut`: the answer stopped before its end (only with `partial`); `text` is what arrived. */
+export type TextAnswer = {text: string; model?: string; credits?: number; sources?: Source[]; cut?: boolean};
 
 /** One text answer from the configured Kie chat model (personal-chat endpoint with a studio purpose). */
 /** `assistant` is optional and only sent when the person chose one in that panel. */
@@ -33,7 +34,7 @@ export async function textRequest(purpose: TextPurpose, content: string, signal?
 /** The same, with the model that answered and the credits Kie reported. `model` is a catalog id or 'auto'. */
 /** `webSearch` only for models that document a search tool (the server answers SEARCH_NOT_SUPPORTED otherwise). */
 /** `book`: data of the author's book project, sent apart from the request (only inside that project). */
-export async function textAnswer(purpose: TextPurpose, content: string, opts: {signal?: AbortSignal; assistant?: Assistant | null; model?: string; attachments?: unknown[]; webSearch?: boolean; book?: BookPayload} = {}): Promise<TextAnswer> {
+export async function textAnswer(purpose: TextPurpose, content: string, opts: {signal?: AbortSignal; assistant?: Assistant | null; model?: string; attachments?: unknown[]; webSearch?: boolean; book?: BookPayload; partial?: boolean} = {}): Promise<TextAnswer> {
   const {signal, assistant} = opts;
   const model = opts.model && opts.model !== 'auto' ? opts.model : assistant && assistant.model !== 'auto' ? assistant.model : 'auto';
   let name: string | undefined;
@@ -53,15 +54,22 @@ export async function textAnswer(purpose: TextPurpose, content: string, opts: {s
     }
     accepted = true;
     if (!r.body) throw Error('PROVIDER_UNAVAILABLE');
-    for await (const frame of sseData(r.body)) {
+    let lost = false;
+    try { for await (const frame of sseData(r.body)) {
       const e = JSON.parse(frame);
       if (e.type === 'delta') text += e.text;
       if (e.type === 'model') name = e.name;
       if (e.type === 'sources' && Array.isArray(e.sources)) for (const x of e.sources) if (!sources.some(y => y.url === x.url) && sources.length < 20) sources.push(x);
       if (e.type === 'usage' && typeof e.usage?.credits === 'number') credits = e.usage.credits;
-      if (e.type === 'error') throw Error(e.error);
+      // A cut answer (time limit, lost connection) keeps what arrived when the caller can use part of it: Kie charges it.
+      if (e.type === 'error') { if (e.error === 'STREAM_INTERRUPTED' && opts.partial && text.trim()) break; throw Error(e.error); }
       if (e.type === 'done') done = true;
+    } } catch (e) {
+      // The connection dropped while reading: the same as a cut answer, not an unknown failure.
+      if (e instanceof Error && e.name !== 'AbortError' && !/^[A-Z_]+$/.test(e.message)) lost = true; else throw e;
     }
+    if (lost && !(opts.partial && text.trim())) throw Error('STREAM_INTERRUPTED');
+    if (!done && opts.partial && text.trim()) return {text: text.trim(), model: name, credits, cut: true, ...(sources.length ? {sources} : {})};
     if (!done) throw Error('STREAM_INTERRUPTED');
     return {text: text.trim(), model: name, credits, ...(sources.length ? {sources} : {})};
   } finally {
