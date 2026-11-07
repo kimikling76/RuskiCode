@@ -2,7 +2,7 @@
 import {useSyncExternalStore} from 'react';
 import {usePersonal, type PersonalMessage} from '@/store/personal-chat';
 import {startGeneration} from '@/lib/cinema/client';
-import {textAnswer} from '@/lib/ai/text-request';
+import {jobId, textAnswer, textJob} from '@/lib/ai/text-request';
 import {bookForProject, bookForUnit, usedOf} from '@/lib/kb/context';
 import {bookLook} from '@/lib/kb/characters';
 import {getEntry, getProject, listEntries} from '@/lib/kb/store';
@@ -21,7 +21,7 @@ import type {Unit} from '@/lib/manual/model';
 import {useCinema, type CinemaJob} from '@/store/cinema';
 import type {ChatAttachment} from '@/lib/personal-chat/attachments';
 import {
-  autoChecks, draftComponents, looksCut, salvageDraft, madeFor, slotBubbles, keptCast, keptPictures, nearestAspect, newWords, parseDraft, parseReview, pdfContext, pictureSlots, picturePrompt, portraitPrompt,
+  autoChecks, continuationContext, draftComponents, looksCut, mergeDrafts, salvageDraft, MAX_PARTS, madeFor, slotBubbles, keptCast, keptPictures, nearestAspect, newWords, parseDraft, parseReview, pdfContext, pictureSlots, picturePrompt, portraitPrompt,
   refValue, reviewRequest, skillSummary, slotCharacters, unitPagesText, unitVocabulary,
   type Character, type ImageRun, type MediaRef, type PdfRun, type PdfTarget, type PictureSlot, type PictureState, type ReviewRun, type SkillRun, type VideoRun,
 } from './chat';
@@ -118,13 +118,37 @@ function previousRun(chatId: string, messageId: string) {
   return undefined;
 }
 
-export async function writePdf(chatId: string, messageId: string, model: string) {
+/** Characters that have arrived in the answer being written, by message (not synced: it changes every 2 seconds). */
+const writtenChars = new Map<string, number>();
+let writtenVersion = 0;
+const writtenListeners = new Set<() => void>();
+const wrote = (messageId: string, n: number | null) => { if (n === null) writtenChars.delete(messageId); else writtenChars.set(messageId, n); writtenVersion++; for (const l of writtenListeners) l(); };
+/** How much of the current part has arrived (characters), while this browser waits for it. */
+export function useWrittenChars(messageId: string) {
+  useSyncExternalStore(cb => { writtenListeners.add(cb); return () => { writtenListeners.delete(cb); }; }, () => writtenVersion, () => 0);
+  return writtenChars.get(messageId);
+}
+
+/** Asks to stop after the part being written: what is written stays, and «Continuar» asks for the rest later. */
+export const stopPdfAfterPart = (chatId: string, messageId: string) => updateRun<PdfRun>(chatId, messageId, {stop: true});
+
+/**
+ * Writes the draft of a /pdf-generator card with the text model, on the server (see textJob): the answer survives a
+ * closed tab, and opening the chat again picks up the same job instead of paying for a new one. A long request comes
+ * in parts of at most PART_BLOCKS blocks: while the model says something is missing, the next part is asked for and
+ * added at the end, up to MAX_PARTS (then, or after a stop or a cut answer, «Continuar» asks for more).
+ * `more`: go on from the card's draft instead of starting again.
+ */
+export async function writePdf(chatId: string, messageId: string, model: string, opts: {more?: boolean} = {}) {
   if (running.has(messageId)) return;
   running.add(messageId);
-  updateRun<PdfRun>(chatId, messageId, {state: 'writing', error: undefined});
+  const current = () => findMessage(chatId, messageId)?.skill as PdfRun | undefined;
+  let continuing = false;
   try {
-    const run = findMessage(chatId, messageId)?.skill as PdfRun | undefined;
-    if (!run) return;
+    const first = current();
+    if (!first) return;
+    continuing = Boolean(first.draft) && (opts.more || Boolean(first.job?.continuing));
+    updateRun<PdfRun>(chatId, messageId, {state: 'writing', error: undefined, stop: false});
     const {units, models} = await designUnits();
     if (!models.length) { updateRun<PdfRun>(chatId, messageId, {state: 'error', error: units.length ? 'NO_DESIGN' : 'NO_MANUAL'}); return; }
     // «Contexto del libro» turned on in this chat brings that book; otherwise a unit linked to a book brings its own.
@@ -132,37 +156,71 @@ export async function writePdf(chatId: string, messageId: string, model: string)
     const project = chatBook ? await getProject(chatBook).catch(() => undefined) : undefined;
     const ownUnit = project ? models.find(u => u.id in project.units) : undefined;
     // A unit of the chat's book gets the new pages; otherwise a new unit is made with the first design.
-    const target: PdfTarget = run.target && models.some(u => u.id === run.target!.unitId) ? run.target : ownUnit ? {mode: 'append', unitId: ownUnit.id} : {mode: 'new', unitId: models[0].id};
+    const target: PdfTarget = first.target && models.some(u => u.id === first.target!.unitId) ? first.target : ownUnit ? {mode: 'append', unitId: ownUnit.id} : {mode: 'new', unitId: models[0].id};
     const unit = models.find(u => u.id === target.unitId)!;
     const previous = previousRun(chatId, messageId);
-    const task = {query: run.request, cast: true, ...(project?.units[unit.id] ? {unit: project.units[unit.id]} : {})};
+    const task = {query: first.request, cast: true, ...(project?.units[unit.id] ? {unit: project.units[unit.id]} : {})};
     const book = await (chatBook ? bookForProject(chatBook, task) : bookForUnit(unit.id, task)).catch(() => null);
     if (book) updateRun<PdfRun>(chatId, messageId, {book: usedOf(book)});
-    const answer = await textAnswer('pdf-generator', pdfContext(unit, target, run.request, unitVocabulary(units), previous?.draft), {model, webSearch: run.webSearch, book: book?.payload, partial: true});
-    // A cut answer was paid for: its complete blocks are kept, and the card says to ask for the rest.
-    const saved = answer.cut ? salvageDraft(answer.text) : null;
-    const parsed = answer.cut ? (saved && {...saved.draft, notes: ['La respuesta se cortó antes de terminar (tardó demasiado o se cortó la conexión): quedaron los primeros ' + saved.blocks + (saved.blocks === 1 ? ' bloque' : ' bloques') + '. Pedí lo que falta en otro mensaje.', ...(saved.draft.notes || [])]}) : parseDraft(answer.text);
-    if (!parsed) { updateRun<PdfRun>(chatId, messageId, {state: 'error', error: answer.cut ? 'STREAM_INTERRUPTED' : looksCut(answer.text) ? 'DRAFT_CUT' : 'INVALID_DRAFT', model: answer.model, credits: answer.credits}); return; }
-    const {notes: adjusted, ...draft} = parsed;
-    updateRun<PdfRun>(chatId, messageId, {adjusted: adjusted || []});
     const bookEntries = book ? await listEntries(book.project.id) : [];
-    const bookCast = book ? castOfBook(draft.characters.map(c => c.name), bookEntries) : undefined;
-    // The book's places the pictures name: their approved picture goes with every picture there.
-    const bookPlaces = book ? Object.fromEntries([...new Set(pictureSlots(draft).flatMap(s => s.place ? [s.place] : []))].flatMap(name => { const p = placeOfBook(name, bookEntries); return p ? [[name, placeMember(p)]] : []; })) : undefined;
-    // A character of the book keeps its confirmed look and its age in every picture, whatever the text model wrote.
-    if (bookCast) draft.characters = draft.characters.map(c => bookCast[c.name] ? {...c, look: bookLook(c.look, bookCast[c.name])} : c);
-    // Pictures already made for the same prompt (in this card or the draft it changes) are kept: they are not paid twice.
-    const fresh = findMessage(chatId, messageId)?.skill as PdfRun | undefined;
-    const pictures = keptPictures(draft, fresh?.pictures, previous?.pictures);
-    const cast = keptCast(draft, fresh?.cast, previous?.cast);
-    updateRun<PdfRun>(chatId, messageId, {
-      state: 'ready', draft, target, model: answer.model, credits: answer.credits, sources: answer.sources, pictures, cast, imageStyle: undefined, setting: undefined,
-      ...(book ? {bookCast, bookPlaces, bookProject: {id: book.project.id, name: book.project.name}} : {bookCast: undefined, bookPlaces: undefined, bookProject: undefined}),
-      ...(previous?.pictureModel && !fresh?.pictureModel ? {pictureModel: previous.pictureModel, pictureResolution: previous.pictureResolution} : {}),
-    });
+    const known = unitVocabulary(units);
+
+    for (;;) {
+      const run = current();
+      if (!run) return;
+      const part = continuing ? (run.parts || 1) + 1 : 1;
+      // The job's id comes from the card, the part and the attempt: every tab asks for the same one, so Kie is paid once.
+      const id = run.job && run.job.part === part ? run.job.id : await jobId(messageId + ':' + part + ':' + (run.attempt || 0));
+      updateRun<PdfRun>(chatId, messageId, {job: {id, part, continuing}});
+      const content = continuing ? continuationContext(unit, target, run.request, known, run.draft!, run.more, part) : pdfContext(unit, target, run.request, known, previous?.draft);
+      const answer = await textJob('pdf-generator', content, {id, model, webSearch: run.webSearch, book: book?.payload, onProgress: n => wrote(messageId, n)});
+      wrote(messageId, null);
+      // Another tab of the same chat already added this part (both waited for the same job): nothing to add twice.
+      if (continuing && (current()?.parts || 1) >= part) return;
+      // A cut answer was paid for: its complete blocks are kept, and «Continuar» asks for the rest.
+      const saved = answer.cut ? salvageDraft(answer.text) : null;
+      const parsed = answer.cut ? (saved && {...saved.draft, notes: ['La parte ' + part + ' se cortó antes de terminar (tardó demasiado o se cortó la conexión): quedaron sus primeros ' + saved.blocks + (saved.blocks === 1 ? ' bloque' : ' bloques') + '. Tocá «Continuar» para pedir lo que falta.', ...(saved.draft.notes || [])]}) : parseDraft(answer.text);
+      const spent = (continuing ? run.credits || 0 : 0) + (answer.credits || 0);
+      if (!parsed) {
+        const error = answer.cut ? 'STREAM_INTERRUPTED' : looksCut(answer.text) ? 'DRAFT_CUT' : 'INVALID_DRAFT';
+        // The next try is a new job (a new attempt); a draft already written stays, with «Continuar».
+        updateRun<PdfRun>(chatId, messageId, {job: undefined, attempt: (run.attempt || 0) + 1, model: answer.model, credits: spent || undefined,
+          ...(continuing ? {state: 'ready', partError: error, more: run.more || 'la parte que no se pudo leer'} : {state: 'error', error})});
+        return;
+      }
+      const {notes, more: partMore, ...partDraft} = parsed;
+      const draft = continuing ? mergeDrafts(run.draft!, partDraft) : partDraft;
+      const more = partMore || (answer.cut ? 'lo que faltaba cuando se cortó la respuesta' : undefined);
+      const bookCast = book ? castOfBook(draft.characters.map(c => c.name), bookEntries) : undefined;
+      // The book's places the pictures name: their approved picture goes with every picture there.
+      const bookPlaces = book ? Object.fromEntries([...new Set(pictureSlots(draft).flatMap(s => s.place ? [s.place] : []))].flatMap(name => { const p = placeOfBook(name, bookEntries); return p ? [[name, placeMember(p)]] : []; })) : undefined;
+      // A character of the book keeps its confirmed look and its age in every picture, whatever the text model wrote.
+      if (bookCast) draft.characters = draft.characters.map(c => bookCast[c.name] ? {...c, look: bookLook(c.look, bookCast[c.name])} : c);
+      // Pictures already made for the same prompt (in this card or the draft it changes) are kept: they are not paid twice.
+      const fresh = current();
+      const pictures = keptPictures(draft, fresh?.pictures, previous?.pictures);
+      const cast = keptCast(draft, fresh?.cast, previous?.cast);
+      const goOn = Boolean(more) && !answer.cut && part < MAX_PARTS && !fresh?.stop;
+      updateRun<PdfRun>(chatId, messageId, {
+        state: goOn ? 'writing' : 'ready', draft, target, parts: part, job: undefined, partError: undefined, model: answer.model, credits: spent || undefined,
+        more: more || undefined, adjusted: [...(continuing ? fresh?.adjusted || [] : []), ...(notes || [])],
+        sources: [...(continuing ? fresh?.sources || [] : []), ...(answer.sources || [])].slice(0, 20), pictures, cast,
+        // The style and place the author changed in the card stay while parts are added.
+        ...(continuing ? {} : {imageStyle: undefined, setting: undefined}),
+        ...(book ? {bookCast, bookPlaces, bookProject: {id: book.project.id, name: book.project.name}} : {bookCast: undefined, bookPlaces: undefined, bookProject: undefined}),
+        ...(previous?.pictureModel && !fresh?.pictureModel ? {pictureModel: previous.pictureModel, pictureResolution: previous.pictureResolution} : {}),
+      });
+      if (!goOn) return;
+      continuing = true;
+    }
   } catch (e) {
-    updateRun<PdfRun>(chatId, messageId, {state: 'error', error: e instanceof Error ? e.message : 'PROVIDER_UNAVAILABLE'});
+    const run = current();
+    const error = e instanceof Error ? e.message : 'PROVIDER_UNAVAILABLE';
+    // A failure while asking for a later part leaves the draft as it was, with «Continuar» to try that part again.
+    updateRun<PdfRun>(chatId, messageId, {job: undefined, attempt: (run?.attempt || 0) + 1,
+      ...(continuing && run?.draft ? {state: 'ready', partError: error, more: run.more || 'la parte que no se pudo escribir'} : {state: 'error', error})});
   } finally {
+    wrote(messageId, null);
     running.delete(messageId);
   }
 }

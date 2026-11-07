@@ -87,6 +87,12 @@ export type PdfRun = {
   /** Places of the draft that are the book's, by the name the draft uses. */
   bookPlaces?: Record<string, BookPlaceMember>;
   bookProject?: {id: string; name: string};
+  /** The text job on its way (see writePdf): kept so a reload or another tab waits for the same one. */
+  job?: {id: string; part: number; continuing: boolean};
+  /** Parts written so far, what the model said is still missing, and whether the author asked to stop after a part. */
+  parts?: number; more?: string; stop?: boolean;
+  /** Tries so far (a new try is a new job); the error of a later part, which leaves the draft as it was. */
+  attempt?: number; partError?: string;
 };
 /** A place of the draft found in the book: its approved main picture (by hash) goes with every picture there. */
 export type BookPlaceMember = {id: string; title: string; hash?: string; file?: string; look?: string};
@@ -143,6 +149,8 @@ export const draftBlockSchema = z.discriminatedUnion('type', [
   }),
   z.object({
     type: z.literal('gallery'), columns: z.number().int().min(2).max(6).catch(3), aspect: z.enum(pictureAspects).catch('1:1'), numbered: z.boolean().catch(false),
+    /** First number of a numbered gallery that goes on from another one (a split gallery, the next part of a draft). */
+    first: z.number().int().min(1).max(999).optional().catch(undefined),
     items: z.array(z.object({prompt: picturePromptSchema, label: z.string().trim().max(80).catch(''), characters: inPicture, place: inPlace})).min(1).max(18),
   }),
   z.object({
@@ -164,6 +172,8 @@ export const draftSchema = z.object({
   /** The people who appear in more than one picture, described once so they look the same everywhere. */
   characters: z.array(z.object({name: z.string().trim().min(1).max(60), look: z.string().trim().min(1).max(600)})).max(6).catch([]),
   blocks: z.array(draftBlockSchema).min(1).max(30),
+  /** What is still to be written when the model wrote only the first part of a long request (see PART_BLOCKS). */
+  more: z.string().trim().max(400).optional().catch(undefined),
 }).refine(d => pictureSlots(d).length <= MAX_PICTURES);
 export type PdfDraft = z.infer<typeof draftSchema>;
 
@@ -242,7 +252,7 @@ export function repairDraft(raw: unknown): {value: unknown; notes: string[]} {
   }
   if (dropped) notes.add('Pedía ' + (MAX_PICTURES + dropped) + ' imágenes y el máximo por tanda es ' + MAX_PICTURES + ': quedaron las primeras ' + MAX_PICTURES + '. Pedí el resto en otra tanda.');
   if (kept.length > 30) notes.add('Tenía ' + kept.length + ' bloques: quedaron los primeros 30. Pedí el resto en otra tanda.');
-  return {value: {...d, title: cut(d.title, 200) || 'Borrador', blocks: kept.slice(0, 30), characters: list(d.characters).slice(0, 6), ...(d.summary !== undefined ? {summary: cut(d.summary, 400)} : {}), ...(d.imageStyle !== undefined ? {imageStyle: cut(d.imageStyle, 400)} : {}), ...(d.setting !== undefined ? {setting: cut(d.setting, 400)} : {})}, notes: [...notes]};
+  return {value: {...d, title: cut(d.title, 200) || 'Borrador', blocks: kept.slice(0, 30), characters: list(d.characters).slice(0, 6), ...(d.summary !== undefined ? {summary: cut(d.summary, 400)} : {}), ...(d.imageStyle !== undefined ? {imageStyle: cut(d.imageStyle, 400)} : {}), ...(d.setting !== undefined ? {setting: cut(d.setting, 400)} : {}), ...(typeof d.more === 'string' && d.more.trim() ? {more: cut(d.more, 400)} : {})}, notes: [...notes]};
 }
 
 /** The draft, adjusted to the template when needed (`notes` says how); null when the answer has no draft at all. */
@@ -400,7 +410,7 @@ export function draftComponents(draft: PdfDraft, start: {number: number; unit: s
       if (h > area.height * 0.62) { h = area.height * 0.62; w = h * aspectValue(b.aspect); }
       return {type: 'image', width: Math.round(w * 100) / 100, height: Math.round(h * 100) / 100, rounded: true, prompt: b.prompt, ...(b.caption ? {caption: b.caption} : {}), ...picture(String(i), b.prompt)};
     }
-    if (b.type === 'gallery') return {type: 'gallery', columns: b.columns, aspect: b.aspect, numbered: b.numbered, cells: b.items.map((it, k) => ({label: it.label, prompt: it.prompt, ...picture(i + '.' + k, it.prompt)}))};
+    if (b.type === 'gallery') return {type: 'gallery', columns: b.columns, aspect: b.aspect, numbered: b.numbered, ...(b.numbered && b.first && b.first > 1 ? {first: b.first} : {}), cells: b.items.map((it, k) => ({label: it.label, prompt: it.prompt, ...picture(i + '.' + k, it.prompt)}))};
     if (b.type === 'comic') return {type: 'comic', columns: b.columns, aspect: b.aspect, panels: b.panels.map((p, k) => {
       const lines = p.bubbles.filter(Boolean);
       const made = pictures[i + '.' + k];
@@ -468,6 +478,61 @@ export function pdfContext(unit: Unit, target: PdfTarget, request: string, known
     previous ? 'BORRADOR ANTERIOR (el autor pide cambios sobre él):\n' + JSON.stringify(previous) : '',
     'PEDIDO DEL AUTOR:\n' + request,
   ].filter(Boolean).join('\n\n');
+}
+
+// ---------- /pdf-generator in parts ----------
+
+/** Blocks the model writes in one answer: a long request goes in parts, each short enough not to be cut by time. */
+export const PART_BLOCKS = 12;
+/** Most parts the studio asks for on its own; after that, «Continuar» asks for more. */
+export const MAX_PARTS = 8;
+
+const short = (t: string | undefined, n: number) => { const x = (t || '').replace(/\s+/g, ' ').trim(); return x.length > n ? x.slice(0, n - 1) + '…' : x; };
+
+/** One line per block of a draft: what the next part must not repeat and must go on from. */
+export function draftOutline(draft: PdfDraft, max = 6000) {
+  const lines = draft.blocks.map((b, i) => (i + 1) + '. ' + (
+    b.type === 'heading' ? 'Título: ' + short(b.text, 120)
+    : b.type === 'text' ? 'Texto: ' + short(b.text, 100)
+    : b.type === 'exercise' ? 'Ejercicio: ' + short(b.instruction, 100) + ' (' + b.items.length + ' ítems)'
+    : b.type === 'image' ? 'Imagen: ' + short(b.caption || b.prompt, 80)
+    : b.type === 'gallery' ? 'Galería' + (b.numbered ? ' numerada desde ' + (b.first || 1) : '') + ': ' + short(b.items.map(i => i.label).filter(Boolean).join(', '), 160)
+    : 'Cómic de ' + b.panels.length + ' viñetas: ' + short(b.panels.map(p => p.bubbles.join(' / ')).join(' | '), 140)));
+  let out = '';
+  for (const l of lines) { if (out.length + l.length > max) { out += '\n…'; break; } out += (out ? '\n' : '') + l; }
+  return out;
+}
+
+/** The request for the next part: the unit's context, what is written, what is missing, and the same rules. */
+export function continuationContext(unit: Unit, target: PdfTarget, request: string, known: Set<string>, draft: PdfDraft, more: string | undefined, part: number) {
+  return [
+    pdfContext(unit, target, request, known),
+    'CONTINUACIÓN: esta es la parte ' + part + '. Ya están escritos estos bloques (no los repitas):\n' + draftOutline(draft),
+    draft.characters.length ? 'Personajes ya definidos (usá exactamente estos nombres; no los vuelvas a definir, solo agregá uno nuevo si aparece): ' + draft.characters.map(c => c.name).join(', ') : '',
+    'Falta: ' + (more?.trim().replace(/[.\s]+$/, '') || 'lo que faltaba del pedido cuando se cortó la respuesta anterior') + '.',
+    'Escribí solo la parte siguiente, con como máximo ' + PART_BLOCKS + ' bloques, siguiendo la numeración de las galerías y el mismo estilo. Usá el mismo "title". Si todavía falta algo después de esta parte, agregá "more".',
+  ].filter(Boolean).join('\n\n');
+}
+
+/** A draft with the next part added at its end: the same title, style and place; new characters are added. */
+export function mergeDrafts(base: PdfDraft, part: PdfDraft): PdfDraft {
+  const known = new Set(base.characters.map(c => c.name.trim().toLocaleLowerCase('ru')));
+  // A numbered gallery that goes on from the last one of the draft goes on counting (the alphabet in two parts).
+  const last = [...base.blocks].reverse().find((b): b is Extract<DraftBlock, {type: 'gallery'}> => b.type === 'gallery' && b.numbered);
+  let next = last ? (last.first || 1) + last.items.length : 0;
+  const blocks = part.blocks.map(b => {
+    if (b.type !== 'gallery' || !b.numbered || !next || (b.first && b.first > 1)) return b;
+    const out = {...b, first: next};
+    next += b.items.length;
+    return out;
+  });
+  const {more: _more, ...rest} = base;
+  return {
+    ...rest,
+    characters: [...base.characters, ...part.characters.filter(c => !known.has(c.name.trim().toLocaleLowerCase('ru')))],
+    blocks: [...base.blocks, ...blocks],
+    ...(part.more ? {more: part.more} : {}),
+  };
 }
 
 // ---------- /revisar-ruso ----------

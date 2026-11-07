@@ -139,3 +139,21 @@ model GenerationRequest {
   @@index([userId, createdAt])
   @@map("generation_request")
 }
+
+/// A text request that runs on the server (/pdf-generator): the answer is kept here as it arrives, so closing the tab
+/// or losing the connection does not lose what Kie charged for. Old rows are deleted after a week.
+model TextJob {
+  id        String   @id
+  userId    String
+  purpose   String
+  model     String
+  status    String
+  text      String   @default("")
+  credits   Float?
+  sources   Json?
+  error     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+  @@index([userId, createdAt])
+  @@map("text_job")
+}
