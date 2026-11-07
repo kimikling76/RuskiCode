@@ -63,9 +63,23 @@ test('Kling 4.0 Reference to Video: images as image_urls, duration as a number, 
   });
   const key = findModel('kling-4-0-keyframe-to-video');
   assert.ok(key && key.category === 'video');
-  assert.deepEqual(jobInput(key, {prompt: 'Despega', duration: '5', references: ['https://tempfile.aiquickdraw.com/a.png', 'https://tempfile.aiquickdraw.com/b.png']}), {
-    prompt: 'Despega\n\nUse @first_frame.', first_frame_url: 'https://tempfile.aiquickdraw.com/a.png', duration: 5,
+  const img = (c: string) => 'https://tempfile.aiquickdraw.com/' + c + '.png';
+  // Two images: the first frame and a middle one; ticked as last, the second one is where the video ends.
+  assert.deepEqual(jobInput(key, {prompt: 'Despega', duration: '5', references: [img('a'), img('b')]}), {
+    prompt: 'Despega\n\nUse @first_frame, @keyframe_1.', first_frame_url: img('a'), keyframe_urls: [img('b')], duration: 5,
   });
+  assert.deepEqual(jobInput(key, {prompt: 'Sale de @image1, cruza @image2 y llega a @image3', duration: '10', references: [img('a'), img('b'), img('c')], lastFrame: true}), {
+    prompt: 'Sale de @first_frame, cruza @keyframe_1 y llega a @last_frame', first_frame_url: img('a'), keyframe_urls: [img('b')], last_frame_url: img('c'), duration: 10,
+  });
+  // The page ties the frames to the duration: 3 s take 4 frames, 9 s or more take 10.
+  const {framesFor} = await import('../src/lib/ai/models');
+  assert.deepEqual(['3', '5', '8', '9', '30'].map(d => framesFor(key.options, d)), [4, 6, 9, 10, 10]);
+  assert.throws(() => jobInput(key, {prompt: 'x', duration: '3', references: ['a', 'b', 'c', 'd', 'e'].map(img)}), /TOO_MANY_FRAMES/);
+  // Without a last frame, at most 8 middle frames: the tenth image must be the last one.
+  assert.throws(() => jobInput(key, {prompt: 'x', duration: '10', references: 'abcdefghij'.split('').map(img)}), /TOO_MANY_FRAMES/);
+  assert.equal((jobInput(key, {prompt: 'x', duration: '10', references: 'abcdefghij'.split('').map(img), lastFrame: true}).keyframe_urls as string[]).length, 8);
+  // A stray «@» is dropped (Kie would reject it); one image only: the first frame.
+  assert.deepEqual(jobInput(key, {prompt: 'Vuela @alto desde @image1', duration: '5', references: [img('a')], lastFrame: true}), {prompt: 'Vuela alto desde @first_frame', first_frame_url: img('a'), duration: 5});
 });
 
 test('«@image1», «@image2»… name the pictures sent, in each model\'s own words', async () => {

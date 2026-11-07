@@ -499,3 +499,21 @@
 .rc-clip-field legend { padding: 0; margin-right: var(--sp-2); color: var(--fg-2); float: left; }
 .rc-clip-field label { display: inline-flex; align-items: center; gap: 6px; }
 .rc-clip-field .rc-input { width: 72px; min-height: 32px; padding: 4px 8px; }
+
+/* Keyframe models: move a frame one place earlier, and the order of the frames under the pictures. */
+.rc-ref-earlier { position: absolute; top: 3px; left: 3px; display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: var(--radius-full); background: rgba(8, 9, 10, 0.75); color: var(--fg-1); cursor: pointer; }
+.rc-ref-earlier svg { width: 12px; height: 12px; }
+.rc-app .rc-ref-earlier:focus-visible, .rc-app .rc-ref-remove:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.rc-frames { display: grid; gap: 4px; margin: 0 0 var(--sp-2); }
+.rc-frames .rc-hint { margin: 0; overflow-wrap: anywhere; }
+.rc-frames-last { font-size: var(--fs-13); }
+
+/* Reference audio: the chosen files above the prompt, and the picker with a player for each one. */
+.rc-audio-chips { gap: var(--sp-2); }
+.rc-audio-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 4px 4px 8px; border: 1px solid var(--line); border-radius: var(--radius-full); background: var(--bg-2); font-size: var(--fs-12); color: var(--fg-2); }
+.rc-audio-chip > svg { width: 14px; height: 14px; flex: none; color: var(--fg-3); }
+.rc-audio-chip-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rc-audio-chip-text strong { font-family: var(--font-code); font-weight: 500; color: var(--fg-1); }
+.rc-audio-list { list-style: none; display: grid; gap: var(--sp-3); margin: 0; padding: 0; }
+.rc-audio-row { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); font-size: var(--fs-13); overflow-wrap: anywhere; }
+.rc-audio-player { width: 100%; height: 36px; margin-top: 4px; }

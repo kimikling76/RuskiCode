@@ -4,7 +4,7 @@
 const UPLOAD = 'https://kieai.redpandaai.co';
 const FRESH_MS = 20 * 3600_000;
 const links = new Map<string, {url: string; at: number}>();
-const extension: Record<string, string> = {'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'video/mp4': 'mp4', 'video/quicktime': 'mov'};
+const extension: Record<string, string> = {'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'video/mp4': 'mp4', 'video/quicktime': 'mov', 'audio/mpeg': 'mp3', 'audio/wav': 'wav', 'audio/aac': 'aac', 'audio/ogg': 'ogg', 'audio/mp4': 'm4a'};
 
 export class UploadError extends Error {
   constructor(public code: 'MODEL_NOT_CONFIGURED' | 'UPLOAD_FAILED') { super(code); }
@@ -26,7 +26,7 @@ export async function kieUpload(bytes: Uint8Array, mime: string, hash: string, t
     // KIE_BASE_URL exists only for local tests against a fake Kie; production never sets it.
     const r = await transport((process.env.KIE_BASE_URL || UPLOAD) + '/api/file-stream-upload', {
       // A video of up to 50 MB needs longer than a picture.
-      method: 'POST', headers: {Authorization: `Bearer ${key}`}, body: form, signal: AbortSignal.timeout(mime.startsWith('video/') ? 90000 : 30000),
+      method: 'POST', headers: {Authorization: `Bearer ${key}`}, body: form, signal: AbortSignal.timeout(mime.startsWith('video/') ? 90000 : mime.startsWith('audio/') ? 60000 : 30000),
     });
     body = await r.json();
     if (!r.ok) throw Error();

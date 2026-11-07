@@ -42,7 +42,9 @@ test('the catalog is consistent: unique ids, Kie endpoints, a reason for every d
     if (o.resolutions.length) assert.ok(o.fields.resolution, m.id + ' resolution field');
     if (o.durations.length) assert.ok(o.fields.duration, m.id + ' duration field');
     if (o.maxReferences) assert.ok(o.fields.images, m.id + ' references field');
-    if (o.fields.imagesSingle) assert.equal(o.maxReferences, 1, m.id + ' takes one image');
+    // A single image field takes one image, unless the model also has middle and last frames (Kling 4.0 Keyframe).
+    if (o.fields.imagesSingle && !o.frames) assert.equal(o.maxReferences, 1, m.id + ' takes one image');
+    if (o.frames) assert.equal(o.maxReferences, 2 + o.frames.maxMiddle, m.id + ' first, middle and last frames');
     if (!o.modes.includes('create')) assert.ok(o.maxReferences, m.id + ' edits, so it takes images');
     assert.ok(o.maxVariants >= 1, m.id);
   }

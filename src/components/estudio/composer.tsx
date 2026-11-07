@@ -14,6 +14,8 @@ import {composePrompt, lookNames, lookOption, lookOptions, mentioned, mentionQue
 import {useStudioItems} from '@/store/cinema-projects';
 import type {JobBook} from '@/store/cinema';
 import {useBalance} from '@/lib/ai/balance';
+import {LastFrameToggle, frameRoles, framesHint, framesProblem} from '@/components/cinema/frames';
+import {AudioButton, AudioChips, AudioPicker, audioNeed, useAudios} from '@/components/cinema/audio-picker';
 import {authorImageName, authorVideoName, mentionPrompt} from '@/lib/cinema/mentions';
 import {ClipFields, VideoPicker, VideoThumb, useClips, useVideoFit, videoRules} from '@/components/cinema/video-picker';
 import {videoRoom} from '@/lib/cinema/video-refs';
@@ -56,7 +58,7 @@ export function EstudioComposer({project}: {project?: string}) {
   const video = d.mode === 'video';
   const enabled = (video ? videoModels : imageModels).filter(enabledStatus);
   const chosenId = video ? d.videoModel : d.imageModel;
-  const model = enabled.find(m => m.id === chosenId) || (video ? enabled.find(m => m.options.modes.includes('create') && !m.options.videosRequired && !m.options.mediaRequired) : undefined) || enabled[0];
+  const model = enabled.find(m => m.id === chosenId) || (video ? enabled.find(m => m.options.modes.includes('create') && !m.options.videosRequired && !m.options.mediaRequired && !m.options.audiosRequired) : undefined) || enabled[0];
   const o = model?.options;
   const aspect = pick(d.aspect, o?.aspectRatios || []);
   const resolution = pick(d.resolution, o?.resolutions || []);
@@ -72,13 +74,20 @@ export function EstudioComposer({project}: {project?: string}) {
   const needsVideo = Boolean(video && o?.videosRequired && !refVideos.length);
   const needsMedia = Boolean(video && o?.mediaRequired && !refVideos.length && !references.length);
   const videoFit = useVideoFit(refVideos, o);
+  // Reference audio (music, a voice, what the person says), for the video models that take it.
+  const audioRefs = video && o?.fields.audios ? (d.audios || []).slice(0, o.maxAudios || 0) : [];
+  const audioList = useAudios(audioRefs);
   const clip = useClips(refVideos, d.clips, o);
   const editsOnly = Boolean(o && !o.modes.includes('create'));
   const needsImage = editsOnly && !references.length;
   const limit = promptLimit(o, video ? 'video' : 'image');
   const target = project ?? d.project;
   // The pictures sent, named in order «@image1», «@image2»… (the server turns them into each model's own names).
-  const sentCount = o?.fields.images ? (o.fields.imagesSingle ? Math.min(1, references.length) : references.length) : 0;
+  // A keyframe model takes every image as a frame of the video, in order.
+  const sentCount = o?.fields.images ? (o.fields.imagesSingle && !o.frames ? Math.min(1, references.length) : references.length) : 0;
+  const lastFrame = Boolean(video && o?.frames && d.lastFrame && sentCount > 1);
+  const roles = video && o ? frameRoles(o, sentCount, lastFrame) : null;
+  const framesIssue = video && o ? framesProblem(o, sentCount, duration) : null;
   // Each called character is told which picture is theirs: by the model's own name (`@image_{n}`), or «image n».
   const numbered = o?.mention?.includes('{n}') ? o.mention : !o?.mention ? 'image {n}' : null;
   const pictureOf = (m: {reference?: string}) => {
@@ -87,8 +96,9 @@ export function EstudioComposer({project}: {project?: string}) {
   };
   const prompt = composePrompt(d.prompt, d.looks, called, pictureOf);
   // Kie refuses a prompt longer than the model's documented limit: what is sent (with the cast and the style) must fit.
-  const sentText = prompt && o ? mentionPrompt(prompt, o, o.fields.images ? (o.fields.imagesSingle ? Math.min(1, references.length) : references.length) : 0, refVideos.length) : '';
-  const ready = Boolean(model && d.prompt.trim()) && !needsImage && !needsVideo && !needsMedia && !videoFit && !clip.problem && sentText.length <= limit;
+  const sentText = prompt && o ? mentionPrompt(prompt, o, sentCount, refVideos.length, lastFrame, audioList.length) : '';
+  const audioIssue = video ? audioNeed(o, audioList, references.length, refVideos.length) : '';
+  const ready = Boolean(model && d.prompt.trim()) && !needsImage && !needsVideo && !needsMedia && !videoFit && !clip.problem && !framesIssue && !audioIssue && sentText.length <= limit;
   const estimate = model?.price ? model.price.credits * count : null;
   // The button's second line: the catalog's estimate when Kie publishes a price, otherwise the real Kie balance.
   const balance = useBalance().data?.credits;
@@ -96,6 +106,7 @@ export function EstudioComposer({project}: {project?: string}) {
 
   const [picker, setPicker] = useState<'refs' | 'frame' | null>(null);
   const [videoPicker, setVideoPicker] = useState(false);
+  const [audioPicker, setAudioPicker] = useState(false);
   const [menu, setMenu] = useState<{query: string; index: number} | null>(null);
   const box = useRef<HTMLTextAreaElement>(null);
 
@@ -117,7 +128,7 @@ export function EstudioComposer({project}: {project?: string}) {
       return startGeneration({
         mode: video ? 'video' : 'create', model: model.id, prompt,
         aspect: o.aspectRatios.length ? aspect : '', resolution: o.resolutions.length ? resolution : '', duration: o.durations.length ? duration : undefined,
-        references, ...(refVideos.length ? {videos: refVideos, ...(clip.clips.length ? {clips: clip.clips} : {})} : {}), count, ...(target ? {studio: target} : {}), ...(book ? {book} : {}),
+        references, ...(refVideos.length ? {videos: refVideos, ...(clip.clips.length ? {clips: clip.clips} : {})} : {}), ...(lastFrame ? {lastFrame: true} : {}), ...(audioRefs.length ? {audios: audioRefs} : {}), count, ...(target ? {studio: target} : {}), ...(book ? {book} : {}),
       });
     },
     facts: model && o ? [
@@ -126,8 +137,9 @@ export function EstudioComposer({project}: {project?: string}) {
       ...(o.aspectRatios.length ? [['Formato', aspectName(aspect)] as [string, string]] : []),
       ...(o.resolutions.length ? [[o.resolutionLabel || 'Calidad', optionLabel(resolution)] as [string, string]] : []),
       ...(o.durations.length ? [['Duración', duration + ' s'] as [string, string]] : []),
-      ...(references.length ? [['Referencias', String(references.length)] as [string, string]] : []),
+      ...(references.length ? [[roles ? 'Cuadros' : 'Referencias', roles ? roles.join(' → ') : String(references.length)] as [string, string]] : []),
       ...(refVideos.length ? [['Videos de referencia', String(refVideos.length)] as [string, string]] : []),
+      ...(audioList.length ? [['Audio', audioList.map(a => a.name).join(', ')] as [string, string]] : []),
       ...(called.length ? [['Con', called.map(m => m.name).join(', ')] as [string, string]] : []),
       ...(target ? [['Proyecto', projects.find(p => p.id === target)?.name || 'Proyecto'] as [string, string]] : []),
       ...(estimate !== null ? [['Costo', '≈ ' + estimate.toLocaleString('es-AR') + ' créditos estimados; el real lo informa Kie al terminar'] as [string, string]] : []),
@@ -263,6 +275,14 @@ export function EstudioComposer({project}: {project?: string}) {
                 })}
               </div>
             ) : null}
+            {roles && o ? (
+              <div className="rc-frames">
+                <p className="rc-hint">En el video: {roles.map((r, i) => authorImageName(i + 1) + ' ' + r.toLowerCase()).join(' → ')}. {framesHint(o, duration)}</p>
+                <LastFrameToggle o={o} count={sentCount} value={lastFrame} onChange={v => d.patch({lastFrame: v})} />
+              </div>
+            ) : null}
+            {framesIssue || audioIssue ? <p className="rc-form-error" role="status">{framesIssue || audioIssue}</p> : null}
+            <AudioChips audios={audioList} onRemove={sha => d.patch({audios: (d.audios || []).filter(a => a !== 'audio:' + sha)})} />
             {refVideos.length ? (
               <div className="rc-gen-refs" role="group" aria-label="Videos de referencia que se envían">
                 {refVideos.map((ref, i) => (
@@ -332,6 +352,7 @@ export function EstudioComposer({project}: {project?: string}) {
                   <button type="button" className="rc-es-pill rc-es-pill--icon" aria-label="Agregar videos de referencia de la galería o de tu computadora" onClick={() => setVideoPicker(true)}><Film /></button>
                 </Tip>
               ) : null}
+              {video && o?.fields.audios ? <AudioButton o={o} count={audioList.length} onClick={() => setAudioPicker(true)} className="rc-es-pill rc-es-pill--icon rc-es-audio" /> : null}
               <div className="rc-es-model">
                 <ChatModelPicker models={video ? videos : images} value={model.id} onChange={id => d.patch(video ? {videoModel: id} : {imageModel: id})} category={video ? 'video' : 'image'} allowAuto={false} title={video ? 'Modelo de video' : 'Modelo de imagen'} />
               </div>
@@ -395,6 +416,7 @@ export function EstudioComposer({project}: {project?: string}) {
         </details>
       </div>
 
+      {video && o?.fields.audios ? <AudioPicker open={audioPicker} onClose={() => setAudioPicker(false)} o={o} initial={audioRefs} onChoose={audios => d.patch({audios})} /> : null}
       {video && o?.maxVideos ? <VideoPicker open={videoPicker} onClose={() => setVideoPicker(false)} options={o} max={Math.max(1, videoRoom(o, references.length))} initial={refVideos} onChoose={v => d.patch({videos: v})} /> : null}
       <GalleryPicker
         open={picker !== null}

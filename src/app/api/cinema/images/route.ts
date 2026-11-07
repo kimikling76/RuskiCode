@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import {z} from 'zod';
 import {authorized, sameOrigin, limit} from '@/lib/ai/security';
-import {findModel, enabledStatus, promptLimit} from '@/lib/ai/models';
+import {findModel, enabledStatus, framesFor, promptLimit} from '@/lib/ai/models';
 import {createJob, imageJobStatus, jobInput, CinemaError} from '@/lib/cinema/kie-jobs';
 import {beginRequest, recordRequest} from '@/lib/cinema/ledger';
 import {studioSession} from '@/lib/auth/server';
@@ -9,6 +9,7 @@ import {approvedAssetURL} from '@/lib/pipeline/asset-url';
 import {deleteAssets, getAsset} from '@/lib/sync/server';
 import {clipProblem, clipSchema, videoLimitBytes, videoRefSchema, type UploadedVideo} from '@/lib/cinema/video-refs';
 import {kieUpload, UploadError} from '@/lib/ai/kie-upload';
+import {audioProblem, uploadedAudioSchema} from '@/lib/cinema/audio-refs';
 
 export const runtime = 'nodejs';
 // Up to four sequential createTask calls of at most 30 s each.
@@ -30,6 +31,10 @@ const createInput = z.object({
   videos: z.array(videoRefSchema).max(10).default([]),
   /** The part of each video to use, for models that take clips (Gemini Omni). */
   clips: z.array(clipSchema).max(10).optional(),
+  /** Keyframe models: the last image is the video's last frame. */
+  lastFrame: z.boolean().optional(),
+  /** Reference audio from this computer, sent in parts (see cinema/audio-refs). */
+  audios: z.array(uploadedAudioSchema).max(10).default([]),
   count: z.number().int().min(1).max(8),
 }).strict();
 
@@ -46,6 +51,9 @@ function validate(input: z.infer<typeof createInput>) {
   const offered = (value: string | undefined, list: readonly string[]) => list.length ? value !== undefined && list.includes(value) : value === undefined;
   if (!offered(input.aspect, o.aspectRatios) || !offered(input.resolution, o.resolutions) || !offered(input.duration, o.durations)) return {error: 'INVALID_PARAMETERS'} as const;
   if (input.references.length > o.maxReferences || input.count > o.maxVariants) return {error: 'INVALID_PARAMETERS'} as const;
+  // A keyframe model takes as many frames as its page allows for that duration, and a last frame only after a first one.
+  if (o.frames && input.references.length > framesFor(o, input.duration)) return {error: 'TOO_MANY_FRAMES'} as const;
+  if (input.lastFrame && (!o.frames || input.references.length < 2)) return {error: 'INVALID_PARAMETERS'} as const;
   // Videos: only to a model that takes them, within its count, its size per file and its total with the images.
   const videos = input.videos.length;
   if (videos > (o.maxVideos || 0) || (o.maxMedia && input.references.length + videos * (o.videoSlots || 1) > o.maxMedia)) return {error: 'INVALID_PARAMETERS'} as const;
@@ -53,16 +61,20 @@ function validate(input: z.infer<typeof createInput>) {
   if (o.fields.videoClips && videos && (input.clips?.length !== videos || input.clips.some(c => clipProblem(c, o)))) return {error: 'INVALID_PARAMETERS'} as const;
   if (input.videos.some(v => typeof v !== 'string' && v.size > videoLimitBytes(o.videoMaxMB))) return {error: 'VIDEO_TOO_LARGE'} as const;
   if (o.videosRequired && !videos) return {error: 'VIDEO_REQUIRED'} as const;
+  // Audio: only to a model that takes it, within its rules; one that needs it never goes without it.
+  if (input.audios.length && (!o.fields.audios || audioProblem(o, input.audios))) return {error: 'INVALID_PARAMETERS'} as const;
+  if (o.audiosRequired && !input.audios.length) return {error: 'AUDIO_REQUIRED'} as const;
+  if (o.audioNeedsMedia && input.audios.length && !videos && !input.references.length) return {error: 'AUDIO_NEEDS_MEDIA'} as const;
   if (o.mediaRequired && !videos && !input.references.length) return {error: 'INVALID_REQUEST'} as const;
   // The prompt as Kie gets it (images named in the model's own words) must fit the limit its page documents.
-  if (String(jobInput(model, {prompt: input.prompt, references: input.references, videos: input.videos.map(() => 'v')})[o.fields.prompt]).length > promptLimit(o, model.category)) return {error: 'PROMPT_TOO_LONG'} as const;
+  if (String(jobInput(model, {prompt: input.prompt, references: input.references, duration: input.duration, lastFrame: input.lastFrame, videos: input.videos.map(() => 'v'), audios: input.audios.map(() => 'a')})[o.fields.prompt]).length > promptLimit(o, model.category)) return {error: 'PROMPT_TOO_LONG'} as const;
   return {model} as const;
 }
 
 const status: Record<string, number> = {
   MODEL_NOT_CONFIGURED: 503, PROVIDER_AUTH_ERROR: 502, INSUFFICIENT_BALANCE: 402, INVALID_PARAMETERS: 422,
   RATE_LIMIT: 429, PROVIDER_UNAVAILABLE: 502, CREATE_UNCERTAIN: 504, STATUS_UNAVAILABLE: 502, TASK_NOT_FOUND: 404, RESULT_INVALID: 502,
-  REFERENCE_MISSING: 422, UPLOAD_FAILED: 502, PROMPT_TOO_LONG: 422, VIDEO_TOO_LARGE: 413, VIDEO_REQUIRED: 422, VIDEO_MISSING: 422,
+  REFERENCE_MISSING: 422, TOO_MANY_FRAMES: 422, AUDIO_REQUIRED: 422, AUDIO_NEEDS_MEDIA: 422, AUDIO_MISSING: 422, UPLOAD_FAILED: 502, PROMPT_TOO_LONG: 422, VIDEO_TOO_LARGE: 413, VIDEO_REQUIRED: 422, VIDEO_MISSING: 422,
 };
 const fail = (code: string) => Response.json({error: code}, {status: status[code] || 500, headers: {'Cache-Control': 'no-store'}});
 
@@ -153,10 +165,26 @@ export async function POST(req: Request) {
     }
   }
 
+  // Reference audio from this computer: joined from its parts, checked against its SHA-256, uploaded to Kie
+  // (temporary link) and its parts deleted.
+  const audios: string[] = [];
+  for (const audio of input.audios) {
+    try {
+      const bytes = await joinParts(session.user.id, audio);
+      if (!bytes) return refuse(fail('AUDIO_MISSING'));
+      const url = await kieUpload(bytes, audio.mime, audio.sha);
+      audios.push(url);
+      sent.push({reference: 'audio:' + audio.sha, url, sha256: audio.sha, size: bytes.length, mime: audio.mime});
+      await deleteAssets(session.user.id, audio.parts).catch(() => {});
+    } catch (e) {
+      return refuse(fail(e instanceof UploadError ? e.code : 'AUDIO_MISSING'));
+    }
+  }
+
   const tasks: string[] = [];
   for (let i = 0; i < input.count; i++) {
     try {
-      tasks.push(await createJob(model, {prompt: input.prompt, aspect: input.aspect, resolution: input.resolution, duration: input.duration, references, videos, ...(input.clips ? {clips: input.clips} : {})}));
+      tasks.push(await createJob(model, {prompt: input.prompt, aspect: input.aspect, resolution: input.resolution, duration: input.duration, references, videos, ...(audios.length ? {audios} : {}), ...(input.clips ? {clips: input.clips} : {}), ...(input.lastFrame ? {lastFrame: true} : {})}));
       if (ledger.state === 'new') await recordRequest(input.requestId, 'pending', tasks);
     } catch (e) {
       const code = e instanceof CinemaError ? e.code : 'PROVIDER_UNAVAILABLE';
@@ -171,7 +199,10 @@ export async function POST(req: Request) {
 }
 
 /** A video sent in parts: the whole file, or null when a part is missing or the bytes are not the declared file. */
-async function joinVideo(userId: string, video: UploadedVideo) {
+const joinVideo = (userId: string, video: UploadedVideo) => joinParts(userId, video);
+
+/** A file sent in parts, put back together and checked against its size and SHA-256; null when it does not match. */
+async function joinParts(userId: string, video: {sha: string; size: number; parts: string[]}) {
   const parts: Uint8Array[] = [];
   for (const hash of video.parts) {
     const part = await getAsset(userId, hash);

@@ -143,6 +143,8 @@ function MediaCard({chatId, id, run}: {chatId: string; id: string; run: ImageRun
   const pickerModels = list.map(m => {
     const p = publicModel(m, true);
     // A model that needs a starting image is offered only when there is one.
+    // The chat card has no audio picker: a model that needs an audio (avatars) is used from Cinema.
+    if (video && m.options.audiosRequired) return {...p, available: false, missing: 'Hace hablar a una persona con tu audio: usalo desde Cinema → Video o el Estudio, donde se elige el audio.'};
     return video && !m.options.modes.includes('create') && !refs.length ? {...p, available: false, missing: 'Necesita una imagen de inicio: adjuntá una o usá «Animar» en una imagen generada.'} : p;
   });
   const facts: [string, string][] = [
