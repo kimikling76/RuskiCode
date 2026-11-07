@@ -27,6 +27,7 @@ import {bookForAssistant, bookForProject, usedOf} from '@/lib/kb/context';
 import {BookUsedNote} from '@/components/kb/book-used';
 import {BookChip, BookToggle} from '@/components/kb/book-toggle';
 import {ComposerMore} from './composer-more';
+import {chatEstimate, estimateText, textEstimate} from '@/lib/personal-chat/estimate';
 import type {ChatBook} from '@/lib/personal-chat/state';
 
 const MessageMarkdown = dynamic(() => import('./message-markdown').then(m => m.MessageMarkdown), {
@@ -356,7 +357,8 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
     stoppedByUser.current = false;
     requestChat.current = chatId;
     abort.current = controller;
-    let done = false, accepted = false, realCredits: number | undefined, content = '', modelName = '', sources: Source[] = [];
+    let done = false, accepted = false, realCredits: number | undefined, content = '', modelName = '', servedModel = '', sources: Source[] = [];
+    const askedModel = selected;
 
     function update(value: Partial<PersonalMessage>) {
       const current = usePersonal.getState().data.chats.find(c => c.id === chatId);
@@ -382,7 +384,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
       for await (const frame of sseData(r.body)) {
         const e = JSON.parse(frame);
         if (e.type === 'delta') { content += e.text; update({content}); }
-        if (e.type === 'model') { modelName = e.name; update({model: e.name}); }
+        if (e.type === 'model') { modelName = e.name; servedModel = e.id; update({model: e.name}); }
         if (e.type === 'sources' && Array.isArray(e.sources)) { sources = mergeSources(sources, e.sources); update({sources}); }
         if (e.type === 'usage' && typeof e.usage?.credits === 'number') { realCredits = e.usage.credits; update({credits: realCredits}); }
         if (e.type === 'error') throw Error(e.error);
@@ -398,7 +400,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
         update({status: 'error', error: code});
       }
     } finally {
-      if (accepted) charge(requestId, realCredits, {studio: 'chat', label: modelName || 'Respuesta'});
+      if (accepted) charge(requestId, realCredits, {studio: 'chat', label: modelName || 'Respuesta', ...(servedModel ? {model: servedModel} : {}), asked: askedModel});
       sending.current = false; setBusy(false);
       abort.current = null; requestChat.current = null;
     }
@@ -793,6 +795,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
                 onBook={changeBook}
               />
               <ChatModelPicker models={allModels} value={selectedModel} onChange={chooseModel} disabled={busy || !models.length} />
+              <CostHint text={text} model={selectedModel} />
               <div className="rc-composer-spacer" />
               <label className="rc-ask" htmlFor="ask-first">
                 {/* On a phone it reads «Preguntar»; its name stays «Preguntar antes». */}
@@ -862,5 +865,22 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
 
       {chat ? <ConvertChat key={chat.id} chat={chat} open={conversion} onClose={() => setConversion(false)} onCreated={onCreated} /> : null}
     </div>
+  );
+}
+
+/**
+ * What the next answer usually costs with the chosen model, from Kie's reports for the person's own earlier requests
+ * of the same kind (Kie does not publish text prices). Next to the model, before sending.
+ */
+function CostHint({text, model}: {text: string; model: string}) {
+  const usage = usePersonal(s => s.data.usage);
+  const pdf = /^\/pdf-generator\b/i.test(text.trim());
+  const e = pdf ? textEstimate(usage, '/pdf-generator', model) : chatEstimate(usage, model);
+  if (!e && !pdf) return null;
+  const label = estimateText(e, pdf ? ' por parte' : ' por respuesta');
+  return (
+    <Tip label={label}>
+      <span className="rc-composer-cost" tabIndex={0} aria-label={'Costo estimado: ' + label}>{e ? '≈ ' + e.credits.toLocaleString('es-AR') + ' cr.' + (pdf ? '/parte' : '') : 'Precio al terminar'}</span>
+    </Tip>
   );
 }

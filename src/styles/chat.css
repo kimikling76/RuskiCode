@@ -583,3 +583,9 @@
 .rc-msg-sources a { display: inline-flex; align-items: center; gap: 4px; color: var(--fg-1); overflow-wrap: anywhere; }
 .rc-msg-sources a svg { flex-shrink: 0; width: 13px; height: 13px; }
 .rc-msg-sources span { font-size: var(--fs-12); overflow-wrap: anywhere; }
+
+/* The estimated cost of the next answer, next to the model picker. */
+.rc-composer-cost { flex: none; font-size: var(--fs-12); color: var(--fg-3); white-space: nowrap; font-variant-numeric: tabular-nums; border-radius: var(--radius-4); padding: 2px 4px; }
+.rc-app .rc-composer-cost:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 380px) { .rc-composer-cost { display: none; } }
+.rc-skill-more { flex-wrap: wrap; }

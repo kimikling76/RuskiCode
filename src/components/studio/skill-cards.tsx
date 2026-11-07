@@ -23,12 +23,13 @@ import {renderUnit} from '@/lib/manual/render';
 import {getAsset} from '@/lib/manual/store';
 import {drawPage, openPdf} from '@/lib/pdf/viewer';
 import type {Unit} from '@/lib/manual/model';
-import type {PersonalMessage} from '@/store/personal-chat';
+import {usePersonal, type PersonalMessage} from '@/store/personal-chat';
+import {estimateText, textEstimate} from '@/lib/personal-chat/estimate';
 import type {ChatAttachment} from '@/lib/personal-chat/attachments';
-import {madeFor, pictureSlots, refSrc, skillById, slotCharacters, type Character, type ImageRun, type MediaRef, type PdfRun, type PictureSlot, type ReviewRun, type SkillRun, type VideoRun} from '@/lib/skills/chat';
+import {MAX_PARTS, madeFor, pictureSlots, refSrc, skillById, slotCharacters, type Character, type ImageRun, type MediaRef, type PdfRun, type PictureSlot, type ReviewRun, type SkillRun, type VideoRun} from '@/lib/skills/chat';
 import {
   addSkillCard, buildPdf, type RunPatch, designUnits, draftNewWords, generatePictures, importPicture, importResult, isRunning, missingPictures, pictureContext, pictureJobs,
-  applyReviewFindings, reviewText, savePdf, seesImages, sendMedia, updateRun, useWaitingPictures, withCharacterLook, withPicturePrompt, writePdf,
+  applyReviewFindings, reviewText, savePdf, seesImages, sendMedia, stopPdfAfterPart, updateRun, useWaitingPictures, useWrittenChars, withCharacterLook, withPicturePrompt, writePdf,
 } from '@/lib/skills/run';
 import {ChatModelPicker} from './chat-model-picker';
 import {AspectPicker, Segmented, aspectName, optionLabel} from '@/components/cinema/controls';
@@ -55,6 +56,8 @@ const skillErrors: Record<string, string> = {
   MODEL_NOT_CONFIGURED: 'No hay un modelo de Kie configurado para esta selección.',
   SEARCH_NOT_SUPPORTED: 'El modelo elegido no busca en la web en Kie. Elegí uno que diga «busca en la web» o apagá la búsqueda del chat.',
 };
+/** A sentence without its final period, to be followed by one. */
+const noDot = (t: string) => t.trim().replace(/[.\s]+$/, '');
 const skillError = (code?: string) => (code && skillErrors[code]) || 'El modelo no respondió. Probá más tarde o elegí otro.';
 const dateFormat = new Intl.DateTimeFormat('es-AR', {day: 'numeric', month: 'long'});
 
@@ -529,14 +532,27 @@ function PdfCard({chatId, id, run, model, attachments}: {chatId: string; id: str
   const [confirm, setConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
   const writing = run.state === 'writing' && isRunning(id);
+  const arrived = useWrittenChars(id);
+  const usage = usePersonal(st => st.data.usage);
+  const perPart = textEstimate(usage, '/pdf-generator', model);
+  // A part on its way in the server (the tab was closed or reloaded): this browser waits for the same job again.
+  useEffect(() => { if (run.state === 'writing' && run.job && !isRunning(id)) void writePdf(chatId, id, model); }, [run.state, run.job?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // A destination unit that is no longer in this account (deleted, imported again): the first one that can be used.
   const lost = Boolean(state && run.target && run.state !== 'saved' && state.models.length && !state.models.some(u => u.id === run.target!.unitId));
   useEffect(() => { if (lost && state) updateRun<PdfRun>(chatId, id, {target: {...run.target!, unitId: state.models[0].id}}); }, [lost]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (run.state === 'writing') {
-    return writing
-      ? <p className="rc-skill-wait" role="status"><span className="rc-job-pulse" aria-hidden="true" />Escribiendo las páginas con el modelo de texto…</p>
-      : <div className="rc-skill-row"><span className="rc-hint">Se interrumpió antes de terminar.</span><button type="button" className="rc-btn rc-btn--secondary rc-btn--sm" onClick={() => void writePdf(chatId, id, model)}>Volver a intentar</button></div>;
+    const part = run.job?.part || (run.parts || 0) + 1;
+    if (!writing) return <div className="rc-skill-row"><span className="rc-hint">Se interrumpió antes de terminar.</span><button type="button" className="rc-btn rc-btn--secondary rc-btn--sm" onClick={() => void writePdf(chatId, id, model, {more: Boolean(run.draft)})}>{run.draft ? 'Continuar' : 'Volver a intentar'}</button></div>;
+    return (
+      <div className="rc-skill-body">
+        <p className="rc-skill-wait" role="status"><span className="rc-job-pulse" aria-hidden="true" />{part > 1 ? 'Escribiendo la parte ' + part + '…' : 'Escribiendo las páginas con el modelo de texto…'}{arrived ? ' ' + arrived.toLocaleString('es-AR') + ' caracteres hasta ahora.' : ''}</p>
+        {run.draft ? <p className="rc-hint">Ya hay {run.draft.blocks.length} bloques de {run.parts} {run.parts === 1 ? 'parte' : 'partes'}{run.more ? '. Falta: ' + noDot(run.more) : ''}.</p> : null}
+        <p className="rc-hint">Se escribe en el servidor: podés cerrar la pestaña y volver; la respuesta te espera acá. {part > 1 || run.more ? 'Cada parte se cobra aparte' + (perPart ? ', ' + estimateText(perPart, ' por parte') : '') + '.' : perPart ? estimateText(perPart) + '.' : ''}</p>
+        {run.stop ? <p className="rc-hint" role="status">Se detiene cuando termine esta parte. Después podés tocar «Continuar».</p>
+          : <div className="rc-skill-row"><button type="button" className="rc-btn rc-btn--ghost rc-btn--sm" onClick={() => stopPdfAfterPart(chatId, id)}>Detener después de esta parte</button></div>}
+      </div>
+    );
   }
   if (run.state === 'error') {
     return (
@@ -574,6 +590,16 @@ function PdfCard({chatId, id, run, model, attachments}: {chatId: string; id: str
       <p className="rc-skill-title">{draft.title}</p>
       {draft.summary ? <p className="rc-hint">{draft.summary}</p> : null}
       {run.adjusted?.length ? <ul className="rc-pdf-warn rc-skill-adjusted">{run.adjusted.map(n => <li key={n}>{n}</li>)}</ul> : null}
+      {run.more && run.state !== 'saved' ? (
+        <div className="rc-notice rc-skill-more" role="status">
+          <span>
+            {run.partError ? skillError(run.partError) + ' ' : ''}
+            {(run.parts || 1) >= MAX_PARTS && !run.partError ? 'Se escribieron ' + run.parts + ' partes, el máximo de una vez. ' : ''}
+            Falta: {noDot(run.more)}. {estimateText(perPart, ' por parte')}.
+          </span>
+          <button type="button" className="rc-btn rc-btn--primary rc-btn--sm" onClick={() => void writePdf(chatId, id, model, {more: true})}>Continuar</button>
+        </div>
+      ) : null}
       <p className="rc-hint">{draft.blocks.length} bloques · {exercises} {exercises === 1 ? 'ejercicio' : 'ejercicios'}{pictures ? ' · ' + pictures + (pictures === 1 ? ' imagen' : ' imágenes') : ''}{run.model ? ' · escrito con ' + run.model : ''}{run.webSearch ? ' · con búsqueda web' : ''}{run.credits !== undefined ? ' · ' + creditText(run.credits) : ''}{run.book ? <> · <BookUsedNote used={run.book} /></> : null}</p>
       {run.sources?.length ? <MessageSources sources={run.sources} /> : null}
       {run.state === 'saved' && run.saved ? (
