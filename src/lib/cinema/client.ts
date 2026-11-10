@@ -3,6 +3,7 @@ import {toast} from 'sonner';
 import {useCinema, type CinemaJob, type JobBook, type JobMode, type SentRef} from '@/store/cinema';
 import type {AspectRatio, Resolution} from './capabilities';
 import {resolveVideos, VideoError} from './video-local';
+import {AudioError, resolveAudios} from './audio-local';
 
 export type GenerationRequest = {
   mode: JobMode;
@@ -16,6 +17,10 @@ export type GenerationRequest = {
   videos?: string[];
   /** The part of each video to use, for models that take clips. */
   clips?: {start: number; ends: number}[];
+  /** Keyframe models (Kling 4.0 Keyframe): the last image is the video's last frame. */
+  lastFrame?: boolean;
+  /** Reference audio kept in this browser (`audio:<sha256>`). */
+  audios?: string[];
   count: number;
   source?: string;
   boardId?: string;
@@ -48,6 +53,8 @@ export async function startGeneration(request: GenerationRequest) {
     references: request.references,
     ...(request.videos?.length ? {videos: request.videos} : {}),
     ...(request.clips?.length ? {clips: request.clips} : {}),
+    ...(request.lastFrame ? {lastFrame: true} : {}),
+    ...(request.audios?.length ? {audios: request.audios} : {}),
     model: request.model,
     duration: request.duration,
     source: request.source,
@@ -63,10 +70,13 @@ export async function startGeneration(request: GenerationRequest) {
   addJobs(jobs);
   // Videos from this computer go to the studio in parts first (the server joins them for Kie).
   let videos: Awaited<ReturnType<typeof resolveVideos>> = [];
+  let audios: Awaited<ReturnType<typeof resolveAudios>> = [];
   try {
     if (request.videos?.length) videos = await resolveVideos(request.videos);
+    // Audio from this computer goes the same way, in parts.
+    if (request.audios?.length) audios = await resolveAudios(request.audios);
   } catch (e) {
-    const code = e instanceof VideoError && e.message === 'VIDEO_NOT_HERE' ? 'VIDEO_NOT_HERE' : 'UPLOAD_FAILED';
+    const code = e instanceof VideoError && e.message === 'VIDEO_NOT_HERE' ? 'VIDEO_NOT_HERE' : e instanceof AudioError && e.message === 'AUDIO_NOT_HERE' ? 'AUDIO_NOT_HERE' : 'UPLOAD_FAILED';
     jobs.forEach(job => updateJob(job.id, {state: 'error', error: code, finishedAt: Date.now()}));
     return batchId;
   }
@@ -83,6 +93,8 @@ export async function startGeneration(request: GenerationRequest) {
     references: request.references,
     ...(videos.length ? {videos} : {}),
     ...(videos.length && request.clips?.length ? {clips: request.clips} : {}),
+    ...(request.lastFrame && request.references.length > 1 ? {lastFrame: true} : {}),
+    ...(audios.length ? {audios} : {}),
     count: request.count,
   });
   const send = () => fetch('/api/cinema/images', {method: 'POST', headers: {'Content-Type': 'application/json'}, body});

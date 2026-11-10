@@ -21,6 +21,10 @@ export type CinemaJob = {
   videoReferences?: string[];
   /** The part of each video used, for models that take clips. */
   clips?: {start: number; ends: number}[];
+  /** Keyframe models: the last image was sent as the last frame. */
+  lastFrame?: boolean;
+  /** Reference audio sent (`audio:<sha256>`, kept in the browser that chose it). */
+  audios?: string[];
   /** Catalog model id (absent on older jobs: the default image model). */
   model?: string;
   duration?: string;

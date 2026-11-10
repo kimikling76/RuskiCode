@@ -74,6 +74,9 @@ export type MediaOptions = {
     videosSingle?: boolean;
     /** Each video goes as a clip {url, start, ends} (Gemini Omni's `video_list`). */
     videoClips?: boolean;
+    /** Reference audio: the field, and whether it takes one link instead of a list. */
+    audios?: string;
+    audiosSingle?: boolean;
   };
   aspectRatios: readonly string[];
   resolutions: readonly string[];
@@ -90,6 +93,21 @@ export type MediaOptions = {
   videoTotalSeconds?: number;
   /** How the prompt names the videos sent (`@video_{n}`), when the page says it. */
   videoMention?: string;
+  /** Reference audio files the model takes (0 or absent: none), and what its page says about them. */
+  maxAudios?: number;
+  /** The model needs an audio (avatars and lip sync: the person in the image says it). */
+  audiosRequired?: boolean;
+  /** What the audio is for: music, a voice or a sound to follow; the voice of the subject; what the person says; the video's sound. */
+  audioRole?: 'reference' | 'voice' | 'driving' | 'track';
+  /** Largest file per audio in MB, seconds per audio, seconds of all of them, and the file types the page lists. */
+  audioMaxMB?: number;
+  audioSeconds?: readonly [number, number];
+  audioTotalSeconds?: number;
+  audioFormats?: readonly string[];
+  /** The audio cannot go alone: an image or a video has to go with it. */
+  audioNeedsMedia?: boolean;
+  /** How the prompt names the audio files sent (`Audio{n}`), when the page says it. */
+  audioMention?: string;
   /** Images and videos together cannot be more than this. */
   maxMedia?: number;
   /** It needs at least one image or one video. */
@@ -118,7 +136,24 @@ export type MediaOptions = {
   mention?: string;
   /** The page says every «@» in the prompt must name something sent, or the request is rejected. */
   strictMentions?: boolean;
+  /**
+   * A keyframe model (Kling 4.0 Keyframe): the first image is the first frame (`fields.images`, named `mention`), the
+   * next ones are middle frames in order (`middle`, named `middleMention` from 1) and, when the author says so, the
+   * last one is the last frame (`last`). `byDuration` lists [seconds, frames]: from those seconds on, at most that
+   * many frames in all.
+   */
+  frames?: {middle: string; last: string; middleMention: string; lastMention: string; maxMiddle: number; byDuration?: readonly (readonly [number, number])[]};
 };
+
+/** How many frames in all a keyframe model takes for this duration (its page ties them); the most it takes otherwise. */
+export function framesFor(o: Pick<MediaOptions, 'frames' | 'maxReferences'>, duration?: string) {
+  const list = o.frames?.byDuration;
+  if (!list?.length) return o.maxReferences;
+  const s = Number(duration);
+  if (!Number.isFinite(s) || !s) return Math.max(...list.map(b => b[1]));
+  const fit = [...list].sort((a, b) => a[0] - b[0]).filter(b => b[0] <= s).at(-1);
+  return Math.min(o.maxReferences, fit ? fit[1] : list[0][1]);
+}
 
 export type ImageModel = Base & {category: 'image'; options: MediaOptions};
 export type VideoModel = Base & {category: 'video'; options: MediaOptions};

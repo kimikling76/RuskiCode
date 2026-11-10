@@ -192,6 +192,19 @@ function mediaEntry(page, s, opPath, op, category) {
     const said = String(f(k).description || '').match(/mention (?:them|it) in the prompt as `@([A-Za-z_]+?)(\d+)?`/i);
     if (said) options.mention = '@' + said[1] + (said[2] ? '{n}' : '');
   }
+  // Keyframe models (Kling 4.0 Keyframe): after the first frame, middle frames in order and a last frame, each with its
+  // own name in the prompt, and only as many frames in all as the duration allows («5 s → 6 frames»).
+  if (category === 'video' && singleField === 'first_frame_url' && options.mention && f('keyframe_urls')?.type === 'array' && f('last_frame_url')?.type === 'string') {
+    const nameOf = k => String(f(k).description || '').match(/mention (?:them|it) in the prompt as `@([A-Za-z_]+?)(\d+)?`/i);
+    const middle = nameOf('keyframe_urls'), last = nameOf('last_frame_url');
+    if (middle && last) {
+      used.add('keyframe_urls'); used.add('last_frame_url');
+      const maxMiddle = Number(f('keyframe_urls').maxItems) || 1;
+      const byDuration = [...String(f('duration')?.description || '').matchAll(/(\d+)\s*s(?: or longer)?\s*→\s*(\d+)\s*frames/g)].map(m => [Number(m[1]), Number(m[2])]);
+      options.frames = {middle: 'keyframe_urls', last: 'last_frame_url', middleMention: '@' + middle[1] + (middle[2] ? '{n}' : ''), lastMention: '@' + last[1], maxMiddle, ...(byDuration.length ? {byDuration} : {})};
+      options.maxReferences = Math.min(2 + maxMiddle, byDuration.length ? Math.max(...byDuration.map(b => b[1])) : 2 + maxMiddle);
+    }
+  }
   // Reference videos (video models only), with the limits the page states for each file.
   const videoArray = category === 'video' ? arrayVideoFields.find(k => f(k)?.type === 'array') : undefined;
   const videoSingle = category === 'video' && !videoArray ? singleVideoFields.find(k => f(k)?.type === 'string') : undefined;
@@ -216,6 +229,38 @@ function mediaEntry(page, s, opPath, op, category) {
     if (both) options.maxMedia = Number(both[1]);
     // «At least one of reference_image or reference_video must be provided.»
     if (/at least one of `?\w*image\w*`? or `?\w*video/i.test(desc)) options.mediaRequired = true;
+  }
+
+  // Reference audio (video models only): a list or one link, what it is for, and the limits the page states.
+  // `reference`: music, a voice or a sound to follow; `voice`: the voice of the subject; `driving`: what the person in
+  // the image says (lip sync, avatars); `track`: the sound of the video.
+  const audioArray = category === 'video' ? ['reference_audio_urls'].find(k => f(k)?.type === 'array') : undefined;
+  const audioSingle = category === 'video' && !audioArray ? ['reference_voice', 'driving_audio_url', 'audio_url'].find(k => f(k)?.type === 'string') : undefined;
+  if (audioArray || audioSingle) {
+    const k = audioArray || audioSingle;
+    used.add(k);
+    const desc = String(f(k).description || '').replace(/\s+/g, ' ');
+    options.fields.audios = k;
+    if (audioSingle) options.fields.audiosSingle = true;
+    options.maxAudios = audioArray ? Math.max(1, Number(f(k).maxItems) || 1) : 1;
+    if (required.has(k)) options.audiosRequired = true;
+    options.audioRole = k === 'reference_voice' ? 'voice' : k === 'driving_audio_url' || (k === 'audio_url' && required.has(k)) ? 'driving' : k === 'audio_url' ? 'track' : 'reference';
+    const mb = desc.match(/(?:not exceed(?:ing)?|cannot exceed|up to|≤|less than|max(?:imum)?(?: file)? size:?|limited to)\s*`?(\d+(?:\.\d+)?)\s*`?\s*M(?:B)?\b/i);
+    if (mb) options.audioMaxMB = Number(mb[1]);
+    const range = desc.match(/\[\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*\]\s*(?:s\b|seconds)?/i)
+      || desc.match(/`?(\d+(?:\.\d+)?)`?\s*(?:–|-|to)\s*`?(\d+(?:\.\d+)?)`?\s*(?:seconds|s\b)/i);
+    const under = desc.match(/(?:less than|cannot exceed|not exceed)\s*(\d+(?:\.\d+)?)\s*(seconds|minutes)/i);
+    if (range && Number(range[1]) < Number(range[2])) options.audioSeconds = [Number(range[1]), Number(range[2])];
+    else if (under) options.audioSeconds = [0, Number(under[1]) * (/minutes/i.test(under[2]) ? 60 : 1)];
+    const total = desc.match(/(?:total|combined) duration[^0-9]{0,40}(\d+(?:\.\d+)?)\s*(?:seconds|s\b)/i);
+    if (total) options.audioTotalSeconds = Number(total[1]);
+    // Formats as file types: «wav, mp3», «MP3 only», or MIME types («audio/mpeg, audio/wav…»).
+    const kinds = {mp3: /\bmp3\b|audio\/mpeg/i, wav: /\bwav\b|audio\/(?:x-)?wav/i, aac: /\baac\b|audio\/aac/i, ogg: /\bogg\b|audio\/ogg/i, m4a: /\bm4a\b|audio\/mp4/i};
+    const formats = Object.entries(kinds).filter(([, re]) => re.test(desc)).map(([x]) => x);
+    if (formats.length) options.audioFormats = formats;
+    if (/cannot be used alone/i.test(desc)) options.audioNeedsMedia = true;
+    const named = desc.match(/correspond to (\w+?)1, \1 ?2/i);
+    if (named) options.audioMention = named[1] + '{n}';
   }
 
   // Gemini Omni: `video_list`, clips of a video, each {url, start, ends} with a trim of a few seconds.

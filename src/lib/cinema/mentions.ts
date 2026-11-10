@@ -25,20 +25,41 @@ function namesFor(template: string, sent: number) {
  * - Where the page says every «@» must name something sent, any other «@» is dropped (the word stays), since Kie would
  *   reject the request; and each file sent but not named is named in a last sentence, so the model knows to use it.
  */
-export function mentionPrompt(prompt: string, options: Pick<MediaOptions, 'mention' | 'strictMentions' | 'videoMention'>, sent: number, videos = 0) {
+/**
+ * The names a keyframe model gives the images sent, in order: `@first_frame`, then `@keyframe_1`, `@keyframe_2`… and,
+ * with `lastFrame` (and at least two images), `@last_frame` for the last one. Null for any other model.
+ */
+export function frameNames(options: Pick<MediaOptions, 'mention' | 'frames'>, sent: number, lastFrame = false) {
+  const f = options.frames;
+  if (!f || !options.mention || !sent) return null;
+  const last = lastFrame && sent > 1;
+  const middle = sent - 1 - (last ? 1 : 0);
+  return [options.mention, ...Array.from({length: middle}, (_, i) => f.middleMention.replace('{n}', String(i + 1))), ...(last ? [f.lastMention] : [])];
+}
+
+/** How the author names the audio files sent, in order: «@audio1», «@audio2»… */
+export const authorAudioName = (n: number) => '@audio' + n;
+const authorAudio = /@audio_?(\d{1,2})(?![\p{L}\p{N}_])/giu;
+
+export function mentionPrompt(prompt: string, options: Pick<MediaOptions, 'mention' | 'strictMentions' | 'videoMention' | 'frames' | 'audioMention'>, sent: number, videos = 0, lastFrame = false, audios = 0) {
   const template = options.mention || '';
   const videoTemplate = options.videoMention || '';
+  const frames = frameNames(options, sent, lastFrame);
   const own = (tpl: string, word: string) => (n: number) => tpl.includes('{n}') ? tpl.replace('{n}', String(n)) : tpl && n === 1 ? tpl : !tpl ? word + ' ' + n : null;
-  const imageName = own(template, 'image'), videoName = own(videoTemplate, 'video');
+  const imageName = frames ? (n: number) => frames[n - 1] ?? null : own(template, 'image'), videoName = own(videoTemplate, 'video');
   let text = prompt.replace(authorImage, (whole, digits: string) => {
     const n = Number(digits);
     return n >= 1 && n <= sent ? imageName(n) ?? whole : whole;
   }).replace(authorVideo, (whole, digits: string) => {
     const n = Number(digits);
     return n >= 1 && n <= videos ? videoName(n) ?? whole : whole;
+  }).replace(authorAudio, (whole, digits: string) => {
+    // Audio: the model's own word when its page gives one («Audio1» in Wan 3.0), or else «audio 1».
+    const n = Number(digits);
+    return n >= 1 && n <= audios ? (options.audioMention ? options.audioMention.replace('{n}', String(n)) : 'audio ' + n) : whole;
   });
   if (!template && !videoTemplate && !options.strictMentions) return text;
-  const names = [...namesFor(template, sent), ...namesFor(videoTemplate, videos)];
+  const names = [...(frames || namesFor(template, sent)), ...namesFor(videoTemplate, videos)];
   // A name is matched whole: «@image_1» is not the start of «@image_10».
   const namedAt = (t: string, i: number) => names.find(n => t.startsWith(n, i) && !wordChar.test(t[i + n.length] || ''));
   if (options.strictMentions) {

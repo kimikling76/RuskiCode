@@ -1,5 +1,5 @@
 import {imageModel, taskStates, type AspectRatio, type Resolution, type TaskState} from './capabilities';
-import {imageModels, type ImageModel, type VideoModel} from '@/lib/ai/models';
+import {framesFor, imageModels, type ImageModel, type VideoModel} from '@/lib/ai/models';
 import {mentionPrompt} from './mentions';
 
 // KIE_BASE_URL exists only for local tests against a fake Kie; production never sets it.
@@ -28,7 +28,9 @@ function key() {
 export type ImageJobInput = {prompt: string; aspect: AspectRatio; resolution: Resolution; references: string[]};
 /** `videos`: links of the reference videos (Kie's own, or uploaded to Kie for this request). */
 /** `clips`: the part of each video to use, for models that take clips (Gemini Omni), in seconds. */
-export type JobInput = {prompt: string; aspect?: string; resolution?: string; duration?: string; references: string[]; videos?: string[]; clips?: {start: number; ends: number}[]};
+/** `lastFrame`: with a keyframe model, the last image is the video's last frame (the ones between are middle frames). */
+/** `audios`: links of the reference audio files (uploaded to Kie for this request). */
+export type JobInput = {prompt: string; aspect?: string; resolution?: string; duration?: string; references: string[]; videos?: string[]; clips?: {start: number; ends: number}[]; lastFrame?: boolean; audios?: string[]};
 
 /** Builds Kie's `input` object from a catalog entry: only the fields that model documents. */
 export function jobInput(model: ImageModel | VideoModel, input: JobInput) {
@@ -38,9 +40,24 @@ export function jobInput(model: ImageModel | VideoModel, input: JobInput) {
   const videos = input.videos || [];
   // Never sent to a model that does not document them, nor more than it takes.
   if (videos.length && (!f.videos || videos.length > (model.options.maxVideos || 0))) throw new CinemaError('INVALID_PARAMETERS');
-  const out: Record<string, unknown> = {...model.options.fixed, [f.prompt]: mentionPrompt(input.prompt, model.options, images.length, videos.length)};
-  if (f.images && images.length) out[f.images] = f.imagesSingle ? images[0] : images;
+  const audios = input.audios || [];
+  if (audios.length && (!f.audios || audios.length > (model.options.maxAudios || 0))) throw new CinemaError('INVALID_PARAMETERS');
+  const frames = model.options.frames;
+  // A keyframe model takes every image: the first frame, the middle ones in order and, if the author says so, the last.
+  const all = frames && f.images && input.references.length ? input.references : null;
+  if (all && all.length > framesFor(model.options, input.duration)) throw new CinemaError('TOO_MANY_FRAMES');
+  const sent = all ? all.length : images.length;
+  const out: Record<string, unknown> = {...model.options.fixed, [f.prompt]: mentionPrompt(input.prompt, model.options, sent, videos.length, input.lastFrame, audios.length)};
+  if (all && frames) {
+    const last = input.lastFrame && all.length > 1 ? all[all.length - 1] : undefined;
+    const middle = all.slice(1, last ? -1 : undefined);
+    if (middle.length > frames.maxMiddle) throw new CinemaError('TOO_MANY_FRAMES');
+    out[f.images!] = all[0];
+    if (middle.length) out[frames.middle] = middle;
+    if (last) out[frames.last] = last;
+  } else if (f.images && images.length) out[f.images] = f.imagesSingle ? images[0] : images;
   if (f.videos && videos.length) out[f.videos] = f.videoClips ? videos.map((url, i) => ({url, start: input.clips?.[i]?.start ?? 0, ends: input.clips?.[i]?.ends ?? model.options.videoClipSeconds ?? 10})) : f.videosSingle ? videos[0] : videos;
+  if (f.audios && audios.length) out[f.audios] = f.audiosSingle ? audios[0] : audios;
   if (f.aspect && input.aspect) out[f.aspect] = input.aspect;
   if (f.resolution && input.resolution) out[f.resolution] = input.resolution;
   if (f.duration && input.duration) out[f.duration] = f.durationNumber ? Number(input.duration) : input.duration;

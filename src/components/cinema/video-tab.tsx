@@ -1,7 +1,7 @@
 'use client';
 import {useMemo, useState} from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
-import {ArrowUpRight, Film, ImagePlus, Sparkles, X} from 'lucide-react';
+import {ArrowUpRight, ChevronLeft, Film, ImagePlus, Sparkles, X} from 'lucide-react';
 import {videoModels, enabledStatus, publicModel, promptLimit} from '@/lib/ai/models';
 import {useCinema, type CinemaJob} from '@/store/cinema';
 import {useCinemaUi} from '@/store/cinema-ui';
@@ -15,6 +15,8 @@ import {authorImageName, authorVideoName} from '@/lib/cinema/mentions';
 import {ClipFields, VideoPicker, VideoThumb, useClips, useVideoFit, videoRules} from './video-picker';
 import {videoRoom} from '@/lib/cinema/video-refs';
 import {PromptAssistant} from './prompt-assistant';
+import {LastFrameToggle, frameRoles, framesHint, framesProblem} from './frames';
+import {AudioButton, AudioChips, AudioPicker, audioNeed, useAudios} from './audio-picker';
 
 // Video: the same frame as Image. The results take the screen and the request is written below them; each setting is
 // a chip that shows its value. Only what the chosen model offers is shown and sent. A model that animates a picture
@@ -29,10 +31,11 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
   const jobs = useMemo(() => allJobs.filter(j => j.mode === 'video'), [allJobs]);
   const [picker, setPicker] = useState(false);
   const [videoPicker, setVideoPicker] = useState(false);
+  const [audioPicker, setAudioPicker] = useState(false);
   const [assistant, setAssistant] = useState(false);
   const enabled = videoModels.filter(enabledStatus);
   // Until one is chosen, the first model that works from a prompt alone.
-  const model = enabled.find(m => m.id === draft.model) || enabled.find(m => m.options.modes.includes('create') && !m.options.videosRequired && !m.options.mediaRequired) || enabled[0];
+  const model = enabled.find(m => m.id === draft.model) || enabled.find(m => m.options.modes.includes('create') && !m.options.videosRequired && !m.options.mediaRequired && !m.options.audiosRequired) || enabled[0];
 
   const o = model?.options;
   // A value chosen for another model falls back to this model's first option.
@@ -47,30 +50,40 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
   const needsVideo = Boolean(o?.videosRequired && !videos.length);
   const needsMedia = Boolean(o?.mediaRequired && !videos.length && !references.length);
   const videoFit = useVideoFit(videos, o);
+  // Reference audio (music, a voice, what the person says), for the models that take it.
+  const audioRefs = o?.fields.audios ? (draft.audios || []).slice(0, o.maxAudios || 0) : [];
+  const audioList = useAudios(audioRefs);
+  const audioIssue = audioNeed(o, audioList, references.length, videos.length);
   const clip = useClips(videos, draft.clips, o);
   const resolutionLabel = o?.resolutionLabel || 'Resolución';
   // A model that only animates a picture needs its starting image.
   const animates = Boolean(o && !o.modes.includes('create'));
   const needsImage = animates && !references.length;
   const start = o?.maxReferences === 1;
-  const imagesName = start ? 'Imagen inicial' : 'Referencias';
+  // Keyframe models: the images are the video's frames, in order; the last one may be its last frame.
+  const frames = Boolean(o?.frames);
+  const lastFrame = frames && Boolean(draft.lastFrame) && references.length > 1;
+  const roles = o ? frameRoles(o, references.length, lastFrame) : null;
+  const framesIssue = o ? framesProblem(o, references.length, duration) : null;
+  const imagesName = start ? 'Imagen inicial' : frames ? 'Cuadros' : 'Referencias';
   const limit = promptLimit(o, 'video');
-  const ready = Boolean(draft.prompt.trim()) && !needsImage && !needsVideo && !needsMedia && !videoFit && !clip.problem && draft.prompt.trim().length <= limit;
+  const ready = Boolean(draft.prompt.trim()) && !needsImage && !needsVideo && !needsMedia && !videoFit && !clip.problem && !framesIssue && !audioIssue && draft.prompt.trim().length <= limit;
   const label = 'Generar video';
 
   const {request, dialog, busy} = useGenerateConfirm({
     label,
     onGenerate: () => {
       if (!model || !o) return;
-      return startGeneration({mode: 'video', model: model.id, prompt: draft.prompt.trim(), aspect: o.aspectRatios.length ? aspect : '', resolution: o.resolutions.length ? resolution : '', duration: o.durations.length ? duration : undefined, references, videos, ...(clip.clips.length ? {clips: clip.clips} : {}), count: 1});
+      return startGeneration({mode: 'video', model: model.id, prompt: draft.prompt.trim(), aspect: o.aspectRatios.length ? aspect : '', resolution: o.resolutions.length ? resolution : '', duration: o.durations.length ? duration : undefined, references, videos, ...(clip.clips.length ? {clips: clip.clips} : {}), ...(lastFrame ? {lastFrame: true} : {}), ...(audioRefs.length ? {audios: audioRefs} : {}), count: 1});
     },
     facts: model && o ? [
       ['Modelo', model.name],
       ...(o.aspectRatios.length ? [['Formato', aspectName(aspect)] as [string, string]] : []),
       ...(o.resolutions.length ? [[resolutionLabel, optionLabel(resolution)] as [string, string]] : []),
       ...(o.durations.length ? [['Duración', duration + ' s'] as [string, string]] : []),
-      ...(references.length ? [[imagesName, String(references.length)] as [string, string]] : []),
+      ...(references.length ? [[imagesName, roles ? roles.join(' → ') : String(references.length)] as [string, string]] : []),
       ...(videos.length ? [['Videos de referencia', String(videos.length)] as [string, string]] : []),
+      ...(audioList.length ? [['Audio', audioList.map(a => a.name).join(', ')] as [string, string]] : []),
       ...(model.price ? [['Costo', estimate(model.price) + '; el real lo informa Kie al terminar'] as [string, string]] : []),
     ] : [],
   });
@@ -96,7 +109,9 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
   }
 
   const generate = () => { if (ready) request(); };
-  const refsLabel = (start ? 'Imagen inicial' : 'Referencias (hasta ' + o.maxReferences + ')') + ' de tu galería o de tu computadora' + (animates ? '' : ', si querés') + '. En el texto se llama' + (o.maxReferences > 1 ? 'n @image1, @image2…' : ' @image1') + '.';
+  const refsLabel = (start ? 'Imagen inicial' : frames ? 'Cuadros del video (hasta ' + o.maxReferences + ')' : 'Referencias (hasta ' + o.maxReferences + ')') + ' de tu galería o de tu computadora' + (animates ? '' : ', si querés') + '. En el texto se llama' + (o.maxReferences > 1 ? 'n @image1, @image2…' : ' @image1') + '.' + (frames ? ' ' + framesHint(o, duration) : '');
+  // A frame goes one place earlier in the video (keyframe models: the order is the order of the video).
+  const earlier = (i: number) => { const next = [...references]; [next[i - 1], next[i]] = [next[i], next[i - 1]]; patch({references: next}); };
 
   return (
     <div className="rc-cine-work">
@@ -127,17 +142,24 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
               <span>{needsVideo ? model.name + ' trabaja sobre un video: elegí uno de tu galería o de tu computadora.' : model.name + ' necesita al menos una imagen o un video de referencia.'}</span>
             </div>
           ) : null}
-          {videoFit || clip.problem ? <div className="rc-notice" role="status"><span className="rc-dot" aria-hidden="true" /><span>{videoFit || clip.problem}</span></div> : null}
+          {videoFit || clip.problem || framesIssue || audioIssue ? <div className="rc-notice" role="status"><span className="rc-dot" aria-hidden="true" /><span>{videoFit || clip.problem || framesIssue || audioIssue}</span></div> : null}
           <form className="rc-composer rc-gen" aria-label="Generar video" onSubmit={e => { e.preventDefault(); generate(); }}>
             {references.length ? (
               <div className="rc-gen-refs" aria-label={imagesName} role="group">
                 {references.map((url, i) => (
                   <span key={url} className="rc-ref">
                     <img src={refSrc(url)} alt="" />
-                    {!o.fields.imagesSingle || i === 0 ? <span className="rc-ref-name">{authorImageName(i + 1)}</span> : null}
-                    <button type="button" className="rc-ref-remove" aria-label={start ? 'Quitar la imagen inicial' : 'Quitar referencia'} onClick={() => patch({references: draft.references.filter(u => u !== url)})}><X /></button>
+                    {!o.fields.imagesSingle || i === 0 || frames ? <span className="rc-ref-name">{authorImageName(i + 1)}</span> : null}
+                    {roles && i > 0 ? <button type="button" className="rc-ref-earlier" aria-label={'Mover el cuadro ' + (i + 1) + ' antes'} onClick={() => earlier(i)}><ChevronLeft /></button> : null}
+                    <button type="button" className="rc-ref-remove" aria-label={start ? 'Quitar la imagen inicial' : frames ? 'Quitar el cuadro ' + (i + 1) : 'Quitar referencia'} onClick={() => patch({references: draft.references.filter(u => u !== url)})}><X /></button>
                   </span>
                 ))}
+              </div>
+            ) : null}
+            {roles ? (
+              <div className="rc-frames">
+                <p className="rc-hint">En el video: {roles.map((r, i) => authorImageName(i + 1) + ' ' + r.toLowerCase()).join(' → ')}.</p>
+                <LastFrameToggle o={o} count={references.length} value={lastFrame} onChange={v => patch({lastFrame: v})} />
               </div>
             ) : null}
             {videos.length ? (
@@ -151,6 +173,7 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
                 ))}
               </div>
             ) : null}
+            <AudioChips audios={audioList} onRemove={sha => patch({audios: (draft.audios || []).filter(a => a !== 'audio:' + sha)})} />
             {clip.clips.length ? <ClipFields refs={videos} clips={clip.clips} lengths={clip.lengths} o={o} onChange={(ref, c) => patch({clips: {...draft.clips, [ref]: c}})} /> : null}
             <label className="sr-only" htmlFor="cinema-video-prompt">Prompt del video</label>
             <TextareaAutosize
@@ -174,6 +197,7 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
                     </button>
                   </Tip>
                 ) : null}
+                {o.fields.audios ? <AudioButton o={o} count={audioList.length} onClick={() => setAudioPicker(true)} /> : null}
                 {o.maxVideos ? (
                   <Tip label={'Videos de referencia (hasta ' + o.maxVideos + '): ' + videoRules(o) + ' En el texto se llama' + (o.maxVideos > 1 ? 'n @video1, @video2…' : ' @video1') + '.'}>
                     <button type="button" className="rc-icon-btn" aria-label="Agregar videos de referencia de la galería o de tu computadora" onClick={() => setVideoPicker(true)}>
@@ -224,6 +248,7 @@ export function VideoTab({onOpen}: {onOpen?: (job: CinemaJob) => void}) {
         upload
         onChoose={references => patch({references})}
       />
+      {o.fields.audios ? <AudioPicker open={audioPicker} onClose={() => setAudioPicker(false)} o={o} initial={audioRefs} onChoose={audios => patch({audios})} /> : null}
       {o.maxVideos ? <VideoPicker open={videoPicker} onClose={() => setVideoPicker(false)} options={o} max={Math.max(1, videoRoom(o, references.length))} initial={videos} onChoose={videos => patch({videos})} /> : null}
       <PromptAssistant open={assistant} onClose={() => setAssistant(false)} initial={draft.prompt} onUse={prompt => patch({prompt})} video />
     </div>

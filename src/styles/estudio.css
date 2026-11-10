@@ -789,3 +789,7 @@
   .rc-es-drawer .rc-es-tree-folder .rc-icon-btn { width: var(--control-44); height: var(--control-44); }
   .rc-cinema-estudio-link { height: var(--control-44); }
 }
+
+/* The audio pill: its count sits on the corner, like the other pickers. */
+.rc-es-audio { position: relative; }
+.rc-es-audio .rc-gen-count { position: absolute; top: -4px; right: -4px; }

@@ -91,6 +91,10 @@ type Draft = {
   videos?: string[];
   /** The part of each video to use, by video, for models that take clips. */
   clips?: Record<string, {start: number; ends: number}>;
+  /** Keyframe models (Kling 4.0 Keyframe): the last image is the video's last frame. */
+  lastFrame?: boolean;
+  /** Reference audio for the video models that take it (`audio:<sha256>`, kept in this browser). */
+  audios?: string[];
   /** The project the results go to from Inicio (a project page always uses its own). */
   project: string | null;
 };
