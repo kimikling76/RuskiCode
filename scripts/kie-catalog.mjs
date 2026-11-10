@@ -15,7 +15,8 @@ const KIE = 'https://api.kie.ai';
 const DOCS = 'https://docs.kie.ai/';
 // CATALOG_DATE: the day the saved pages were read, when generating from a folder of saved pages.
 const today = process.env.CATALOG_DATE || new Date().toISOString().slice(0, 10);
-const out = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'src', 'lib', 'ai', 'kie-catalog.ts');
+// CATALOG_OUT: write the fresh catalog somewhere else (scripts/kie-catalog-update.mjs compares it with the current one).
+const out = process.env.CATALOG_OUT || path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'src', 'lib', 'ai', 'kie-catalog.ts');
 
 async function pages(folder) {
   if (folder) {
@@ -35,7 +36,7 @@ async function pages(folder) {
 const providers = [
   [/^(GPT|GPT Image|Codex)$/, 'OpenAI'], [/^Claude$/, 'Anthropic'], [/^(Gemini|Google|Veo3\.1 API|Gemini Omni)$/, 'Google'],
   [/^(Grok|Grok Imagine)$/, 'xAI'], [/^(Seedream|Bytedance|OmniHuman|Volcengine)$/, 'ByteDance'], [/^(Qwen|Wan)$/, 'Alibaba'],
-  [/^Kling$/, 'Kuaishou'], [/^(Hailuo|MiniMax H3)$/, 'MiniMax'], [/^(Flux-2|Flux Kontext API)$/, 'Black Forest Labs'],
+  [/^Kling$/, 'Kuaishou'], [/^(Hailuo|MiniMax H3)$/, 'MiniMax'], [/^(Flux-2|Flux-3|Flux Kontext API)$/, 'Black Forest Labs'],
   [/^Deepseek$/, 'DeepSeek'], [/^Kimi$/, 'Moonshot AI'], [/^Runway API$/, 'Runway'], [/^4o Image API$/, 'OpenAI'],
 ];
 const byModel = [[/^ai-music-api\//, 'Suno'], [/^runway/, 'Runway'], [/^grok/, 'xAI'], [/^elevenlabs\//, 'ElevenLabs']];
@@ -349,6 +350,19 @@ for (const page of list) {
     const e = mediaEntry(page, s, opPath, op, category);
     ({image, video, audio})[category].push(e);
   }
+}
+// The same model documented twice (Kie sometimes adds a page in Chinese with a numbered address next to the English
+// one under /market/): the English page is kept, so the model is listed once, with its English name.
+for (const arr of [text, image, video, audio]) {
+  const keyOf = e => e.endpoint + ' ' + e.providerModel;
+  const english = e => e.docs.includes('/market/') && !/[\u3400-\u9fff]/.test(e.name);
+  const keep = new Map();
+  for (const e of arr) {
+    if (!e.providerModel) { keep.set(Symbol(), e); continue; }
+    const had = keep.get(keyOf(e));
+    if (!had || (!english(had) && english(e))) keep.set(keyOf(e), e);
+  }
+  arr.splice(0, arr.length, ...keep.values());
 }
 // Ids must be unique: a second page for the same model id keeps both, the second with its page as suffix.
 const seen = new Set();
