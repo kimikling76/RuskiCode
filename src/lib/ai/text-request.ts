@@ -8,7 +8,7 @@ import {textModels} from './models';
 
 const textModelName = (id: string) => textModels.find(m => m.id === id)?.name;
 
-export type TextPurpose = 'storyboard' | 'prompt' | 'video-prompt' | 'book-review' | 'book-exercises' | 'book-rewrite' | 'pdf-generator' | 'russian-review' | 'book-assist' | 'book-exercise' | 'manual-review' | 'manual-exercise';
+export type TextPurpose = 'storyboard' | 'prompt' | 'video-prompt' | 'book-review' | 'book-exercises' | 'book-rewrite' | 'pdf-generator' | 'russian-review' | 'book-assist' | 'book-exercise' | 'manual-review' | 'manual-exercise' | 'page-critique';
 
 const usageLabels: Record<TextPurpose, {studio: 'chat' | 'cinema' | 'pdf'; label: string}> = {
   storyboard: {studio: 'cinema', label: 'Plan de planos'},
@@ -23,6 +23,7 @@ const usageLabels: Record<TextPurpose, {studio: 'chat' | 'cinema' | 'pdf'; label
   'book-exercise': {studio: 'pdf', label: 'Cambio de un ejercicio'},
   'manual-review': {studio: 'pdf', label: 'Revisión con IA del manual'},
   'manual-exercise': {studio: 'pdf', label: 'Ejercicio nuevo con IA'},
+  'page-critique': {studio: 'pdf', label: 'Crítica de una página'},
 };
 
 /** `cut`: the answer stopped before its end (only with `partial`); `text` is what arrived. */
