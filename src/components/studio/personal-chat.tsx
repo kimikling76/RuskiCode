@@ -3,7 +3,8 @@ import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import dynamic from 'next/dynamic';
 import {useQuery} from '@tanstack/react-query';
 import TextareaAutosize from 'react-textarea-autosize';
-import {ArrowUp, ArrowDown, ArrowUpRight, Copy, Check, RotateCcw, Square, FolderPlus, Pencil, MoreHorizontal, Paperclip, X, SquareSlash, Globe} from 'lucide-react';
+import {ArrowDown, ArrowUpRight, Bot, Copy, Check, Plug, RotateCcw, Square, FolderPlus, Pencil, MoreHorizontal, Paperclip, X, SquareSlash, Globe} from 'lucide-react';
+import {BorderBeam} from '@/components/ui/border-beam';
 import {useAssistants, type Assistant} from '@/store/assistants';
 import {AssistantMenu, AssistantPreview, AssistantChip, preferredModel} from './assistant-chooser';
 import {usePersonal, type PersonalMessage, type StudioProject} from '@/store/personal-chat';
@@ -545,7 +546,7 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
         >
           {!hasMessages ? (
             <div className="rc-chat-empty">
-              <h2>¿En qué estás pensando?</h2>
+              <h2>¿Qué vamos a crear hoy?</h2>
               <div className="rc-chat-mode">
                 {pendingAssistant ? (
                   <>
@@ -559,20 +560,6 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
                   </>
                 )}
               </div>
-              <div className="rc-skill-starters" role="group" aria-label="Skills">
-                <span className="rc-hint">Skills (escribí «/»):</span>
-                {chatSkills.map(sk => <button key={sk.id} type="button" className="rc-chip" onClick={() => chooseSkill(sk.id)} title={sk.description}><code>{sk.command}</code></button>)}
-              </div>
-              <ul className="rc-suggestions" aria-label="Sugerencias para empezar">
-                {suggestions.map(s => (
-                  <li key={s.title}>
-                    <button type="button" onClick={() => { setText(s.prompt); textarea.current?.focus(); }}>
-                      <span>{s.title}</span>
-                      <ArrowUpRight aria-hidden="true" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
             </div>
           ) : (
             <div className="rc-chat-column">
@@ -778,10 +765,10 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
                 </Tip>
                 <input ref={fileInput} type="file" multiple hidden accept={acceptAttachments} onChange={e => { files.add([...(e.target.files || [])]); e.target.value = ''; }} />
                 <Tip label="Skills: generar imágenes o videos, crear páginas del manual, revisar el ruso">
-                  <button type="button" className="rc-icon-btn" aria-label="Elegir una skill" aria-pressed={menu.open} disabled={!hydrated} onClick={() => { setMenu(m => ({open: !m.open, index: 0, dismissed: null})); textarea.current?.focus(); }}><SquareSlash /></button>
+                  <button type="button" className="rc-icon-btn" aria-label="Elegir una skill" aria-pressed={menu.open} disabled={!hydrated} onClick={() => { setMenu(m => ({open: !m.open, index: 0, dismissed: null})); textarea.current?.focus(); }}><SquareSlash /><span className="rc-tool-label">Habilidad</span></button>
                 </Tip>
                 <Tip label={searchOn ? 'Búsqueda web activada: el modelo puede consultar páginas y citarlas' : 'Buscar en la web (solo modelos que digan «busca en la web»)'}>
-                  <button type="button" className={'rc-icon-btn rc-search-btn' + (searchOn ? ' is-on' : '')} aria-label="Buscar en la web" aria-pressed={searchOn} disabled={!hydrated} onClick={() => changeSearch(!searchOn)}><Globe /></button>
+                  <button type="button" className={'rc-icon-btn rc-search-btn' + (searchOn ? ' is-on' : '')} aria-label="Buscar en la web" aria-pressed={searchOn} disabled={!hydrated} onClick={() => changeSearch(!searchOn)}><Globe /><span className="rc-tool-label">Web</span></button>
                 </Tip>
                 <BookToggle value={bookOn} onChange={changeBook} disabled={!hydrated} />
               </div>
@@ -795,7 +782,6 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
                 onBook={changeBook}
               />
               <ChatModelPicker models={allModels} value={selectedModel} onChange={chooseModel} disabled={busy || !models.length} />
-              <CostHint text={text} model={selectedModel} />
               <div className="rc-composer-spacer" />
               <label className="rc-ask" htmlFor="ask-first">
                 {/* On a phone it reads «Preguntar»; its name stays «Preguntar antes». */}
@@ -808,11 +794,35 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
                 </Tip>
               ) : (
                 <Tip label="Enviar" shortcut="Enter">
-                  <button type="submit" className="rc-send" aria-label="Enviar mensaje" disabled={!canSend}><ArrowUp /></button>
+                  <button type="submit" className="rc-send rc-send--go" aria-label="Enviar mensaje" disabled={!canSend}>
+                    <b aria-hidden="true">Enviar</b>
+                    <SendPrice text={text} model={selectedModel} />
+                    {canSend && !hasMessages ? <BorderBeam /> : null}
+                  </button>
                 </Tip>
               )}
             </div>
           </form>
+          {!hasMessages ? (
+            <div className="rc-chat-quick">
+              <div className="rc-quick-row" role="group" aria-label="Accesos rápidos">
+                <button type="button" className="rc-quick" onClick={() => { setMenu({open: true, index: 0, dismissed: null}); textarea.current?.focus(); }}><SquareSlash aria-hidden="true" />Habilidades</button>
+                {chatSkills.map(sk => <button key={sk.id} type="button" className="rc-quick rc-quick--code" onClick={() => chooseSkill(sk.id)} title={sk.description}><code>{sk.command}</code></button>)}
+                <a className="rc-quick rc-quick--end" href="/workspace/asistentes"><Bot aria-hidden="true" />Asistentes</a>
+                <a className="rc-quick" href="/workspace/ajustes?seccion=conectores"><Plug aria-hidden="true" />Conectores</a>
+              </div>
+              <ul className="rc-suggestions" aria-label="Sugerencias para empezar">
+                {suggestions.map(s => (
+                  <li key={s.title}>
+                    <button type="button" onClick={() => { setText(s.prompt); textarea.current?.focus(); }}>
+                      <span>{s.title}</span>
+                      <ArrowUpRight aria-hidden="true" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -869,18 +879,14 @@ export function PersonalChatPanel({onCreated}: {onCreated: (p: StudioProject) =>
 }
 
 /**
- * What the next answer usually costs with the chosen model, from Kie's reports for the person's own earlier requests
- * of the same kind (Kie does not publish text prices). Next to the model, before sending.
+ * What the next answer usually costs with the chosen model, inside the send button: from Kie's reports for the
+ * person's own earlier requests of the same kind (Kie does not publish text prices). Without data it says so,
+ * never a made-up number.
  */
-function CostHint({text, model}: {text: string; model: string}) {
+function SendPrice({text, model}: {text: string; model: string}) {
   const usage = usePersonal(s => s.data.usage);
   const pdf = /^\/pdf-generator\b/i.test(text.trim());
   const e = pdf ? textEstimate(usage, '/pdf-generator', model) : chatEstimate(usage, model);
-  if (!e && !pdf) return null;
   const label = estimateText(e, pdf ? ' por parte' : ' por respuesta');
-  return (
-    <Tip label={label}>
-      <span className="rc-composer-cost" tabIndex={0} aria-label={'Costo estimado: ' + label}>{e ? '≈ ' + e.credits.toLocaleString('es-AR') + ' cr.' + (pdf ? '/parte' : '') : 'Precio al terminar'}</span>
-    </Tip>
-  );
+  return <small title={label}><span className="sr-only">Costo estimado: </span>{e ? '≈ ' + e.credits.toLocaleString('es-AR') + (e.credits === 1 ? ' crédito' : ' créditos') + (pdf ? ' por parte' : '') : 'precio a confirmar'}</small>;
 }

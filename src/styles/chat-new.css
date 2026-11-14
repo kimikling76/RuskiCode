@@ -1,0 +1,73 @@
+/* The Chat's new arrangement: a big greeting with the box in the middle and quick ways in under it; with a
+   conversation the box floats at the foot. Pills inside the box, «Preguntar antes» in view and the estimated price
+   inside the send key. Loaded after chat.css and afisha.css; it only arranges, the behaviour is in personal-chat.tsx. */
+
+.rc-chat { isolation: isolate; overflow: clip; }
+.rc-chat-empty::before { content: none; }
+.rc-chat.is-empty::before { content: 'Ч'; position: absolute; z-index: -1; right: -6vw; top: 50%; translate: 0 -50%; font: 900 min(96vh, 900px)/0.8 var(--font-poster); color: rgb(var(--tint) / 0.04); pointer-events: none; user-select: none; }
+
+/* ---------- Empty: greeting, box, quick ways in — one group in the middle ---------- */
+.rc-chat.is-empty .rc-chat-scroll-zone { flex: 0 1 auto; margin-top: auto; overflow: visible; }
+.rc-chat.is-empty .rc-chat-scroll { overflow: visible; }
+.rc-chat.is-empty .rc-composer-zone { margin-bottom: auto; padding-bottom: var(--sp-10); }
+.rc-chat.is-empty .rc-chat-empty { width: min(100%, 940px); min-height: 0; padding: var(--sp-7) var(--sp-7) var(--sp-6); align-items: center; text-align: center; }
+.rc-chat.is-empty .rc-chat-empty h2 { margin: 0 0 var(--sp-5); font-size: clamp(52px, 7vw, 104px); line-height: 0.9; }
+.rc-chat.is-empty .rc-chat-mode { justify-content: center; margin: 0; }
+.rc-chat.is-empty .rc-composer-column { width: min(100%, 880px); }
+.rc-chat-quick { display: grid; gap: var(--sp-5); margin-top: var(--sp-5); }
+.rc-quick-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); padding: 0 var(--sp-2); }
+.rc-quick { display: inline-flex; align-items: center; gap: var(--sp-3); min-height: 36px; padding: 0 var(--sp-3); border: 0; border-radius: var(--radius-8); background: none; color: var(--fg-2); font: 400 var(--fs-14)/1 var(--font-ui); text-decoration: none; cursor: pointer; transition: background-color var(--dur-fast), color var(--dur-fast), transform var(--dur-fast); }
+.rc-quick:hover { background: rgb(var(--tint) / 0.06); color: var(--fg-1); }
+.rc-quick:active { transform: scale(0.97); }
+.rc-quick svg { width: 16px; height: 16px; }
+.rc-quick--code code { font: 400 var(--fs-13)/1 var(--font-code); }
+.rc-quick--end { margin-left: auto; }
+.rc-chat-quick .rc-suggestions { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin: 0; padding: 0 var(--sp-2); list-style: none; border: 0; }
+.rc-chat-quick .rc-suggestions li { border: 0; }
+.rc-chat-quick .rc-suggestions button { display: inline-flex; align-items: center; gap: var(--sp-3); width: auto; min-height: 40px; padding: 0 var(--sp-4); border: 0; border-radius: var(--radius-full); background: var(--bg-2); color: var(--fg-2); font: 400 var(--fs-14)/1 var(--font-ui); cursor: pointer; transition: background-color var(--dur-fast), color var(--dur-fast), transform 220ms var(--dz-spring); }
+.rc-chat-quick .rc-suggestions button:hover { background: var(--bg-3); color: var(--fg-1); transform: translateY(-2px); }
+.rc-chat-quick .rc-suggestions svg { width: 14px; height: 14px; color: var(--fg-3); }
+
+/* ---------- The box ---------- */
+.rc-composer { gap: var(--sp-4); padding: var(--sp-5); border: 0; border-radius: 22px; }
+.rc-composer:has(.rc-composer-input:focus) { border: 0; box-shadow: var(--shadow-composer), 0 0 0 2px rgb(var(--accent-rgb) / 0.55); }
+.rc-composer-input { padding: var(--sp-2) var(--sp-3); font-size: var(--fs-18); line-height: 1.5; }
+.rc-composer-bar { flex-wrap: wrap; gap: var(--sp-3); }
+@media (min-width: 461px) { .rc-composer-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); } }
+/* Pills: each tool shows what it is, and when it is on. */
+.rc-composer-bar :is(.rc-icon-btn, .rc-model-trigger) { width: auto; height: 40px; gap: var(--sp-2); padding: 0 var(--sp-4); border: 0; border-radius: var(--radius-12); background: var(--bg-3); color: var(--fg-1); font: 400 var(--fs-14)/1 var(--font-ui); display: inline-flex; align-items: center; transition: background-color var(--dur-fast), color var(--dur-fast), transform var(--dur-fast); }
+.rc-composer-bar :is(.rc-icon-btn, .rc-model-trigger):hover:not(:disabled) { background: var(--bg-4); }
+.rc-composer-bar :is(.rc-icon-btn, .rc-model-trigger):active:not(:disabled) { transform: scale(0.96); }
+.rc-composer-bar .rc-icon-btn:not(:has(.rc-tool-label)) { width: 40px; padding: 0; justify-content: center; border-radius: var(--radius-full); }
+.rc-composer-bar .rc-icon-btn[aria-pressed='true'], .rc-composer-bar .rc-search-btn.is-on { background: var(--fg-1); color: var(--bg-0); }
+.rc-composer-bar .rc-model-trigger { padding-left: var(--sp-2); font-weight: 500; max-width: 260px; }
+.rc-ask { height: 40px; font-size: var(--fs-14); color: var(--fg-2); }
+.rc-send.rc-send--go { position: relative; display: grid; justify-items: center; gap: 3px; width: auto; min-width: 148px; height: auto; min-height: 56px; padding: var(--sp-3) var(--sp-7); border-radius: var(--radius-16); box-shadow: 0 3px 0 var(--accent-press); transition: background-color var(--dur-fast), box-shadow var(--dur-fast), transform 180ms var(--dz-spring); }
+.rc-send--go b { font: 900 24px/0.9 var(--font-poster); letter-spacing: 0.02em; text-transform: uppercase; }
+.rc-send--go small { font: 600 var(--fs-12)/1 var(--font-ui); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rc-send--go:hover:not(:disabled) { transform: translateY(-1px); }
+.rc-send--go:active:not(:disabled) { transform: translateY(1px) scale(0.98); box-shadow: 0 1px 0 var(--accent-press); }
+.rc-send--go:disabled { box-shadow: none; }
+.rc-send.rc-send--stop { width: 56px; height: 56px; border-radius: var(--radius-16); }
+
+/* ---------- With a conversation: the box floats ---------- */
+.rc-chat:not(.is-empty) .rc-composer-column { width: min(100%, 820px); }
+
+@media (max-width: 760px) {
+  .rc-chat.is-empty::before { right: -34vw; font-size: 72vh; }
+  .rc-chat.is-empty .rc-chat-scroll-zone { margin-top: 0; }
+  .rc-chat.is-empty .rc-chat-empty { padding: var(--sp-8) var(--sp-5) var(--sp-5); align-items: flex-start; text-align: left; }
+  .rc-chat.is-empty .rc-chat-empty h2 { font-size: 13.5vw; }
+  .rc-chat.is-empty .rc-chat-mode { justify-content: flex-start; }
+  .rc-chat.is-empty .rc-composer-zone { margin-bottom: auto; }
+  .rc-composer { padding: var(--sp-4); border-radius: var(--radius-20); }
+  .rc-composer-input { font-size: var(--fs-16); }
+  .rc-composer-bar :is(.rc-icon-btn, .rc-model-trigger), .rc-ask { height: 44px; }
+  .rc-composer-bar .rc-icon-btn:not(:has(.rc-tool-label)) { width: 44px; }
+  .rc-send.rc-send--go { flex: 1 1 100%; grid-auto-flow: column; justify-content: center; align-items: center; gap: var(--sp-4); min-height: 52px; }
+  .rc-quick--end { margin-left: 0; }
+}
+/* The «+» that gathers the tools exists only on a narrow phone. */
+@media (min-width: 461px) { .rc-composer-bar .rc-composer-more { display: none; } }
+.rc-quick--end { margin-left: 0; }
+.rc-composer-bar :is(.rc-send--go, .rc-send--stop) { margin-left: auto; }
