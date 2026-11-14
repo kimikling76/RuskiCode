@@ -16,6 +16,7 @@ import '../styles/kb.css';
 import '../styles/settings.css';
 import '../styles/site.css';
 import '../styles/afisha.css';
+import '../styles/diseno.css';
 
 export const metadata: Metadata = {
   title: 'Русский код · Russian Code',
