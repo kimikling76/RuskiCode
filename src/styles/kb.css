@@ -48,7 +48,7 @@
 .rc-kb-list { list-style: none; margin: 0; padding: 0; max-height: min(70vh, 900px); overflow: auto; border-top: 1px solid var(--line); }
 .rc-kb-list li { border-bottom: 1px solid var(--line); }
 .rc-kb-row { display: grid; gap: 4px; width: 100%; padding: var(--sp-3) var(--sp-2); border: 0; background: none; color: var(--fg-1); font: inherit; text-align: left; cursor: pointer; }
-.rc-kb-row:hover { background: rgba(255, 255, 255, 0.025); }
+.rc-kb-row:hover { background: rgb(var(--tint) / 0.025); }
 .rc-kb-row[aria-current='true'] { background: var(--bg-3); }
 .rc-kb-row-title { font-size: var(--fs-14); overflow-wrap: anywhere; }
 .rc-kb-row-meta { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
@@ -77,7 +77,7 @@
 .rc-kb-grid--people { grid-template-columns: minmax(220px, 260px) minmax(0, 1fr); }
 .rc-kb-people--compact { grid-template-columns: minmax(0, 1fr); gap: 2px; max-height: min(78vh, 980px); overflow: auto; padding: 2px; }
 .rc-kb-people--compact .rc-kb-person { grid-template-columns: 44px minmax(0, 1fr); align-items: center; gap: var(--sp-3); padding: 6px; border-radius: var(--radius-8); }
-.rc-kb-people--compact .rc-kb-person:hover { background: rgba(255, 255, 255, 0.025); }
+.rc-kb-people--compact .rc-kb-person:hover { background: rgb(var(--tint) / 0.025); }
 .rc-kb-people--compact .rc-kb-person[aria-current='true'] { background: var(--bg-3); }
 .rc-kb-people--compact .rc-kb-person[aria-current='true'] .rc-kb-portrait { box-shadow: 0 0 0 1px var(--line); }
 .rc-app .rc-kb-people--compact .rc-kb-person:focus-visible { outline-offset: -2px; }
@@ -229,7 +229,7 @@
 .rc-kb-picture { display: grid; gap: var(--sp-4); }
 .rc-kb-cast { list-style: none; margin: var(--sp-2) 0 0; padding: 0; display: grid; gap: var(--sp-1); max-height: 280px; overflow: auto; border-top: 1px solid var(--line); }
 .rc-kb-cast li { padding: var(--sp-2) 0; border-bottom: 1px solid var(--line); }
-.rc-kb-cast li[data-on] { background: rgba(196, 235, 92, 0.04); }
+.rc-kb-cast li[data-on] { background: rgb(var(--accent-rgb) / 0.04); }
 .rc-kb-cast-refs { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin: var(--sp-2) 0 0 var(--sp-6); }
 .rc-kb-cast-ref { display: grid; grid-template-columns: auto 64px; grid-template-rows: auto auto; align-items: center; gap: 4px var(--sp-2); max-width: 220px; font-size: var(--fs-12); cursor: pointer; }
 .rc-kb-cast-ref .rc-kb-thumb { width: 64px; height: 64px; }

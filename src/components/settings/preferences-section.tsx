@@ -4,6 +4,7 @@ import {Switch} from '@/components/ui/switch';
 import {useCinemaUi} from '@/store/cinema-ui';
 import {usePersonal} from '@/store/personal-chat';
 import {useChatDialogs} from '@/components/studio/chat-dialogs';
+import {applyTheme, currentTheme, type Theme} from '@/lib/theme';
 import {Group, Row} from './parts';
 
 // Same key the Chat composer reads when it opens.
@@ -16,10 +17,12 @@ export function PreferencesSection() {
   const restoreCinemaAsk = useCinemaUi(s => s.restoreAskFirst);
   const chats = usePersonal(s => s.data.chats.length);
   const dialogs = useChatDialogs();
+  const [theme, setTheme] = useState<Theme>('dark');
 
   useEffect(() => {
     try { setChatAsk(localStorage.getItem(CHAT_ASK_KEY) === '1'); } catch {}
     restoreCinemaAsk();
+    setTheme(currentTheme());
   }, [restoreCinemaAsk]);
 
   function changeChatAsk(value: boolean) {
@@ -29,6 +32,11 @@ export function PreferencesSection() {
 
   return (
     <>
+      <Group title="Aspecto" description="El oscuro es el principal. La elección queda en este navegador.">
+        <Row label={<label htmlFor="pref-theme-light">Modo claro</label>} detail="Fondo claro para trabajar con mucha luz.">
+          <Switch id="pref-theme-light" checked={theme === 'light'} onCheckedChange={on => { const next = on ? 'light' : 'dark'; setTheme(next); applyTheme(next); }} />
+        </Row>
+      </Group>
       <Group title="Confirmar antes de gastar créditos" description="Es el mismo interruptor «Preguntar antes» que ves en cada estudio.">
         <Row label={<label htmlFor="pref-chat-ask">Chat</label>} detail="Antes de enviar cada mensaje, muestra el modelo y pide confirmación.">
           <Switch id="pref-chat-ask" checked={chatAsk} onCheckedChange={changeChatAsk} />

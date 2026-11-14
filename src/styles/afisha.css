@@ -1,0 +1,74 @@
+/* «Афиша»: the page as a poster. Loaded last. It only changes how things look: the big titles take the poster face,
+   each studio gets one giant Cyrillic letter behind its first screen, and surfaces are told apart by tone, not lines.
+   Colours and type come from tokens.css. */
+
+/* ---------- The name ---------- */
+.rc-wordmark-name {
+  font: 900 23px/0.9 var(--font-poster);
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  font-variation-settings: normal;
+}
+.rc-wordmark-sub { font: 400 var(--fs-12)/1.2 var(--font-ui); }
+.rc-site .rc-wordmark-name { font-size: 28px; }
+
+/* ---------- Poster titles: big, uppercase, tight ---------- */
+.rc-page-title,
+.rc-chat-empty h2,
+.rc-es-title,
+.rc-es-h1,
+.rc-cine-empty h2 {
+  font-family: var(--font-poster);
+  font-weight: 900;
+  font-variation-settings: normal;
+  text-transform: uppercase;
+  letter-spacing: 0;
+  text-wrap: balance;
+}
+.rc-page-title { font-size: 46px; line-height: 0.95; }
+.rc-chat-empty h2 { font-size: clamp(44px, 6.4vw, 84px); line-height: 0.9; margin-bottom: var(--sp-7); }
+.rc-cine-empty h2 { font-size: var(--fs-40); line-height: 0.95; }
+.rc-es-h1 { font-size: clamp(40px, 5vw, 64px); line-height: 0.92; }
+.rc-es-title { display: grid; justify-items: center; gap: var(--sp-3); font-size: clamp(96px, 17vw, 220px); line-height: 0.8; margin: var(--sp-7) 0 var(--sp-8); }
+.rc-es-title small { font: 400 var(--fs-16)/1.4 var(--font-ui); letter-spacing: 0; text-transform: none; color: var(--fg-2); }
+@media (max-width: 760px) {
+  .rc-page-title { font-size: 36px; }
+  .rc-chat-empty h2 { font-size: 44px; }
+}
+
+/* ---------- One giant letter behind the first screen of each studio ---------- */
+.rc-chat-scroll-zone, .rc-es-main { position: relative; isolation: isolate; }
+.rc-chat-scroll-zone { overflow: clip; }
+.rc-chat-empty::before,
+.rc-es-page--home::before {
+  position: absolute;
+  z-index: -1;
+  font: 900 min(92vh, 880px)/0.8 var(--font-poster);
+  color: var(--bg-1);
+  pointer-events: none;
+  user-select: none;
+}
+.rc-chat-empty::before { content: 'Ч'; right: -62%; top: 50%; transform: translateY(-52%); }
+.rc-es-page--home { position: relative; }
+.rc-es-page--home::before { content: 'К'; right: -14%; top: -4%; }
+.rc-es-main { overflow-x: clip; }
+@media (max-width: 760px) {
+  .rc-chat-empty::before { right: -30%; font-size: 78vh; }
+  .rc-es-page--home::before { right: -30%; top: 2%; font-size: 70vh; }
+}
+
+/* ---------- Surfaces: a step in tone, not a line ---------- */
+.rc-composer { border-color: transparent; }
+.rc-composer:focus-within { border-color: transparent; }
+.rc-composer:has(.rc-composer-input:focus) { border-color: rgb(var(--accent-rgb) / 0.6); }
+.rc-es { background-image: none; }
+.rc-es-main { background: var(--bg-0); }
+
+/* ---------- The main key of the Estudio: flat, the poster face, the price beside the verb ---------- */
+.rc-es-generate:disabled { background: var(--bg-3); color: var(--fg-3); box-shadow: none; }
+.rc-es .rc-es-generate:focus-visible { box-shadow: 0 var(--depth) 0 var(--accent-press); }
+.rc-es-generate[aria-busy='true']:disabled { box-shadow: 0 2px 0 var(--accent-press); }
+.rc-es-generate small { opacity: 1; font-weight: 600; }
+.rc-es-title { text-shadow: none; }
+.rc-es-generate small { text-transform: none; letter-spacing: 0; }
+.rc-chat-empty::before { right: -46%; }

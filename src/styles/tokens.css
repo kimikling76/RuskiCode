@@ -1,49 +1,62 @@
-/* Russian Code — design tokens. Direction «Графит».
+/* Русский код — design tokens. Direction «Афиша» (the page as a poster).
    This is the only file that defines colors, type, spacing, radii, shadows and motion.
-   Other stylesheets read these variables; they never redefine them. */
+   Other stylesheets read these variables; they never redefine them.
+   Dark is the main theme. Light applies only when the person chooses it (data-theme="light" on <html>). */
+
+@font-face { font-family: 'Sofia Sans XCond'; font-style: normal; font-weight: 1 1000; font-display: swap; src: url('/fonts/afisha/sofia-xcond-cyrillic.woff2') format('woff2-variations'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: 'Sofia Sans XCond'; font-style: normal; font-weight: 1 1000; font-display: swap; src: url('/fonts/afisha/sofia-xcond-latin.woff2') format('woff2-variations'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Golos Text'; font-style: normal; font-weight: 400 900; font-display: swap; src: url('/fonts/afisha/golos-cyrillic.woff2') format('woff2-variations'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: 'Golos Text'; font-style: normal; font-weight: 400 900; font-display: swap; src: url('/fonts/afisha/golos-latin.woff2') format('woff2-variations'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
 
 :root {
   color-scheme: dark;
 
-  /* ---------- Color: graphite surfaces ---------- */
-  --bg-0: #0B0C0E;              /* app background */
-  --bg-1: #111214;              /* sidebar, dialogs */
-  --bg-2: #17181B;              /* raised: composer, menus, bubbles */
-  --bg-3: #1E2023;              /* hover, inputs, selected rows */
-  --bg-4: #26282C;              /* tooltips, pressed */
-  --bg-recessed: #08090A;       /* media wells, code */
+  /* ---------- Color: warm black, one step lighter per layer ---------- */
+  --bg-0: #0C0B0A;              /* app background */
+  --bg-1: #141211;              /* sidebar, dialogs */
+  --bg-2: #1C1917;              /* raised: composer, menus, bubbles */
+  --bg-3: #25221F;              /* hover, inputs, selected rows */
+  --bg-4: #302C28;              /* tooltips, pressed */
+  --bg-recessed: #080706;       /* media wells, code */
 
-  --fg-1: #ECEDEF;              /* primary text */
-  --fg-2: #A4A7AC;              /* secondary text */
-  --fg-3: #808389;              /* tertiary text, ≥ 4.5:1 on --bg-1 */
+  --fg-1: #F3EFE9;              /* primary text */
+  --fg-2: #B5ADA3;              /* secondary text */
+  --fg-3: #8F877D;              /* tertiary text, ≥ 4.5:1 on --bg-1 */
 
-  --line: rgba(255, 255, 255, 0.07);
-  --line-strong: rgba(255, 255, 255, 0.12);
+  /* Overlays are a tint over the surface: light on dark, dark on light. */
+  --tint: 255 244 230;
+  --line: rgb(var(--tint) / 0.07);
+  --line-strong: rgb(var(--tint) / 0.12);
 
-  /* One accent: primary action, focus and selection. Nothing else. */
-  --accent: #C4EB5C;
-  --accent-hover: #D2F27A;
-  --accent-press: #ADD44A;
-  --accent-soft: rgba(196, 235, 92, 0.12);
-  --on-accent: #10140A;
+  /* One accent, киноварь (the vermilion of icon painting): primary action, focus and selection. Nothing else. */
+  --accent-rgb: 255 74 28;
+  --accent: #FF4A1C;
+  --accent-hover: #FF6238;
+  --accent-press: #E63E12;
+  --accent-soft: rgb(var(--accent-rgb) / 0.14);
+  --on-accent: #1A0703;
+  /* The accent as text or a thin mark on the surface (same as --accent on dark; darker on light for contrast). */
+  --accent-ink: #FF6238;
 
-  /* Status: only for state, never decoration. */
-  --danger: #E0715E;
-  --danger-soft: rgba(224, 113, 94, 0.10);
+  /* Status: only for state, never decoration. Danger is a rose, apart from the accent's orange-red, and always goes with an icon or words. */
+  --danger: #F2668F;
+  --danger-soft: rgba(242, 102, 143, 0.12);
   --warning: #DDB05A;
   --success: #79C493;
   --info: #8DB3E2;
 
   /* Studio materials and tones (2px markers and icons only). */
-  --tone-chat: #A4A7AC;
+  --tone-chat: #B5ADA3;
   --tone-pdf: #E6DCC8;
-  --tone-cinema: #B8C0C8;
+  --tone-cinema: #C4BDB4;
   --paper: #F4F1EA;
-  --stage: #070708;
+  --stage: #070606;
 
   /* ---------- Type ---------- */
-  --font-ui: var(--font-onest), system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-display: var(--font-geologica), var(--font-onest), system-ui, sans-serif;
+  --font-ui: 'Golos Text', var(--font-onest), system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Small headings stay in the text face. The poster face is for big uppercase titles only (28px or more). */
+  --font-display: var(--font-ui);
+  --font-poster: 'Sofia Sans XCond', 'Arial Narrow', var(--font-ui);
   --font-code: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --fs-11: 11px;
@@ -93,10 +106,10 @@
   --control-44: 44px;           /* touch minimum */
 
   /* ---------- Depth ---------- */
-  --shadow-raise: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --shadow-raise: inset 0 1px 0 rgb(var(--tint) / 0.05);
   --shadow-pop: 0 12px 32px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px var(--line);
-  --shadow-composer: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 -8px 24px -16px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.35);
-  --ambient-light: radial-gradient(1200px 600px at 0% 0%, rgba(255, 255, 255, 0.035), transparent 60%);
+  --shadow-composer: 0 18px 44px -18px rgba(0, 0, 0, 0.7), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --ambient-light: radial-gradient(1200px 600px at 0% 0%, rgb(var(--tint) / 0.035), transparent 60%);
   --focus-ring: 0 0 0 2px var(--bg-0), 0 0 0 4px var(--accent);
 
   /* ---------- Motion ---------- */
@@ -116,10 +129,10 @@
   --muted: var(--fg-2);
   --faint: var(--fg-3);
   --pink: var(--fg-1);
-  --pink-soft: rgba(255, 255, 255, 0.05);
-  --glass: rgba(255, 255, 255, 0.04);
-  --glass-hover: rgba(255, 255, 255, 0.07);
-  --glass-active: rgba(255, 255, 255, 0.10);
+  --pink-soft: rgb(var(--tint) / 0.05);
+  --glass: rgb(var(--tint) / 0.04);
+  --glass-hover: rgb(var(--tint) / 0.07);
+  --glass-active: rgb(var(--tint) / 0.10);
   --font: var(--font-ui);
   --r-sm: var(--radius-6);
   --r-md: var(--radius-8);
@@ -137,10 +150,45 @@
   --glow: none;
   --focus: var(--focus-ring);
   --ease: var(--dur-base) var(--ease-out);
-  --grad-fade-bottom: linear-gradient(rgba(11, 12, 14, 0) 0%, rgba(11, 12, 14, 0.65) 50%, #0B0C0E 78%);
-  --grad-sheen: linear-gradient(rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 40%, rgba(255, 255, 255, 0) 72%);
-  --grad-floor-glow: radial-gradient(80% 40% at 50% 100%, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 100%);
+  --grad-fade-bottom: linear-gradient(transparent 0%, color-mix(in srgb, var(--bg-0) 65%, transparent) 50%, var(--bg-0) 78%);
+  --grad-sheen: linear-gradient(rgb(var(--tint) / 0.08) 0%, rgb(var(--tint) / 0.02) 40%, rgb(var(--tint) / 0) 72%);
+  --grad-floor-glow: radial-gradient(80% 40% at 50% 100%, rgb(var(--tint) / 0.06) 0%, rgb(var(--tint) / 0) 100%);
   --grad-hero-pink: linear-gradient(transparent, transparent);
+}
+
+
+/* ---------- Light theme: cool newsprint grey, white for what floats, a deeper vermilion for contrast ---------- */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg-0: #ECEBE7;
+  --bg-1: #E3E1DC;
+  --bg-2: #FFFFFF;
+  --bg-3: #EFEDE9;
+  --bg-4: #E0DDD6;
+  --bg-recessed: #DBD8D1;
+  --fg-1: #141210;
+  --fg-2: #4F4942;
+  --fg-3: #655E56;
+  --tint: 20 18 16;
+  --line: rgb(var(--tint) / 0.10);
+  --line-strong: rgb(var(--tint) / 0.18);
+  --accent-rgb: 207 50 9;
+  --accent: #CF3209;
+  --accent-hover: #DC3C12;
+  --accent-press: #B32A06;
+  --on-accent: #FFFFFF;
+  --accent-ink: #B32A06;
+  --danger: #B3134F;
+  --danger-soft: rgba(179, 19, 79, 0.10);
+  --warning: #8A5A00;
+  --success: #1C7340;
+  --info: #2A5BA6;
+  --tone-chat: #4F4942;
+  --tone-pdf: #6B5F45;
+  --tone-cinema: #5A544D;
+  --shadow-pop: 0 14px 34px -14px rgba(20, 18, 16, 0.28), 0 0 0 1px var(--line);
+  --shadow-composer: 0 18px 40px -20px rgba(20, 18, 16, 0.30), 0 1px 3px rgba(20, 18, 16, 0.10);
+  --ambient: 0 1px 2px rgba(20, 18, 16, 0.12);
 }
 
 /* Legacy names used inside the workspace by tools not yet redesigned. */
@@ -166,7 +214,7 @@
   --chat-border: 1px solid var(--line);
   --chat-fast: var(--dur-fast);
   --chat-ease: var(--ease-out);
-  --workspace-focus: rgba(196, 235, 92, 0.4);
+  --workspace-focus: rgb(var(--accent-rgb) / 0.4);
   --workspace-ring: var(--accent-soft);
 }
 
@@ -181,7 +229,7 @@ html {
 body { margin: 0; font-size: 16px; line-height: 1.5; font-weight: 400; }
 h1, h2, h3 { color: var(--fg-1); margin: 0; font-weight: 600; }
 :focus-visible { outline: none; box-shadow: var(--focus-ring); }
-::selection { background: rgba(196, 235, 92, 0.28); color: var(--fg-1); }
+::selection { background: rgb(var(--accent-rgb) / 0.28); color: var(--fg-1); }
 
 /* ---------- Classes used by the tools not yet redesigned (src/components/ui/button.tsx, project-workspace) ---------- */
 .text-sm   { font-size: 14px; line-height: 1.5; }

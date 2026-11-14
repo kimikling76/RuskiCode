@@ -140,13 +140,13 @@ export function EstudioSidebar({view, go, collapsed, onCollapse, onNew, onClose}
         </Link>
         <Menu>
           <MenuTrigger asChild>
-            <button type="button" className="rc-es-account" aria-label={collapsed ? 'Cuenta RC: Equipo Russian Code, ajustes' : undefined}>
+            <button type="button" className="rc-es-account" aria-label={collapsed ? 'Cuenta RC: Equipo Русский код, ajustes' : undefined}>
               <span className="rc-avatar" aria-hidden="true">RC</span>
-              <span className="rc-es-hide"><strong>Equipo Russian Code</strong><small>Espacio privado</small></span>
+              <span className="rc-es-hide"><strong>Equipo Русский код</strong><small>Espacio privado</small></span>
             </button>
           </MenuTrigger>
           <MenuContent align="start" side="top">
-            <MenuLabel>Equipo Russian Code</MenuLabel>
+            <MenuLabel>Equipo Русский код</MenuLabel>
             <MenuLink href="/workspace/ajustes"><Settings />Ajustes y cuenta</MenuLink>
             <MenuSeparator />
             <MenuLink href="/workspace/ajustes?seccion=uso"><Gauge />Uso y créditos</MenuLink>

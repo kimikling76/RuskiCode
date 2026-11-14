@@ -35,7 +35,7 @@
 .rc-doc-paper .textLayer :is(span, br) { color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0% 0%; user-select: text; }
 .rc-doc-paper .textLayer > :not(.markedContent), .rc-doc-paper .textLayer .markedContent span:not(.markedContent) { z-index: 1; --font-height: 0; font-size: calc(var(--text-scale-factor) * var(--font-height)); --scale-x: 1; --rotate: 0deg; transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv)); }
 .rc-doc-paper .textLayer .markedContent { display: contents; }
-.rc-doc-paper .textLayer ::selection { background: rgba(196, 235, 92, 0.42); color: transparent; }
+.rc-doc-paper .textLayer ::selection { background: rgb(var(--accent-rgb) / 0.42); color: transparent; }
 .rc-doc-paper .textLayer .endOfContent { display: block; position: absolute; inset: 100% 0 0; z-index: 0; cursor: default; user-select: none; }
 
 /* ---------- Tools ---------- */

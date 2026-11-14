@@ -149,7 +149,7 @@
 .rc-md li > :is(ul, ol) { margin: 0.25em 0 0; }
 .rc-md blockquote { margin: 0 0 0.85em; padding: 0 0 0 14px; border-left: 2px solid var(--line-strong); color: var(--fg-2); }
 .rc-md hr { margin: 1.6em 0; border: 0; border-top: 1px solid var(--line); }
-.rc-md a { color: var(--fg-1); text-decoration: underline; text-decoration-color: rgba(196, 235, 92, 0.45); text-underline-offset: 3px; }
+.rc-md a { color: var(--fg-1); text-decoration: underline; text-decoration-color: rgb(var(--accent-rgb) / 0.45); text-underline-offset: 3px; }
 .rc-md a:hover { text-decoration-color: var(--accent); }
 .rc-md :not(pre) > code {
   padding: 0.1em 0.35em;
@@ -292,9 +292,9 @@
   box-shadow: var(--shadow-composer);
   transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 }
-.rc-composer:focus-within { border-color: rgba(196, 235, 92, 0.38); }
+.rc-composer:focus-within { border-color: rgb(var(--accent-rgb) / 0.38); }
 /* Typing focus reads like any other field: lime border plus a soft ring around the whole composer. */
-.rc-composer:has(.rc-composer-input:focus) { border-color: rgba(196, 235, 92, 0.55); box-shadow: var(--shadow-composer), 0 0 0 3px var(--accent-soft); }
+.rc-composer:has(.rc-composer-input:focus) { border-color: rgb(var(--accent-rgb) / 0.55); box-shadow: var(--shadow-composer), 0 0 0 3px var(--accent-soft); }
 .rc-composer-input {
   display: block;
   width: 100%;
@@ -393,7 +393,7 @@
 }
 .rc-chip svg { width: 12px; height: 12px; }
 .rc-chip:hover { color: var(--fg-1); background: var(--bg-3); }
-.rc-chip[aria-pressed='true'] { color: var(--fg-1); background: var(--bg-3); border-color: rgba(255, 255, 255, 0.2); }
+.rc-chip[aria-pressed='true'] { color: var(--fg-1); background: var(--bg-3); border-color: rgb(var(--tint) / 0.2); }
 .rc-model-star { display: grid; place-items: center; width: 24px; height: 24px; border-radius: var(--radius-4); color: var(--fg-3); opacity: 0; }
 .rc-model-row[data-selected='true'] .rc-model-star,
 .rc-model-row:hover .rc-model-star,

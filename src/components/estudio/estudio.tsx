@@ -108,7 +108,7 @@ export function Estudio() {
     page = (
       <div className="rc-es-page rc-es-page--home">
         <EstudioHero onOpen={setViewing} />
-        <h1 className="rc-es-title">Dale vida a tus historias</h1>
+        <h1 className="rc-es-title"><span lang="ru">Кино</span><small>Estudio de cine del libro</small></h1>
         <EstudioComposer />
         {jobs.length ? (
           <section className="rc-es-section rc-es-latest" aria-labelledby="es-latest">

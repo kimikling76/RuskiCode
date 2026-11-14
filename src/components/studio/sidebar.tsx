@@ -1,7 +1,8 @@
 'use client';
 import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
 import * as RadixDialog from '@radix-ui/react-dialog';
-import {Plus, MessageSquare, BookOpen, Clapperboard, MoreHorizontal, Menu as MenuIcon, X, Settings, Search, PanelLeftClose, ArrowUpRight, LogOut, CircleHelp, Gauge, Plug, Bot} from 'lucide-react';
+import {applyTheme, currentTheme} from '@/lib/theme';
+import {Plus, MessageSquare, BookOpen, Clapperboard, MoreHorizontal, Menu as MenuIcon, X, Settings, Search, PanelLeftClose, ArrowUpRight, LogOut, CircleHelp, Gauge, Plug, Bot, SunMoon} from 'lucide-react';
 import {usePathname} from 'next/navigation';
 import Link from 'next/link';
 import {BrandMark, Wordmark} from './brand';
@@ -154,7 +155,7 @@ function SidebarContent({view, rail, drawer, onGo, onNew, onHelp}: {view: Studio
           </Tip>
         ) : (
           <>
-            <button type="button" className="rc-sidebar-brand" onClick={() => onGo('chat')} aria-label="Russian Code, ir al Chat">
+            <button type="button" className="rc-sidebar-brand" onClick={() => onGo('chat')} aria-label="Русский код, ir al Chat">
               <Wordmark />
             </button>
             {drawer ? (
@@ -286,7 +287,7 @@ function SidebarContent({view, rail, drawer, onGo, onNew, onHelp}: {view: Studio
                 <span className="sr-only">Cuenta y ajustes: </span>
                 <span className="rc-avatar" aria-hidden="true">RC</span>
                 <span className="rc-rail-hide rc-account-text">
-                  <strong>Equipo Russian Code</strong>
+                  <strong>Equipo Русский код</strong>
                   <small>Espacio privado</small>
                 </span>
                 {!rail ? <Settings className="rc-account-icon" /> : null}
@@ -294,11 +295,12 @@ function SidebarContent({view, rail, drawer, onGo, onNew, onHelp}: {view: Studio
             </MenuTrigger>
           </RailTip>
           <MenuContent align="start" side="top">
-            <MenuLabel>Equipo Russian Code</MenuLabel>
+            <MenuLabel>Equipo Русский код</MenuLabel>
             <MenuLink href="/workspace/ajustes"><Settings />Ajustes y cuenta</MenuLink>
             <MenuLink href="/workspace/ajustes?seccion=uso"><Gauge />Uso y créditos</MenuLink>
             <MenuLink href="/workspace/ajustes?seccion=conectores"><Plug />Conectores y estado</MenuLink>
             <MenuItem onSelect={onHelp}><CircleHelp />Cómo se organiza el estudio</MenuItem>
+            <MenuItem onSelect={() => applyTheme(currentTheme() === 'light' ? 'dark' : 'light')}><SunMoon />Cambiar entre modo oscuro y claro</MenuItem>
             <MenuLink href="/"><ArrowUpRight />Volver a la portada</MenuLink>
             <MenuSeparator />
             <MenuItem onSelect={signOut}><LogOut />Cerrar sesión</MenuItem>

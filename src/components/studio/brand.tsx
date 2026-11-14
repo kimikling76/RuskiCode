@@ -17,8 +17,8 @@ export function Wordmark({sub = false, className = ''}: {sub?: boolean; classNam
     <span className={'rc-wordmark ' + className}>
       <BrandMark />
       <span className="rc-wordmark-text">
-        <span className="rc-wordmark-name">Russian Code</span>
-        {sub ? <span className="rc-wordmark-sub" lang="ru">Русский код</span> : null}
+        <span className="rc-wordmark-name" lang="ru">Русский код</span>
+        {sub ? <span className="rc-wordmark-sub">Russian Code</span> : null}
       </span>
     </span>
   );

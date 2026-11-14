@@ -219,7 +219,7 @@
 .rc-spin { animation: rc-spin 1s linear infinite; }
 @keyframes rc-spin { to { transform: rotate(360deg); } }
 
-.rc-balance { display: grid; gap: 2px; margin: var(--sp-1) 0 var(--sp-2); padding: var(--sp-3) 10px; border: 1px solid var(--line); border-radius: var(--radius-8); background: rgba(255, 255, 255, 0.015); }
+.rc-balance { display: grid; gap: 2px; margin: var(--sp-1) 0 var(--sp-2); padding: var(--sp-3) 10px; border: 1px solid var(--line); border-radius: var(--radius-8); background: rgb(var(--tint) / 0.015); }
 .rc-balance-row { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); min-height: 24px; }
 .rc-balance-label { font-size: var(--fs-12); color: var(--fg-3); border-radius: var(--radius-4); }
 .rc-balance-value { display: grid; gap: 2px; margin: 0 0 var(--sp-2); }
@@ -401,7 +401,7 @@ a.rc-nav-item { text-decoration: none; }
   cursor: pointer;
   transition: background-color var(--dur-fast) var(--ease-out);
 }
-.rc-project-row:hover { background: rgba(255, 255, 255, 0.02); }
+.rc-project-row:hover { background: rgb(var(--tint) / 0.02); }
 .rc-project-name { flex: 1; min-width: 0; font-size: var(--fs-15); font-weight: 500; color: var(--fg-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rc-project-type { font-size: var(--fs-13); color: var(--fg-3); white-space: nowrap; }
 .rc-project-row svg { width: 16px; height: 16px; color: var(--fg-3); }
