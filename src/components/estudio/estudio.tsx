@@ -117,7 +117,7 @@ export function Estudio() {
     page = (
       <div className="rc-es-page">
         <h1 className="rc-es-h1">{fav ? 'Mis favoritos' : 'Mis generaciones'}</h1>
-        <p className="rc-es-lead">{fav ? 'Lo que marcaste con el corazón.' : 'Todo lo que generaste en Cinema Studio, en el Estudio y en las pestañas.'}</p>
+        <p className="rc-es-lead">{fav ? 'Lo que marcaste con el corazón.' : 'Todo lo que generaste en Кино.'}</p>
         <ResultGrid jobs={fav ? jobs.filter(j => j.favorite?.on) : jobs} onOpen={setViewing} empty={fav ? 'Todavía no marcaste nada. Tocá el corazón de una imagen o un video.' : 'Todavía no hay nada. Escribí una escena en Inicio.'} />
       </div>
     );

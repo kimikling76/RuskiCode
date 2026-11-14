@@ -3,6 +3,7 @@ import {useEffect, useMemo, useState} from 'react';
 import {ChevronLeft, ChevronRight, Clapperboard, Pause, Play} from 'lucide-react';
 import {useCinema, isDone, type CinemaJob} from '@/store/cinema';
 import {savedUrl} from '@/lib/cinema/keep';
+import {useEstudioDraft} from './data';
 import {KieImage} from '@/components/cinema/job-card';
 
 // The Estudio's first view: the author's own latest results as posters, three in sight and the middle one larger.
@@ -17,6 +18,8 @@ function Frame({job}: {job: CinemaJob}) {
     ? <video src={url} muted playsInline preload="metadata" aria-hidden="true" />
     : <KieImage src={url} alt="" fallback={savedUrl(job)} />;
 }
+
+const starters = ['Una calle con nieve, de noche, con una ventana encendida', 'Una cocina con luz de tarde y una mesa servida', 'Una plaza al amanecer, vista desde arriba'];
 
 export function EstudioHero({onOpen}: {onOpen: (job: CinemaJob) => void}) {
   const all = useCinema(s => s.data.jobs);
@@ -46,11 +49,14 @@ export function EstudioHero({onOpen}: {onOpen: (job: CinemaJob) => void}) {
 
   if (!n) {
     return (
-      <div className="rc-es-hero rc-es-hero--empty" aria-hidden="true">
+      // Nothing generated yet: three scenes to start from with one click, instead of empty boxes.
+      <div className="rc-es-hero rc-es-hero--empty" role="group" aria-label="Escenas para empezar">
         <div className="rc-es-hero-stage">
-          <span className="rc-es-poster" data-pos="left" />
-          <span className="rc-es-poster" data-pos="right" />
-          <span className="rc-es-poster" data-pos="center"><Clapperboard /><small>Tus imágenes y videos aparecen acá</small></span>
+          {starters.map((t, k) => (
+            <button key={t} type="button" className="rc-es-poster rc-es-starter" data-pos={['left', 'right', 'center'][k]} onClick={() => { useEstudioDraft.getState().patch({prompt: t}); document.getElementById('estudio-prompt')?.focus(); }}>
+              <small>Probar con</small><span>{t}</span>
+            </button>
+          ))}
         </div>
       </div>
     );

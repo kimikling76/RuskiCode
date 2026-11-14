@@ -1,0 +1,50 @@
+/* Кино: results as posters that answer to the pointer, a place kept with a light crossing it while Kie works, clear
+   state labels, and the start screen with scenes to begin from. Loaded last; it only arranges and dresses, the
+   behaviour is in the components. */
+
+/* ---------- Result cards (the Estudio and the classic tabs) ---------- */
+.rc-job { position: relative; border: 0; border-radius: var(--radius-16); background: var(--bg-2); transition: transform 240ms var(--dz-spring), box-shadow var(--dur-base); }
+.rc-job[data-state='success']:hover, .rc-job[data-state='success']:focus-within { transform: translateY(-4px); box-shadow: 0 18px 36px -20px rgba(0, 0, 0, 0.7); }
+.rc-job-media { border-radius: var(--radius-16) var(--radius-16) 0 0; overflow: hidden; }
+.rc-job-frame { position: relative; overflow: hidden; background: var(--bg-2); min-height: 180px; }
+.rc-job-foot { border-top: 0; padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4); }
+.rc-job-meta { font: 400 var(--fs-12)/1.3 var(--font-ui); }
+.rc-job-actions { gap: 0; opacity: 0; transform: translateX(6px); transition: opacity var(--dur-base), transform 240ms var(--dz-spring); }
+.rc-job:hover .rc-job-actions, .rc-job:focus-within .rc-job-actions { opacity: 1; transform: none; }
+@media (hover: none) { .rc-job-actions { opacity: 1; transform: none; } }
+.rc-job-actions .rc-icon-btn { transition: background-color var(--dur-fast), color var(--dur-fast), transform var(--dur-fast); }
+.rc-job-actions .rc-icon-btn:active { transform: scale(0.9); }
+/* Working: the place is already there and a light crosses it. */
+@keyframes rc-job-sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+.rc-job-sweep { position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgb(var(--tint) / 0.09) 50%, transparent 70%); animation: rc-job-sweep 1.6s linear infinite; pointer-events: none; }
+.rc-job-status { position: relative; padding: 6px var(--sp-4); border-radius: var(--radius-8); background: color-mix(in srgb, var(--bg-0) 78%, transparent); color: var(--fg-1); }
+.rc-job-pulse { background: var(--pg-ohra); }
+.rc-job-tags { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
+.rc-job-tag { display: inline-flex; align-items: center; gap: var(--sp-2); padding: 5px var(--sp-3); border-radius: var(--radius-8); background: var(--bg-3); color: var(--fg-1); font-size: var(--fs-13); }
+.rc-job-failed p { color: var(--fg-2); }
+@media (prefers-reduced-motion: reduce) { .rc-job-sweep { animation: none; } .rc-job { transition: none; } }
+
+/* ---------- Start: scenes to begin from ---------- */
+.rc-es-starter { display: grid; align-content: end; gap: var(--sp-2); padding: var(--sp-5); border: 0; color: var(--fg-1); font: inherit; text-align: left; cursor: pointer; }
+.rc-es-starter small { color: var(--fg-3); font-size: var(--fs-12); }
+.rc-es-starter span { font-size: var(--fs-15); line-height: 1.35; text-wrap: balance; }
+.rc-es-starter[data-pos='left'] { background: #2A3D57; color: #F3EFE9; }
+.rc-es-starter[data-pos='right'] { background: #3A4A34; color: #F3EFE9; }
+.rc-es-starter[data-pos='center'] { background: #5A2A1C; color: #F3EFE9; }
+.rc-es-starter small { color: rgb(243 239 233 / 0.72); }
+.rc-es-hero--empty .rc-es-starter:hover { filter: brightness(1.12); }
+.rc-es-hero--empty .rc-es-starter:focus-visible { outline: 2px solid var(--fg-1); outline-offset: 3px; }
+
+/* ---------- The box ---------- */
+.rc-es-prompt { font-size: var(--fs-18); }
+.rc-es-chip, .rc-es-pill, .rc-es-bar .rc-chip-setting, .rc-es-model .rc-model-trigger, .rc-es-stepper, .rc-es-mode, .rc-es-mode-option { box-shadow: none; border: 0; }
+.rc-es-generate small { font-size: var(--fs-12); }
+
+/* ---------- Project cards: posters with the cut corner ---------- */
+.rc-es-collage { clip-path: polygon(0 0, 100% 0, 100% calc(100% - 24px), calc(100% - 24px) 100%, 0 100%); }
+.rc-es-collage--new { clip-path: none; }
+.rc-es-card-open:hover .rc-es-collage { transform: translateY(-4px); }
+.rc-es-hero--empty .rc-es-starter[data-pos='left'] { background: #2A3D57; }
+.rc-es-hero--empty .rc-es-starter[data-pos='right'] { background: #3A4A34; }
+.rc-es-hero--empty .rc-es-starter[data-pos='center'] { background: #5A2A1C; box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.7); }
+.rc-es-starter span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }

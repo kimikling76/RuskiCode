@@ -1,7 +1,8 @@
 'use client';
 import {useEffect, useState, type ReactNode} from 'react';
 import {toast} from 'sonner';
-import {Download, ImagePlus, Wand2, Maximize2, X} from 'lucide-react';
+import {Download, ImagePlus, Wand2, Maximize2, RotateCcw, Trash2, X} from 'lucide-react';
+import {TextShimmer} from '@/components/ui/text-shimmer';
 import {useCinema, isActive, type CinemaJob} from '@/store/cinema';
 import {useCinemaUi} from '@/store/cinema-ui';
 import {ratioValue, imageModel} from '@/lib/cinema/capabilities';
@@ -67,7 +68,7 @@ export function jobMeta(job: CinemaJob) {
  * `extra`: more actions of the place showing the card (the Estudio's favorite and project), before the usual ones.
  * `uses`: what «Usar como referencia» and «Editar» do (by default they open the image in the Cinema tabs).
  */
-export function JobCard({job, onOpen, extra, uses}: {job: CinemaJob; onOpen: (job: CinemaJob) => void; extra?: ReactNode; uses?: {addReference: (url: string) => void; editImage: (url: string) => void}}) {
+export function JobCard({job, onOpen, extra, uses}: {job: CinemaJob; onOpen: (job: CinemaJob) => void; extra?: ReactNode; uses?: {addReference: (url: string) => void; editImage: (url: string) => void; reusePrompt?: (prompt: string) => void}}) {
   const removeJobs = useCinema(s => s.removeJobs);
   const actions = {...useImageActions(), ...uses};
   const active = isActive(job);
@@ -76,6 +77,8 @@ export function JobCard({job, onOpen, extra, uses}: {job: CinemaJob; onOpen: (jo
   const ratio = !job.aspect || job.aspect === 'auto' ? 1 : ratioValue(job.aspect);
   const video = job.mode === 'video';
   const [confirmRetry, setConfirmRetry] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const reuse = (actions as {reusePrompt?: (prompt: string) => void}).reusePrompt;
   // A request that may already exist at Kie is never repeated without the person agreeing.
   const retry = () => job.error === 'CREATE_UNCERTAIN' ? setConfirmRetry(true) : void retryJob(job);
 
@@ -91,6 +94,15 @@ export function JobCard({job, onOpen, extra, uses}: {job: CinemaJob; onOpen: (jo
       >
         <a className="rc-site-link" href="https://kie.ai/logs" target="_blank" rel="noreferrer">Abrir el registro de Kie</a>
       </ConfirmDialog>
+      <ConfirmDialog
+        open={confirmRemove}
+        onClose={() => setConfirmRemove(false)}
+        onConfirm={() => { setConfirmRemove(false); removeJobs([job.id]); toast('Quitado de tus generaciones.'); }}
+        title={video ? '¿Quitar este video?' : '¿Quitar esta imagen?'}
+        description="Se quita de tus generaciones y de sus proyectos, en todas tus computadoras. No se puede deshacer. Lo que Kie ya cobró no cambia."
+        confirmLabel="Quitar"
+        tone="danger"
+      />
       {url && video ? (
         <div className="rc-job-media rc-job-media--video">
           <video src={url} controls preload="metadata" playsInline aria-label={'Video: ' + job.prompt.slice(0, 120)} />
@@ -103,13 +115,18 @@ export function JobCard({job, onOpen, extra, uses}: {job: CinemaJob; onOpen: (jo
         <div className="rc-job-frame" style={{aspectRatio: String(ratio)}}>
           {active ? (
             <div className="rc-job-status" role="status">
+              <span className="rc-job-sweep" aria-hidden="true" />
               <span className="rc-job-pulse" aria-hidden="true" />
-              <span>{stateLabel[job.state]}</span>
+              <TextShimmer>{stateLabel[job.state] || 'Generando…'}</TextShimmer>
               <Elapsed since={job.createdAt} />
             </div>
           ) : (
             <div className="rc-job-failed" role={job.finishedAt && Date.now() - job.finishedAt < 60000 ? 'alert' : undefined}>
-              <span className="rc-dot rc-dot--danger" aria-hidden="true" />
+              <span className="rc-job-tags">
+                <span className="rc-job-tag"><span className="rc-dot rc-dot--danger" aria-hidden="true" />Falló</span>
+                {/* Only what Kie reported: zero credits, or nothing. */}
+                <span className="rc-job-tag">{job.credits === 0 ? 'Kie no cobró' : job.credits ? 'Kie informó ' + credits(job.credits) : 'Costo sin confirmar'}</span>
+              </span>
               <p>{video ? 'No pude generar este video.' : 'No pude generar esta imagen.'}</p>
               <button type="button" className="rc-btn rc-btn--secondary rc-btn--sm" onClick={retry}>Reintentar</button>
               <details className="rc-msg-error-details">
@@ -133,7 +150,9 @@ export function JobCard({job, onOpen, extra, uses}: {job: CinemaJob; onOpen: (jo
                 <Tip label="Usar como referencia"><button type="button" className="rc-icon-btn rc-icon-btn--sm" aria-label="Usar como referencia" onClick={() => actions.addReference(url)}><ImagePlus /></button></Tip>
                 <Tip label="Editar"><button type="button" className="rc-icon-btn rc-icon-btn--sm" aria-label="Editar esta imagen" onClick={() => actions.editImage(url)}><Wand2 /></button></Tip>
               </> : null}
+              {reuse ? <Tip label="Reusar el prompt"><button type="button" className="rc-icon-btn rc-icon-btn--sm" aria-label="Reusar el prompt" onClick={() => reuse(job.prompt)}><RotateCcw /></button></Tip> : null}
               <Tip label="Ver"><button type="button" className="rc-icon-btn rc-icon-btn--sm" aria-label={video ? 'Ver el video en grande' : 'Ver en grande'} onClick={() => onOpen(job)}><Maximize2 /></button></Tip>
+              <Tip label="Quitar"><button type="button" className="rc-icon-btn rc-icon-btn--sm" aria-label={video ? 'Quitar este video' : 'Quitar esta imagen'} onClick={() => setConfirmRemove(true)}><Trash2 /></button></Tip>
             </span>
           ) : failed ? (
             <Tip label="Quitar"><button type="button" className="rc-icon-btn rc-icon-btn--sm" aria-label="Quitar esta tarjeta" onClick={() => removeJobs([job.id])}><X /></button></Tip>

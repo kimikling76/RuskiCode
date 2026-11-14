@@ -1,5 +1,6 @@
 'use client';
 import {useMemo, useRef, useState, type KeyboardEvent, type ReactNode} from 'react';
+import {useCinema} from '@/store/cinema';
 import TextareaAutosize from 'react-textarea-autosize';
 import * as Popover from '@radix-ui/react-popover';
 import {AtSign, Check, Clapperboard, Clock, Film, Gem, Image as ImageIcon, Loader2, MapPin, Minus, Plus, RectangleHorizontal, ScanLine, Sparkles, User, Video, X} from 'lucide-react';
@@ -100,6 +101,12 @@ export function EstudioComposer({project}: {project?: string}) {
   const audioIssue = video ? audioNeed(o, audioList, references.length, refVideos.length) : '';
   const ready = Boolean(model && d.prompt.trim()) && !needsImage && !needsVideo && !needsMedia && !videoFit && !clip.problem && !framesIssue && !audioIssue && sentText.length <= limit;
   const estimate = model?.price ? model.price.credits * count : null;
+  // Without a published price: what Kie last charged for one result of this model here, times the amount asked.
+  const jobsDone = useCinema(s => s.data.jobs);
+  const lastReal = useMemo(() => {
+    const done = jobsDone.filter(j => j.model === model?.id && j.state === 'success' && typeof j.credits === 'number' && j.credits > 0).sort((a, b) => (b.finishedAt || 0) - (a.finishedAt || 0))[0];
+    return done ? Math.round(done.credits! * count * 10) / 10 : null;
+  }, [jobsDone, model?.id, count]);
   // The button's second line: the catalog's estimate when Kie publishes a price, otherwise the real Kie balance.
   const balance = useBalance().data?.credits;
   const label = video ? 'Generar video' : count === 1 ? 'Generar' : 'Generar ' + count;
@@ -387,8 +394,9 @@ export function EstudioComposer({project}: {project?: string}) {
                 <button type="button" className="rc-es-generate" disabled={!ready || busy} aria-busy={busy || undefined} onClick={generate}>
                   <span>{busy ? 'ENVIANDO…' : label.toUpperCase()}</span>
                   {busy ? <small><Loader2 className="rc-es-spin" aria-hidden="true" />Pidiendo a Kie</small>
-                    : estimate !== null ? <small><Sparkles aria-hidden="true" />≈ {estimate.toLocaleString('es-AR')}<span className="sr-only"> créditos estimados</span></small>
-                    : balance !== undefined ? <small><Sparkles aria-hidden="true" />{balance.toLocaleString('es-AR', {maximumFractionDigits: 1})} disponibles<span className="sr-only"> en tu saldo de Kie</span></small> : null}
+                    : estimate !== null ? <small><Sparkles aria-hidden="true" />≈ {estimate.toLocaleString('es-AR')} créditos<span className="sr-only"> estimados</span></small>
+                    : lastReal !== null ? <small title="Según lo que Kie te cobró la última vez con este modelo"><Sparkles aria-hidden="true" />≈ {lastReal.toLocaleString('es-AR')} créditos<span className="sr-only"> según tu último resultado con este modelo</span></small>
+                    : <small><Sparkles aria-hidden="true" />precio a confirmar</small>}
                 </button>
               </span>
             </Tip>

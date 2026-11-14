@@ -49,6 +49,12 @@ function useEstudioUses() {
       toast('Agregada a las referencias del Estudio.');
       document.getElementById('estudio-prompt')?.focus();
     },
+    reusePrompt: (prompt: string) => {
+      useEstudioDraft.getState().patch({prompt});
+      toast('Prompt copiado a la caja.');
+      document.getElementById('estudio-main')?.scrollTo({top: 0, behavior: 'smooth'});
+      document.getElementById('estudio-prompt')?.focus();
+    },
     editImage: (url: string) => {
       useCinemaUi.getState().editImage(url);
       router.push('/workspace?studio=cinema&tab=edit');
