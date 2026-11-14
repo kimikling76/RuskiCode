@@ -7,6 +7,7 @@ import {Check, ChevronDown, Download, Maximize2, RotateCcw, Sparkles, Trash2} fr
 import {BorderBeam} from '@/components/ui/border-beam';
 import {TextShimmer} from '@/components/ui/text-shimmer';
 import {Dialog} from '@/components/ui/dialog';
+import {KieImage} from '@/components/cinema/job-card';
 import type {Tile as TileData} from './data';
 
 // Shared pieces of the prototype: the pill with its small menu, the main key with the price inside, and the grid of
@@ -105,7 +106,7 @@ export function Results({tiles, onReuse, onRemove}: {tiles: TileData[]; onReuse:
                 </>
               ) : (
                 <>
-                  <span className="dz-art" style={{background: tones[t.tone % tones.length]}} aria-hidden="true"><i>{t.letter}{t.letter.toLowerCase()}</i></span>
+                  {t.src ? <KieImage className="dz-photo" src={t.src} fallback={t.fallback} alt="" /> : <span className="dz-art" style={{background: tones[t.tone % tones.length]}} aria-hidden="true"><i>{t.letter}{t.letter.toLowerCase()}</i></span>}
                   <div className="dz-actions">
                     <button type="button" title="Descargar" aria-label="Descargar" onClick={e => { e.stopPropagation(); toast('En el prototipo no se descarga nada.'); }}><Download /></button>
                     <button type="button" title="Reusar el prompt" aria-label="Reusar el prompt" onClick={e => { e.stopPropagation(); onReuse(t.prompt); }}><RotateCcw /></button>
@@ -119,8 +120,8 @@ export function Results({tiles, onReuse, onRemove}: {tiles: TileData[]; onReuse:
           ))}
         </AnimatePresence>
       </div>
-      <Dialog open={Boolean(open)} onClose={() => setOpen(null)} title={open?.prompt || ''} description="Imagen de ejemplo del prototipo.">
-        {open ? <span className="dz-art dz-art--big" style={{background: tones[open.tone % tones.length]}}><i>{open.letter}{open.letter.toLowerCase()}</i></span> : null}
+      <Dialog open={Boolean(open)} onClose={() => setOpen(null)} title={open?.prompt || ''} description={open?.src ? "De tu galería." : "Imagen de ejemplo del prototipo."}>
+        {open ? (open.src ? <KieImage className="dz-photo dz-photo--big" src={open.src} fallback={open.fallback} alt={open.prompt} /> : <span className="dz-art dz-art--big" style={{background: tones[open.tone % tones.length]}}><i>{open.letter}{open.letter.toLowerCase()}</i></span>) : null}
       </Dialog>
     </>
   );

@@ -53,7 +53,8 @@ export const projects = ['Unidad de ejemplo 1', 'Alfabeto de ejemplo', 'Unidad d
 export const chats = ['Ejercicios para la unidad', 'Revisión del ruso', 'Ideas para una escena'];
 export const elements = ['Personaje de ejemplo A', 'Personaje de ejemplo B', 'Lugar de ejemplo'];
 
-export type Tile = {id: string; letter: string; tone: number; state: 'done' | 'working' | 'failed'; prompt: string; cost?: number | null};
+/** `src`/`fallback`: one of the person's own pictures, read from their gallery (Kie's link, then the studio's copy). */
+export type Tile = {id: string; letter: string; tone: number; state: 'done' | 'working' | 'failed'; prompt: string; cost?: number | null; src?: string; fallback?: string};
 export const letters = 'АБВГДЕЖЗИКЛМНОПРСТУФХЦЧШЩЭЮЯ';
 export const seedTiles: Tile[] = [
   {id: 't1', letter: 'А', tone: 0, state: 'done', prompt: 'Una calle con nieve, de noche', cost: 6},

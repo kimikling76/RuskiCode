@@ -12,6 +12,9 @@ import {Sheet} from '@/components/ui/sheet';
 import {Spotlight} from '@/components/ui/spotlight';
 import {TextShimmer} from '@/components/ui/text-shimmer';
 import {applyTheme, currentTheme} from '@/lib/theme';
+import {savedUrl} from '@/lib/cinema/keep';
+import {KieImage} from '@/components/cinema/job-card';
+import {useCinema} from '@/store/cinema';
 import {chats, elements, firstOf, letters, models, priceOf, projects, sections, seedTiles, type SectionId, type Tile as TileData} from './data';
 import {ModelPicker, Tile} from './model-picker';
 import {Fold, GoButton, Pill, Results, TogglePill, soft, spring, usePhone} from './pieces';
@@ -95,8 +98,22 @@ function ImageComposer({prompt, setPrompt, onGenerate, phone, config, modes}: {p
   );
 }
 
+/** The person's own finished pictures, read from the gallery this browser has. Only read: nothing is asked or saved. */
+function useOwnPictures() {
+  const hydrate = useCinema(s => s.hydrate);
+  const jobs = useCinema(s => s.data.jobs);
+  useEffect(() => { hydrate(); }, [hydrate]);
+  return jobs.filter(j => j.state === 'success' && j.mode !== 'video' && j.urls[0]).slice(0, 12).map(j => ({id: j.id, src: j.urls[0], fallback: savedUrl(j) || undefined, prompt: j.prompt}));
+}
+
 function useTiles() {
+  const own = useOwnPictures();
   const [tiles, setTiles] = useState<TileData[]>(seedTiles);
+  // With pictures of their own, the examples give way to them (the two failed examples stay, to show that state).
+  useEffect(() => {
+    if (!own.length) return;
+    setTiles(t => (t.some(x => x.src) ? t : [...own.map((p, i) => ({id: 'own-' + p.id, letter: 'А', tone: i, state: 'done' as const, prompt: p.prompt, src: p.src, fallback: p.fallback})), ...t.filter(x => x.state === 'failed')]));
+  }, [own.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const add = (count: number, prompt: string) => {
     const fresh: TileData[] = Array.from({length: count}, (_, i) => ({id: 'n' + Date.now() + i, letter: letters[Math.floor(Math.random() * letters.length)], tone: Math.floor(Math.random() * 4), state: 'working', prompt}));
     setTiles(t => [...fresh, ...t]);
@@ -169,7 +186,7 @@ function HomeScreen({phone, onVideo}: {phone: boolean; onVideo: () => void}) {
   return (
     <div className="dz-screen dz-screen--home" data-letter="К">
       <div className="dz-fan" aria-hidden="true">
-        {done.map((t, i) => <motion.span key={t.id} className="dz-fan-card" data-pos={i} style={{background: ['#2A3D57', '#3A4A34', '#5A2A1C'][i]}} whileHover={{y: -6, rotate: 0}} transition={soft}><i>{t.letter}{t.letter.toLowerCase()}</i></motion.span>)}
+        {done.map((t, i) => <motion.span key={t.id} className="dz-fan-card" data-pos={i} style={{background: ['#2A3D57', '#3A4A34', '#5A2A1C'][i]}} whileHover={{y: -6, rotate: 0}} transition={soft}>{t.src ? <KieImage className="dz-photo" src={t.src} fallback={t.fallback} alt="" /> : <i>{t.letter}{t.letter.toLowerCase()}</i>}</motion.span>)}
       </div>
       <h1 className="dz-poster" lang="ru">Кино</h1>
       <p className="dz-lead">Estudio de cine del libro</p>
@@ -182,7 +199,7 @@ function HomeScreen({phone, onVideo}: {phone: boolean; onVideo: () => void}) {
         <h2 className="dz-h2">Mis proyectos</h2>
         <div className="dz-posters">
           <motion.button type="button" className="dz-poster-card dz-poster-card--new" whileHover={{y: -4}} whileTap={{scale: 0.98}} transition={soft} onClick={() => say('Acá se crea un proyecto.')}><Plus /><span>Crear proyecto</span></motion.button>
-          {projects.map((p, i) => <motion.button key={p} type="button" className="dz-poster-card" style={{background: ['#5A2A1C', '#2A3D57', '#3A4A34'][i]}} whileHover={{y: -4}} whileTap={{scale: 0.98}} transition={soft} onClick={() => say('Acá se abre «' + p + '».')}><i>{p.split(' ').map(w => w[0]).join('').toUpperCase()}</i><span>{p}</span></motion.button>)}
+          {projects.map((p, i) => { const pic = tiles.filter(t => t.src)[i]; return <motion.button key={p} type="button" className="dz-poster-card" data-photo={pic ? 'true' : undefined} style={{background: ['#5A2A1C', '#2A3D57', '#3A4A34'][i]}} whileHover={{y: -4}} whileTap={{scale: 0.98}} transition={soft} onClick={() => say('Acá se abre «' + p + '».')}>{pic ? <KieImage className="dz-photo" src={pic.src!} fallback={pic.fallback} alt="" /> : <i>{p.split(' ').map(w => w[0]).join('').toUpperCase()}</i>}<span>{p}</span></motion.button>; })}
         </div>
       </section>
     </div>
