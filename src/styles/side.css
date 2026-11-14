@@ -1,0 +1,69 @@
+/* The site's one menu (src/components/studio/sidebar.tsx): a section switcher, the section's pages on pigment tiles,
+   projects and chats that fold, and the account. Its pieces (dz-*) are the ones tried in the design prototype;
+   this file places them in the real shell. Loaded last. */
+
+.rc-app, .rc-layer, .ui-sheet, .dz-menu, .dz-pop {
+  --pg-kinovar: var(--accent); --pg-kinovar-ink: var(--on-accent);
+  --pg-ohra: #D9A441; --pg-ohra-ink: #1A1203;
+  --pg-lazur: #4670C9; --pg-lazur-ink: #FFFFFF;
+  --pg-zelen: #45A380; --pg-zelen-ink: #04130D;
+  --dz-spring: linear(0, 0.36 9%, 0.76 19%, 1.02 31%, 1.055 39%, 1.02 53%, 0.995 68%, 1);
+}
+:root[data-theme='light'] :is(.rc-app, .rc-layer, .ui-sheet, .dz-menu, .dz-pop) { --pg-ohra: #C8922B; --pg-lazur: #3D64B8; --pg-zelen: #3B8F70; }
+
+.rc-sidebar.rc-side { width: 272px; border-right: 0; transition: width 260ms var(--dz-spring); }
+.rc-sidebar.rc-side[data-collapsed='true'] { width: 76px; }
+.rc-side .dz-side, .ui-sheet .dz-side { flex: 1; width: 100%; min-width: 0; }
+.dz-switch, .dz-nav-item, .dz-row, .dz-iconbtn, .dz-fold-head > button { font: inherit; cursor: pointer; }
+.dz-switch { color: var(--fg-1); }
+.dz-nav-item { font-size: var(--fs-15); text-decoration: none; }
+.dz-nav-item[data-on='true'] { background: var(--bg-3); color: var(--fg-1); }
+.dz-row { width: 100%; }
+.dz-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.dz-row svg { flex: none; }
+.dz-row[aria-current='page'] { background: var(--bg-3); color: var(--fg-1); }
+.dz-tree { display: grid; margin: 0; padding: 0; list-style: none; }
+.dz-tree--inner { padding-left: var(--sp-5); }
+.dz-tree-folder { display: flex; align-items: center; }
+.dz-tree-folder .dz-iconbtn { flex: none; width: 28px; height: 28px; }
+.dz-tree-folder .dz-row { flex: 1; min-width: 0; padding-left: var(--sp-2); }
+.dz-side-search { display: block; padding: 0 0 var(--sp-2); }
+.dz-side-search .rc-input { width: 100%; }
+.dz-side .rc-history-search { margin: 0 0 var(--sp-2); }
+.dz-side .rc-history-list { padding: 0; overflow: visible; }
+.dz-side .rc-sidebar-foot { border-top: 0; padding-top: 0; }
+.dz-side[data-collapsed='true'] .rc-rail-hide { display: none; }
+.dz-side[data-collapsed='true'] .dz-nav-item { min-height: 44px; }
+.dz-fold-actions .dz-iconbtn[aria-pressed='true'] { background: var(--bg-3); color: var(--fg-1); }
+
+/* On a phone the menu rises from the bottom (Vaul). */
+.ui-sheet .dz-side { padding: 0 var(--sp-5) var(--sp-5); background: none; overflow: visible; }
+.ui-sheet .dz-side-scroll { overflow: visible; }
+.ui-sheet .rc-history-menu { opacity: 1; }
+
+/* The Estudio no longer has a menu of its own. */
+.rc-es, .rc-es[data-collapsed='true'] { grid-template-columns: minmax(0, 1fr); }
+/* In the sheet the menu takes its full height and the sheet scrolls, so nothing overlaps. */
+.ui-sheet .dz-side, .ui-sheet .dz-side-scroll { flex: none; min-height: auto; }
+
+/* ---------- The model picker, in the same language as the menu ---------- */
+.rc-model-popover { width: min(460px, calc(100vw - 24px)); padding: var(--sp-3); border: 0; border-radius: var(--radius-16); background: var(--bg-2); transform-origin: var(--radix-popover-content-transform-origin); animation: dz-pop 260ms var(--dz-spring); }
+.rc-model-popover[data-state='closed'] { animation: dz-out 110ms var(--ease-in) forwards; }
+.rc-model-picker .rc-command-input { height: 44px; padding: 0 var(--sp-4); border: 0; border-radius: var(--radius-12); background: var(--bg-3); font-size: var(--fs-15); transition: box-shadow var(--dur-fast); }
+.rc-model-picker .rc-command-input:focus { box-shadow: 0 0 0 2px rgb(var(--accent-rgb) / 0.55); }
+.rc-model-picker .rc-model-filters { padding: var(--sp-3) 0 var(--sp-2); border: 0; }
+.rc-model-picker .rc-chip { min-height: 32px; padding: 0 var(--sp-4); border: 0; border-radius: var(--radius-full); background: var(--bg-3); color: var(--fg-2); }
+.rc-model-picker .rc-chip[aria-pressed='true'] { background: var(--fg-1); color: var(--bg-0); }
+.rc-model-picker .rc-command-list { padding: 0; }
+.rc-model-picker .rc-model-row { gap: var(--sp-4); min-height: 56px; padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-12); }
+.rc-model-picker .rc-model-text strong { display: flex; align-items: center; gap: var(--sp-3); font-weight: 600; }
+.rc-model-picker .rc-model-text small { color: var(--fg-2); }
+.rc-model-picker .rc-model-star { width: 36px; height: 36px; border-radius: var(--radius-8); opacity: 1; transition: color var(--dur-fast), transform 220ms var(--dz-spring); }
+.rc-model-picker .rc-model-star svg { width: 16px; height: 16px; }
+.rc-model-picker .rc-model-star[data-on='true'] { color: var(--pg-ohra); transform: scale(1.15); }
+.rc-model-picker .rc-model-hint { border-top: 0; padding: var(--sp-3) var(--sp-3) 0; color: var(--fg-2); }
+.ui-sheet .rc-model-picker { padding: 0 var(--sp-4) var(--sp-4); }
+.ui-sheet .rc-command-list { max-height: 62dvh; }
+.rc-model-trigger .dz-tile { width: 24px; height: 24px; border-radius: 7px; font-size: 16px; }
+.rc-model-trigger .dz-tile svg { width: 14px; height: 14px; color: var(--fg-1); }
+.dz-tile svg { width: 16px; height: 16px; stroke-width: 2.2; }

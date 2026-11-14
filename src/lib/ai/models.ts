@@ -224,13 +224,22 @@ export type PublicModel = {
   docs: string; missing?: string; options?: MediaOptions; price?: CatalogModel['price']; inputs?: readonly TextInput[];
   /** The model can search the web through Kie. */
   webSearch?: boolean;
+  /** Read from Kie's documentation in the last two weeks: shown as «Nuevo» in the pickers. */
+  fresh?: boolean;
 };
+
+/** `checked` starts with the date the model's page was read («2026-11-10 · …»). */
+export function isFresh(checked: string, now = Date.now()) {
+  const at = Date.parse(checked.slice(0, 10));
+  return Number.isFinite(at) && now - at >= 0 && now - at < 14 * 86400000;
+}
 
 export function publicModel(m: CatalogModel, keyConfigured: boolean): PublicModel {
   return {
     id: m.id, name: m.name, provider: m.provider, category: m.category, status: m.status,
     available: keyConfigured && enabledStatus(m), docs: m.docs, missing: m.missing,
     ...(m.category === 'text' ? {inputs: m.inputs || [], ...(m.webSearch ? {webSearch: true} : {})} : {options: m.options}), price: m.price,
+    ...(isFresh(m.checked) ? {fresh: true} : {}),
   };
 }
 

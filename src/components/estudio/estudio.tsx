@@ -1,14 +1,13 @@
 'use client';
 import {useCallback, useEffect, useMemo, useState} from 'react';
-import * as RadixDialog from '@radix-ui/react-dialog';
-import {ChevronRight, MoreHorizontal, PanelLeftOpen} from 'lucide-react';
+import {ChevronRight, MoreHorizontal} from 'lucide-react';
 import {useCinema, type CinemaJob} from '@/store/cinema';
 import {useCinemaUi} from '@/store/cinema-ui';
 import {useStudioItems, type StudioItem} from '@/store/cinema-projects';
 import {NavTrigger} from '@/components/studio/sidebar';
 import {ImageViewer} from '@/components/cinema/image-viewer';
 import {Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger} from '@/components/ui/menu';
-import {EstudioSidebar, type View} from './sidebar';
+import type {View} from './sidebar';
 import {EstudioHero} from './hero';
 import {EstudioComposer} from './composer';
 import {ProjectGrid, jobsOf, useProjectDialogs, type ProjectActions} from './projects';
@@ -16,7 +15,6 @@ import {ResultGrid} from './results';
 import {ElementsView} from './elements';
 
 const views: View['v'][] = ['home', 'gen', 'el', 'fav', 'all', 'project', 'folder'];
-const COLLAPSED = 'rc-estudio-collapsed';
 
 function readView(): View {
   const p = new URLSearchParams(window.location.search);
@@ -40,6 +38,8 @@ function useView() {
     if (next.id) url.searchParams.set('id', next.id);
     window.history.pushState(null, '', url);
     setView(next);
+    // The site's menu shows which page of the Estudio is open.
+    window.dispatchEvent(new Event('rc-estudio-view'));
     document.getElementById('estudio-main')?.scrollTo({top: 0});
   }, []);
   return [view, go] as const;
@@ -72,8 +72,6 @@ function Missing({go}: {go: (v: View) => void}) {
 /** Cinema Studio's Estudio: one place to write a scene, call the cast with «@» and keep the results by project. */
 export function Estudio() {
   const [view, go] = useView();
-  const [collapsed, setCollapsed] = useState(false);
-  const [drawer, setDrawer] = useState(false);
   const [viewing, setViewing] = useState<CinemaJob | null>(null);
   const jobs = useCinema(s => s.data.jobs);
   const storageError = useCinema(s => s.error);
@@ -84,24 +82,11 @@ export function Estudio() {
   useEffect(() => {
     useStudioItems.getState().hydrate();
     useCinemaUi.getState().restoreAskFirst();
-    try { setCollapsed(localStorage.getItem(COLLAPSED) === '1'); } catch {}
   }, []);
-  // The drawer only exists on a phone: it closes when the window grows.
-  useEffect(() => {
-    const wide = window.matchMedia('(min-width: 768px)');
-    const close = () => { if (wide.matches) setDrawer(false); };
-    wide.addEventListener('change', close);
-    return () => wide.removeEventListener('change', close);
-  }, []);
-  const collapse = () => setCollapsed(c => { try { localStorage.setItem(COLLAPSED, c ? '0' : '1'); } catch {} return !c; });
-
   const projects = useMemo(() => items.filter(i => i.type === 'project').sort((a, b) => b.updatedAt - a.updatedAt), [items]);
   const folders = useMemo(() => items.filter(i => i.type === 'folder').sort((a, b) => b.updatedAt - a.updatedAt), [items]);
   const item = view.id ? items.find(i => i.id === view.id && i.type === view.v) : undefined;
 
-  const side = (drawerMode: boolean) => (
-    <EstudioSidebar view={view} go={go} collapsed={drawerMode ? false : collapsed} onCollapse={drawerMode ? () => setDrawer(false) : collapse} onNew={type => { setDrawer(false); actions.newItem(type); }} onClose={drawerMode ? () => setDrawer(false) : undefined} />
-  );
 
   let page: React.ReactNode;
   if (view.v === 'home') {
@@ -193,21 +178,10 @@ export function Estudio() {
   }
 
   return (
-    <div className="rc-es" data-collapsed={collapsed ? 'true' : undefined}>
-      {side(false)}
-      <RadixDialog.Root open={drawer} onOpenChange={setDrawer}>
-        <RadixDialog.Portal>
-          <RadixDialog.Overlay className="rc-overlay rc-layer rc-drawer-overlay" />
-          <RadixDialog.Content className="rc-drawer rc-layer rc-es-drawer" aria-describedby={undefined}>
-            <RadixDialog.Title className="sr-only">Menú del Estudio</RadixDialog.Title>
-            {side(true)}
-          </RadixDialog.Content>
-        </RadixDialog.Portal>
-      </RadixDialog.Root>
+    <div className="rc-es">
       <div className="rc-es-main" id="estudio-main">
         <header className="rc-es-topbar">
           <NavTrigger />
-          <button type="button" className="rc-es-open-side" onClick={() => setDrawer(true)}><PanelLeftOpen aria-hidden="true" />Estudio</button>
         </header>
         {storageError ? <p className="rc-cinema-warning" role="alert">{storageError}</p> : null}
         {page}

@@ -1,7 +1,7 @@
 'use client';
 import {useMemo, useState, useSyncExternalStore} from 'react';
 import * as Popover from '@radix-ui/react-popover';
-import * as RadixDialog from '@radix-ui/react-dialog';
+import {Sheet} from '@/components/ui/sheet';
 import {Command} from 'cmdk';
 import {Check, ChevronDown, Sparkles, Star} from 'lucide-react';
 import {useFavorites, type FavoriteCategory} from '@/store/favorites';
@@ -9,7 +9,7 @@ import type {PublicModel} from '@/lib/ai/models';
 import {usableStatus} from '@/lib/ai/model-status';
 
 /** What a picker row needs. Text models from /api/personal-chat and media models share it. */
-export type ChatModel = Pick<PublicModel, 'id' | 'name' | 'provider'> & Partial<Pick<PublicModel, 'status' | 'available' | 'missing' | 'category' | 'price' | 'inputs' | 'webSearch' | 'options'>>;
+export type ChatModel = Pick<PublicModel, 'id' | 'name' | 'provider'> & Partial<Pick<PublicModel, 'status' | 'available' | 'missing' | 'category' | 'price' | 'inputs' | 'webSearch' | 'options' | 'fresh'>>;
 
 /** A configured price is only an estimate; the real cost is what Kie reports afterwards. */
 export const estimate = (price: NonNullable<ChatModel['price']>) => 'estimado ≈ ' + price.credits.toLocaleString('es-AR') + ' créditos ' + price.per;
@@ -80,6 +80,7 @@ export function ChatModelPicker({models, value, onChange, disabled, category = '
 
   const trigger = (
     <button type="button" className="rc-model-trigger" disabled={disabled} aria-label={title + ': ' + label}>
+      <span className="dz-tile" data-size="sm" aria-hidden="true">{allowAuto && (value === 'auto' || !current) ? <Sparkles /> : (current?.provider || label).slice(0, 1).toUpperCase()}</span>
       <span>{label}</span>
       <ChevronDown aria-hidden="true" />
     </button>
@@ -87,22 +88,13 @@ export function ChatModelPicker({models, value, onChange, disabled, category = '
 
   const list = <ModelList models={models} value={value} onChoose={choose} autoFocus={!small} category={category} allowAuto={allowAuto} />;
 
+  // On a phone the list rises from the bottom.
   if (small) {
     return (
-      <RadixDialog.Root open={open} onOpenChange={setOpen}>
-        <RadixDialog.Trigger asChild>{trigger}</RadixDialog.Trigger>
-        <RadixDialog.Portal>
-          <RadixDialog.Overlay className="rc-overlay rc-layer" />
-          <RadixDialog.Content
-            className="rc-dialog rc-layer rc-model-sheet"
-            aria-describedby={undefined}
-            onOpenAutoFocus={e => { e.preventDefault(); (e.currentTarget as HTMLElement).focus(); }}
-          >
-            <RadixDialog.Title className="rc-dialog-title">{title}</RadixDialog.Title>
-            {list}
-          </RadixDialog.Content>
-        </RadixDialog.Portal>
-      </RadixDialog.Root>
+      <>
+        <span style={{display: 'contents'}} onClick={() => { if (!disabled) setOpen(true); }}>{trigger}</span>
+        <Sheet open={open} onOpenChange={setOpen} title={title}>{list}</Sheet>
+      </>
     );
   }
 
@@ -117,6 +109,9 @@ export function ChatModelPicker({models, value, onChange, disabled, category = '
     </Popover.Root>
   );
 }
+
+/** One of the four pigments for each brand, always the same one. */
+const brandTone = (provider: string) => ['kinovar', 'ohra', 'lazur', 'zelen'][[...provider].reduce((n, c) => n + c.charCodeAt(0), 0) % 4];
 
 function Row({m, value, favorite, onChoose, onFavorite}: {m: ChatModel; value: string; favorite: boolean; onChoose: (id: string) => void; onFavorite: (id: string) => void}) {
   const ok = usable(m);
@@ -134,10 +129,10 @@ function Row({m, value, favorite, onChoose, onFavorite}: {m: ChatModel; value: s
       className="rc-model-row"
       data-unverified={m.status && !usableStatus(m.status) ? 'true' : undefined}
     >
-      <span className="rc-model-icon" aria-hidden="true">{(m.provider || m.name).slice(0, 1).toUpperCase()}</span>
+      <span className="dz-tile" data-tone={ok ? brandTone(m.provider || m.name) : 'off'} aria-hidden="true">{(m.provider || m.name).slice(0, 1).toUpperCase()}</span>
       <span className="rc-model-text">
         {/* The name read aloud is the visible text, with a pause before the detail. */}
-        <strong>{modelLabel(m.name)}{favorite ? <span className="sr-only">, favorito</span> : null}</strong>
+        <strong>{modelLabel(m.name)}{m.fresh && ok ? <span className="dz-new">Nuevo</span> : null}{favorite ? <span className="sr-only">, favorito</span> : null}</strong>
         <small><span className="sr-only">. </span>{detail}</small>
       </span>
       {ok ? (
@@ -179,7 +174,7 @@ function ModelList({models, value, onChoose, autoFocus, category, allowAuto}: {m
       <Command className="rc-command" label="Elegir modelo" loop defaultValue={value} value={highlighted} onValueChange={setHighlighted}>
         <Command.Input
           className="rc-command-input"
-          placeholder="Buscar modelo"
+          placeholder={'Buscar entre ' + models.length + ' modelos'}
           autoFocus={autoFocus}
           onKeyDown={e => {
             // Ctrl/⌘ + Enter marks the highlighted model as favorite without choosing it.
@@ -200,7 +195,7 @@ function ModelList({models, value, onChoose, autoFocus, category, allowAuto}: {m
           <Command.Empty className="rc-command-empty">Ningún modelo coincide.</Command.Empty>
           {allowAuto && provider === null ? (
             <Command.Item value="auto" keywords={['automático', 'auto']} onSelect={() => onChoose('auto')} className="rc-model-row">
-              <span className="rc-model-icon" aria-hidden="true"><Sparkles /></span>
+              <span className="dz-tile" aria-hidden="true"><Sparkles /></span>
               <span className="rc-model-text">
                 <strong>Automático</strong>
                 <small>El estudio elige un modelo disponible.</small>
@@ -209,8 +204,10 @@ function ModelList({models, value, onChoose, autoFocus, category, allowAuto}: {m
             </Command.Item>
           ) : null}
           {fav.length ? <Command.Group heading="Favoritos" className="rc-command-group">{fav.map(m => row(m, true))}</Command.Group> : null}
-          {tested.length ? <Command.Group heading={untested.length ? 'Probados en el estudio' : fav.length ? 'Otros disponibles' : 'Disponibles en Kie'} className="rc-command-group">{tested.map(m => row(m))}</Command.Group> : null}
-          {untested.length ? <Command.Group heading="Sin probar todavía · según la documentación de Kie" className="rc-command-group">{untested.map(m => row(m))}</Command.Group> : null}
+          {tested.length ? <Command.Group heading={untested.length ? 'Destacados · probados en el estudio' : fav.length ? 'Otros disponibles' : 'Disponibles en Kie'} className="rc-command-group">{tested.map(m => row(m))}</Command.Group> : null}
+          {/* The rest, set up from Kie's documentation, by brand. */}
+          {providers.filter(p => untested.some(m => m.provider === p)).map(p => <Command.Group key={p} heading={p + ' · según la documentación de Kie'} className="rc-command-group">{untested.filter(m => m.provider === p).map(m => row(m))}</Command.Group>)}
+          {untested.some(m => !m.provider) ? <Command.Group heading="Otros · según la documentación de Kie" className="rc-command-group">{untested.filter(m => !m.provider).map(m => row(m))}</Command.Group> : null}
           {off.length ? <Command.Group heading={'No disponibles (' + off.length + ')'} className="rc-command-group">{off.map(m => row(m))}</Command.Group> : null}
         </Command.List>
       </Command>
